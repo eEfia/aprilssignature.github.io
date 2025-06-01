@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aprils Signature</title>
+  <style>
+    :root {
+      --gold: #b08c4f;
+      --black: #000000;
+      --font: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background-color: var(--black);
+      color: var(--gold);
+    }
+
+    header, footer {
+      background-color: var(--black);
+      color: var(--gold);
+      text-align: center;
+      padding: 1em 0;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1.5em;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    nav a {
+      color: var(--gold);
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    section {
+      padding: 2em;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    h1, h2 {
+      color: var(--gold);
+    }
+
+    .form-group {
+      margin-bottom: 1em;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 0.8em;
+      margin-top: 0.3em;
+      border: none;
+      border-radius: 5px;
+    }
+
+    button {
+      background-color: var(--gold);
+      color: var(--black);
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .socials a {
+      margin: 0 10px;
+      color: var(--gold);
+    }
+
+    .portfolio img {
+      max-width: 100%;
+      height: auto;
+      margin: 1em 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Aprils Signature</h1>
+    <nav>
+      <a href="#portfolio">Portfolio</a>
+      <a href="#shop">Shop</a>
+      <a href="#form">Order Form</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <section id="portfolio">
+    <h2>Portfolio</h2>
+    <p>Explore our latest dressmaking, rhinestone, and DTF works.</p>
+    <!-- Sample image -->
+    <div class="portfolio">
+      <img src="sample.jpg" alt="Sample work from Aprils Signature">
+    </div>
+  </section>
+
+  <section id="shop">
+    <h2>Shop</h2>
+    <p>Coming soon! Browse our exclusive items and order online.</p>
+  </section>
+
+  <section id="form">
+    <h2>Place an Order</h2>
+    <form>
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" required>
+      </div>
+      <div class="form-group">
+        <label for="service">Type of Service</label>
+        <select id="service" required>
+          <option value="Dressmaking">Dressmaking</option>
+          <option value="Rhinestone Embellishment">Rhinestone Embellishment</option>
+          <option value="DTF Transfer">DTF Transfer</option>
+          <option value="Training">Training</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="details">Order Details</label>
+        <textarea id="details" rows="4"></textarea>
+      </div>
+      <button type="submit">Submit</button>
+    </form>
+  </section>
+
+  <section id="contact">
+    <h2>Contact Us</h2>
+    <p>Email: info@aprilssignature.com</p>
+    <p>Phone / WhatsApp: 0592983027</p>
+    <div class="socials">
+      <a href="https://www.instagram.com/aprilssignature_" target="_blank">Instagram</a>
+      <a href="https://www.tiktok.com/@aprilssignature" target="_blank">TikTok</a>
+      <a href="https://www.facebook.com/Aprilssignature" target="_blank">Facebook</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>&copy; 2025 Aprils Signature. All rights reserved.</p>
+  </footer>
+</body>
+</html>
