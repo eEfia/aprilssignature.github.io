@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Aprils Signature | Admin Dashboard</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f7f7f7;
+            color: #222;
+        }
+
+        header {
+            background: #008c95;
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        header h1 {
+            font-size: 22px;
+        }
+
+        header p {
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .logout-btn {
+            background: #c9a227;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .dashboard {
+            display: flex;
+            min-height: calc(100vh - 80px);
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #222;
+            padding: 20px 0;
+        }
+
+        .sidebar button {
+            width: 100%;
+            padding: 14px 20px;
+            border: none;
+            background: transparent;
+            color: white;
+            text-align: left;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .sidebar button:hover,
+        .sidebar button.active {
+            background: #008c95;
+        }
+
+        .main {
+            flex: 1;
+            padding: 30px;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .section h2 {
+            color: #008c95;
+            margin-bottom: 10px;
+        }
+
+        .section-intro {
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 22px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            color: #008c95;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .notice {
+            background: #fff;
+            border-left: 4px solid #c9a227;
+            padding: 18px;
+            margin-top: 25px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .sidebar button {
+                font-size: 13px;
+            }
+
+            .main {
+                padding: 20px;
+            }
+
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <div>
+        <h1>Aprils Signature</h1>
+        <p>Admin Dashboard</p>
+    </div>
+
+    <button class="logout-btn" onclick="logout()">Log Out</button>
+</header>
+
+<div class="dashboard">
+
+    <aside class="sidebar">
+
+        <button class="active" onclick="showSection('dashboard')">
+            Dashboard Overview
+        </button>
+
+        <button onclick="showSection('content')">
+            Website Content
+        </button>
+
+        <button onclick="showSection('gallery')">
+            Gallery & Media
+        </button>
+
+        <button onclick="showSection('services')">
+            Services
+        </button>
+
+        <button onclick="showSection('training')">
+            Training
+        </button>
+
+        <button onclick="showSection('registrations')">
+            Training Registrations
+        </button>
+
+        <button onclick="showSection('orders')">
+            Order / Quote Requests
+        </button>
+
+        <button onclick="showSection('enquiries')">
+            Customer Enquiries
+        </button>
+
+        <button onclick="showSection('testimonials')">
+            Testimonials
+        </button>
+
+        <button onclick="showSection('faq')">
+            FAQs
+        </button>
+
+        <button onclick="showSection('policies')">
+            Policies & Terms
+        </button>
+
+        <button onclick="showSection('contact')">
+            Contact Information
+        </button>
+
+        <button onclick="showSection('settings')">
+            Website Settings
+        </button>
+
+    </aside>
+
+
+    <main class="main">
+
+        <section id="dashboard" class="section active">
+
+            <h2>Dashboard Overview</h2>
+
+            <p class="section-intro">
+                Welcome to the Aprils Signature Admin Dashboard.
+            </p>
+
+            <div class="cards">
+
+                <div class="card">
+                    <h3>Gallery</h3>
+                    <p>Manage website images and featured creations.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Training</h3>
+                    <p>Manage training programmes and classes.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Orders / Quotes</h3>
+                    <p>View customer order and quote requests.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Registrations</h3>
+                    <p>View training registrations.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Testimonials</h3>
+                    <p>Manage customer testimonials.</p>
+                </div>
+
+                <div class="card">
+                    <h3>FAQs</h3>
+                    <p>Manage frequently asked questions.</p>
+                </div>
+
+            </div>
+
+            <div class="notice">
+                <strong>Aprils Signature</strong><br>
+                Elegance in Every Stitch
+            </div>
+
+        </section>
+
+
+        <section id="content" class="section">
+
+            <h2>Website Content</h2>
+
+            <p class="section-intro">
+                Manage homepage and general website content.
+            </p>
+
+            <div class="card">
+                Website content management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="gallery" class="section">
+
+            <h2>Gallery & Media</h2>
+
+            <p class="section-intro">
+                Manage Gallery photos, garment titles and Featured Collection.
+            </p>
+
+            <div class="card">
+                Gallery management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="services" class="section">
+
+            <h2>Services</h2>
+
+            <p class="section-intro">
+                Manage Aprils Signature services.
+            </p>
+
+            <div class="card">
+                Streetwear<br>
+                Ladies Wear<br>
+                Kids Wear<br>
+                Embellishment Services<br>
+                Practical Fashion Training
+            </div>
+
+        </section>
+
+
+        <section id="training" class="section">
+
+            <h2>Training</h2>
+
+            <p class="section-intro">
+                Manage training programmes, specialty classes and add-on classes.
+            </p>
+
+            <div class="card">
+                Training management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="registrations" class="section">
+
+            <h2>Training Registrations</h2>
+
+            <p class="section-intro">
+                View training registrations submitted through the website.
+            </p>
+
+            <div class="card">
+                Training registrations will appear here.
+            </div>
+
+        </section>
+
+
+        <section id="orders" class="section">
+
+            <h2>Order / Quote Requests</h2>
+
+            <p class="section-intro">
+                View customer order and quote requests.
+            </p>
+
+            <div class="card">
+                Order and quote requests will appear here.
+            </div>
+
+        </section>
+
+
+        <section id="enquiries" class="section">
+
+            <h2>Customer Enquiries</h2>
+
+            <p class="section-intro">
+                View enquiries submitted by customers.
+            </p>
+
+            <div class="card">
+                Customer enquiries will appear here.
+            </div>
+
+        </section>
+
+
+        <section id="testimonials" class="section">
+
+            <h2>Testimonials</h2>
+
+            <p class="section-intro">
+                Add, edit, display and remove customer testimonials.
+            </p>
+
+            <div class="card">
+                Testimonial management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="faq" class="section">
+
+            <h2>Frequently Asked Questions</h2>
+
+            <p class="section-intro">
+                Manage questions and answers displayed on the website.
+            </p>
+
+            <div class="card">
+                FAQ management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="policies" class="section">
+
+            <h2>Policies & Terms</h2>
+
+            <p class="section-intro">
+                Manage Payment, Refund, Delivery & Collection and Privacy Policies.
+            </p>
+
+            <div class="card">
+                Policy management will be connected here.
+            </div>
+
+        </section>
+
+
+        <section id="contact" class="section">
+
+            <h2>Contact Information</h2>
+
+            <p class="section-intro">
+                Manage business contact information and opening hours.
+            </p>
+
+            <div class="card">
+                Aprils Signature<br>
+                +233 59 298 3027<br>
+                info@aprilssignature.com<br>
+                Winneba, Central Region
+            </div>
+
+        </section>
+
+
+        <section id="settings" class="section">
+
+            <h2>Website Settings</h2>
+
+            <p class="section-intro">
+                Website settings and administrative controls.
+            </p>
+
+            <div class="card">
+                Website settings will be connected here.
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script>
+
+function showSection(sectionId) {
+
+    const sections = document.querySelectorAll('.section');
+
+    sections.forEach(function(section) {
+        section.classList.remove('active');
+    });
+
+    const buttons = document.querySelectorAll('.sidebar button');
+
+    buttons.forEach(function(button) {
+        button.classList.remove('active');
+    });
+
+    document.getElementById(sectionId).classList.add('active');
+
+    event.target.classList.add('active');
+}
+
+
+function logout() {
+
+    alert("Admin logout will be connected when secure administrator authentication is added.");
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2002 @@
+/* =========================================================
+   APRILS SIGNATURE
+   MASTER WEBSITE STYLESHEET
+   ========================================================= */
+
+
+/* =========================================================
+   1. BASIC RESET
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #ffffff;
+    color: #222222;
+    line-height: 1.6;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+a {
+    color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+
+/* =========================================================
+   2. BRAND VARIABLES
+   ========================================================= */
+
+:root {
+    --teal: #0f7775;
+    --teal-dark: #075957;
+    --teal-light: #e9f5f4;
+
+    --gold: #c8a24a;
+    --gold-light: #e9d79a;
+    --gold-dark: #9d792b;
+
+    --black: #171717;
+    --white: #ffffff;
+
+    --light-bg: #f7f7f7;
+    --border: #dddddd;
+
+    --container: 1200px;
+
+    --shadow:
+        0 6px 20px rgba(0, 0, 0, 0.08);
+
+    --radius: 10px;
+}
+
+
+/* =========================================================
+   3. GENERAL CONTAINER
+   ========================================================= */
+
+.container {
+    width: min(100% - 40px, var(--container));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   4. HEADER
+   ========================================================= */
+
+header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 1000;
+}
+
+header .container {
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.logo {
+    display: inline-block;
+    text-decoration: none;
+    color: var(--teal);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+header p {
+    margin: 0 0 12px;
+    color: var(--black);
+    font-size: 14px;
+}
+
+
+/* =========================================================
+   5. NAVIGATION
+   ========================================================= */
+
+nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+nav a {
+    text-decoration: none;
+    color: var(--black);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 14px;
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+}
+
+nav a:hover,
+nav a:focus {
+    background: var(--teal);
+    color: var(--white);
+}
+
+
+/* =========================================================
+   6. MAIN
+   ========================================================= */
+
+main {
+    min-height: 60vh;
+}
+
+
+/* =========================================================
+   7. PAGE INTRO
+   ========================================================= */
+
+.page-intro {
+    background:
+        linear-gradient(
+            135deg,
+            var(--teal),
+            var(--teal-dark)
+        );
+
+    color: var(--white);
+    text-align: center;
+    padding: 75px 20px;
+}
+
+.page-intro h1 {
+    margin: 0 0 15px;
+    font-size: clamp(34px, 6vw, 58px);
+    line-height: 1.1;
+}
+
+.page-intro p {
+    max-width: 760px;
+    margin: 0 auto;
+    font-size: 18px;
+}
+
+
+/* =========================================================
+   8. HERO
+   ========================================================= */
+
+.hero {
+    min-height: 570px;
+
+    display: flex;
+    align-items: center;
+
+    background: var(--teal);
+
+    color: var(--white);
+}
+
+.hero-content {
+    max-width: 800px;
+    padding: 65px 0;
+}
+
+.hero h1 {
+    margin: 0 0 20px;
+    font-size: clamp(40px, 7vw, 72px);
+    line-height: 1.05;
+}
+
+.hero h2 {
+    margin: 0 0 20px;
+    font-size: clamp(24px, 4vw, 42px);
+}
+
+.hero p {
+    font-size: 19px;
+    max-width: 700px;
+}
+
+.hero h1,
+.hero h2,
+.hero p {
+    color: var(--white);
+}
+
+
+/* =========================================================
+   HERO LOGO
+   ========================================================= */
+
+/*
+   The master correction removes the duplicate logo
+   from the teal hero section.
+*/
+
+.hero-logo {
+    display: none;
+}
+
+.hero-logo img {
+    display: none;
+}
+
+
+/* =========================================================
+   9. SECTIONS
+   ========================================================= */
+
+section {
+    padding: 70px 0;
+}
+
+section h2 {
+    color: var(--teal);
+    font-size: clamp(28px, 4vw, 40px);
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+section h3 {
+    color: var(--black);
+}
+
+
+/* =========================================================
+   10. BUTTONS
+   ========================================================= */
+
+.button,
+button.button {
+    display: inline-block;
+
+    border: none;
+
+    background: var(--teal);
+    color: var(--white);
+
+    text-decoration: none;
+
+    padding: 13px 22px;
+
+    border-radius: 6px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.button:hover,
+button.button:hover {
+    background: var(--teal-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.button.gold {
+    background: var(--gold);
+    color: var(--black);
+}
+
+.button.gold:hover {
+    background: var(--gold-dark);
+    color: var(--white);
+}
+
+.cta-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 25px;
+}
+
+
+/* =========================================================
+   11. CARDS
+   ========================================================= */
+
+.card,
+.service-card,
+.training-card,
+.gallery-item,
+.contact-item,
+.admin-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.card {
+    padding: 25px;
+}
+
+
+/* =========================================================
+   12. SERVICE SECTIONS
+   ========================================================= */
+
+.service-section {
+    background: var(--white);
+}
+
+.service-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.service-section .container {
+    max-width: 900px;
+}
+
+.service-section ul,
+.about-section ul {
+    padding-left: 22px;
+}
+
+.service-section li,
+.about-section li {
+    margin-bottom: 8px;
+}
+
+
+/* =========================================================
+   13. ABOUT PAGE
+   ========================================================= */
+
+.about-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.about-section .container {
+    max-width: 950px;
+}
+
+.about-section p {
+    margin: 0 0 18px;
+}
+
+.why-choose-section {
+    background: var(--light-bg);
+}
+
+.why-choose-section article {
+    background: var(--white);
+    padding: 25px;
+    margin-bottom: 18px;
+    border-left: 4px solid var(--gold);
+    border-radius: 7px;
+}
+
+.location-section {
+    background: var(--white);
+}
+
+
+/* =========================================================
+   14. GALLERY
+   ========================================================= */
+
+.gallery-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.gallery-item {
+    overflow: hidden;
+}
+
+.gallery-image {
+    background: var(--light-bg);
+
+    aspect-ratio: 3 / 4;
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gallery-image img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+
+/*
+   IMPORTANT:
+   Gallery videos remain as they were approved.
+*/
+
+.gallery-image video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.gallery-item:hover img {
+    transform: scale(1.03);
+}
+
+.gallery-item h3 {
+    padding: 18px;
+    margin: 0;
+    font-size: 18px;
+}
+
+.featured-collection {
+    background: var(--light-bg);
+}
+
+.full-gallery {
+    background: var(--white);
+}
+
+.gallery-note {
+    background: var(--teal-light);
+    text-align: center;
+}
+
+
+/* =========================================================
+   15. HOME FEATURED COLLECTION
+   ========================================================= */
+
+.featured-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.featured-card {
+    overflow: hidden;
+
+    background: var(--white);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius);
+
+    box-shadow: var(--shadow);
+}
+
+.featured-video {
+    aspect-ratio: 16 / 10;
+
+    background: var(--black);
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/*
+   CORRECTION:
+   Home Featured Collection videos must show the
+   complete video instead of cropping it.
+*/
+
+/*
+   CORRECTION:
+   Home Featured Collection videos must appear
+   at the same larger displayed size as Gallery videos.
+*/
+
+.featured-video {
+    aspect-ratio: 3 / 4;
+
+    background: var(--black);
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.featured-video video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    background: var(--black);
+}
+
+.featured-card h3 {
+    margin: 0;
+
+    padding: 18px;
+
+    color: var(--black);
+}
+
+.section-heading p {
+    max-width: 760px;
+}
+
+
+/* =========================================================
+   16. HOME ABOUT / WHAT WE DO CARDS
+   ========================================================= */
+
+.about-section .container,
+.services-preview .container,
+.why-section .container {
+    width: min(100% - 40px, var(--container));
+}
+
+.about-section .container {
+    max-width: 950px;
+}
+
+.service-grid,
+.services-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.service-card {
+    padding: 28px;
+    min-width: 0;
+}
+
+.service-card h3 {
+    margin-top: 0;
+    color: var(--teal);
+}
+
+.service-card p {
+    margin-bottom: 0;
+}
+
+
+/* =========================================================
+   17. TRAINING
+   ========================================================= */
+
+.training-section {
+    background: var(--white);
+}
+
+.training-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.training-card {
+    padding: 25px;
+}
+
+.training-card h3 {
+    color: var(--teal);
+}
+
+.training-card .duration {
+    color: var(--gold-dark);
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   18. FORMS
+   ========================================================= */
+
+form {
+    max-width: 900px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    font-weight: 700;
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+
+    padding: 12px 14px;
+
+    border: 1px solid #cfcfcf;
+
+    border-radius: 6px;
+
+    background: var(--white);
+
+    color: var(--black);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: 2px solid var(--gold-light);
+    border-color: var(--teal);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 140px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    margin-right: 7px;
+}
+
+
+/* =========================================================
+   19. CONTACT
+   ========================================================= */
+
+.contact-section {
+    background: var(--white);
+}
+
+.contact-details {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 20px;
+}
+
+.contact-item {
+    padding: 22px;
+}
+
+.contact-item h3 {
+    color: var(--teal);
+    margin-top: 0;
+}
+
+.contact-item a {
+    color: var(--teal);
+    font-weight: 700;
+}
+
+.contact-action {
+    background: var(--teal-light);
+    text-align: center;
+}
+
+.contact-action .container {
+    max-width: 800px;
+}
+
+.contact-form-section {
+    background: var(--light-bg);
+}
+
+.social-section {
+    text-align: center;
+}
+
+.social-links {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    justify-content: center;
+
+    gap: 12px;
+}
+
+.social-links a {
+    display: inline-block;
+
+    padding: 10px 18px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 6px;
+
+    text-decoration: none;
+
+    font-weight: 700;
+}
+
+.social-links a:hover {
+    background: var(--teal);
+    color: var(--white);
+}
+
+
+/* =========================================================
+   20. POLICIES
+   ========================================================= */
+
+.policy-section {
+    background: var(--white);
+}
+
+.policy-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.policy-section .container {
+    max-width: 950px;
+}
+
+.policy-section h3 {
+    color: var(--teal);
+}
+
+
+/*
+   GOLD TRAINING POLICY HEADINGS
+*/
+
+.training-policy-heading {
+    color: var(--gold) !important;
+    font-weight: 800;
+    margin-top: 35px;
+    margin-bottom: 12px;
+}
+
+.training-policy-list {
+    margin-top: 0;
+    padding-left: 24px;
+}
+
+.training-policy-list li::marker {
+    color: var(--gold);
+}
+
+
+/* =========================================================
+   21. QUOTE / ORDER PAGE
+   ========================================================= */
+
+.quote-section {
+    background: var(--light-bg);
+}
+
+.quote-form {
+    background: var(--white);
+
+    padding: 30px;
+
+    border-radius: var(--radius);
+
+    box-shadow: var(--shadow);
+}
+
+.upload-note {
+    background: var(--teal-light);
+
+    border-left: 4px solid var(--teal);
+
+    padding: 15px;
+
+    margin-bottom: 20px;
+}
+
+
+/*
+   Quote page heading area should use the same
+   branded teal treatment as the other pages.
+*/
+
+.quote-intro {
+    background:
+        linear-gradient(
+            135deg,
+            var(--teal),
+            var(--teal-dark)
+        );
+
+    color: var(--white);
+
+    text-align: center;
+
+    padding: 65px 20px;
+}
+
+.quote-intro h1 {
+    color: var(--white);
+}
+
+.quote-intro p {
+    color: var(--white);
+
+    max-width: 760px;
+
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   22. HOW IT WORKS
+   ========================================================= */
+
+.how-it-works {
+    background: var(--light-bg);
+}
+
+.process-step {
+    background: var(--white);
+
+    padding: 22px;
+
+    margin-bottom: 15px;
+
+    border-left: 4px solid var(--gold);
+
+    border-radius: 6px;
+}
+
+.process-step h3 {
+    margin-top: 0;
+    color: var(--teal);
+}
+
+
+/* =========================================================
+   23. CTA
+   ========================================================= */
+
+.cta-section {
+    background: var(--teal);
+
+    color: var(--white);
+
+    text-align: center;
+}
+
+.cta-section h2 {
+    color: var(--white);
+}
+
+.cta-section p {
+    max-width: 800px;
+
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   24. FOOTER
+   ========================================================= */
+
+.site-footer {
+    margin-top: 0;
+}
+
+.footer-top {
+    background: var(--teal);
+
+    color: var(--white);
+
+    padding: 48px 0;
+}
+
+.footer-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 50px;
+}
+
+.footer-column {
+    min-width: 0;
+}
+
+.footer-column h3,
+.footer-column h4 {
+    margin-top: 0;
+
+    color: var(--gold);
+
+    font-weight: 800;
+}
+
+.footer-column h4 {
+    margin-top: 28px;
+}
+
+.footer-column p {
+    margin: 0 0 16px;
+}
+
+.footer-column a {
+    color: var(--white);
+
+    text-decoration: none;
+}
+
+.footer-column a:hover,
+.footer-column a:focus {
+    color: var(--gold-light);
+}
+
+
+/*
+   FOOTER ADDRESS
+   Three separate lines.
+*/
+
+.footer-address {
+    line-height: 1.7;
+}
+
+.footer-address span {
+    display: block;
+}
+
+
+/*
+   FOOTER SOCIAL LINKS
+*/
+
+.footer-social {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 14px;
+}
+
+.footer-social a,
+.footer-social span {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    text-decoration: none;
+}
+
+.footer-social a {
+    color: var(--white);
+}
+
+.footer-social a:hover,
+.footer-social a:focus {
+    color: var(--gold-light);
+}
+
+.footer-social img {
+    width: 30px;
+
+    height: 30px;
+
+    object-fit: cover;
+
+    border-radius: 5px;
+}
+
+
+/*
+   Find Us on Google
+*/
+
+.footer-google {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    color: var(--white);
+
+    text-decoration: none;
+}
+
+.footer-google:hover,
+.footer-google:focus {
+    color: var(--gold-light);
+}
+
+
+/*
+   Map is retained as a reusable style in case it is
+   used elsewhere. The final footer correction removes
+   the footer map itself.
+*/
+
+.footer-map {
+    display: none;
+}
+
+.footer-map img {
+    width: 30px;
+    height: 30px;
+
+    object-fit: cover;
+
+    border-radius: 5px;
+}
+
+
+/*
+   Footer copyright
+*/
+
+.footer-bottom {
+    background: var(--black);
+
+    color: var(--white);
+
+    padding: 18px 0;
+
+    text-align: center;
+}
+
+.footer-bottom p {
+    margin: 0;
+}
+
+
+/* =========================================================
+   25. ADMIN DASHBOARD
+   ========================================================= */
+
+.admin-page {
+    min-height: 100vh;
+
+    background: var(--light-bg);
+}
+
+.admin-header {
+    background: var(--teal);
+
+    color: var(--white);
+
+    padding: 25px 0;
+}
+
+.admin-header h1 {
+    margin: 0;
+    color: var(--white);
+}
+
+.admin-container {
+    max-width: var(--container);
+
+    margin: 0 auto;
+
+    padding: 35px 20px;
+}
+
+.admin-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 20px;
+}
+
+.admin-card {
+    padding: 25px;
+}
+
+.admin-number {
+    color: var(--teal);
+
+    font-size: 34px;
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   26. NOTICES
+   ========================================================= */
+
+.notice {
+    background: #fff8e6;
+
+    border-left: 4px solid var(--gold);
+
+    padding: 18px;
+
+    margin-bottom: 25px;
+}
+
+.success-message {
+    background: #eaf7ee;
+
+    border-left: 4px solid #2d8a4b;
+
+    padding: 15px;
+}
+
+.error-message {
+    background: #fff0f0;
+
+    border-left: 4px solid #b3261e;
+
+    padding: 15px;
+}
+
+
+/* =========================================================
+   27. GALLERY FULL-SIZE VIEWER
+   ========================================================= */
+
+#galleryViewer {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 9999;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 30px;
+
+    background: rgba(0, 0, 0, 0.88);
+}
+
+#galleryViewer.active {
+    display: flex;
+}
+
+#galleryViewerContent {
+    width: min(94vw, 1200px);
+
+    height: min(90vh, 850px);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+#galleryViewerContent img,
+#galleryViewerContent video {
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    object-fit: contain;
+
+    display: block;
+}
+
+#galleryViewerClose {
+    position: absolute;
+
+    top: 18px;
+
+    right: 24px;
+
+    width: 45px;
+
+    height: 45px;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.95);
+
+    color: #171717;
+
+    font-size: 32px;
+
+    line-height: 1;
+
+    cursor: pointer;
+
+    z-index: 10000;
+}
+
+#galleryViewerClose:hover {
+    background: var(--gold);
+}
+
+
+/* =========================================================
+   28. APRILS SIGNATURE FULL-SIZE GALLERY VIEWER
+   ========================================================= */
+
+#aprilGalleryViewer {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 99999;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 40px;
+
+    background: rgba(0, 0, 0, 0.90);
+}
+
+#aprilGalleryViewer.april-viewer-open {
+    display: flex;
+}
+
+#aprilGalleryViewerContent {
+    width: 92vw;
+
+    height: 88vh;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+#aprilGalleryViewerContent img,
+#aprilGalleryViewerContent video {
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    object-fit: contain;
+}
+
+#aprilGalleryClose {
+    position: absolute;
+
+    top: 18px;
+
+    right: 22px;
+
+    width: 48px;
+
+    height: 48px;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: #ffffff;
+
+    color: #171717;
+
+    font-size: 34px;
+
+    line-height: 1;
+
+    cursor: pointer;
+
+    z-index: 100000;
+}
+
+#aprilGalleryClose:hover {
+    background: var(--gold);
+}
+
+
+/* =========================================================
+   29. ABOUT SHOP IMAGE / PHOTO 5
+   ========================================================= */
+
+/*
+   Only the About-page workshop/shop image is affected.
+   Other Gallery images are not changed.
+*/
+
+.location-image {
+    width: min(100%, 760px);
+    height: 300px;
+    margin: 25px auto 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: var(--light-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.location-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    cursor: pointer;
+}
+
+/*
+   Alternative workshop image class used by the
+   existing About-page markup.
+*/
+
+.workshop-gallery-image {
+    background: var(--light-bg);
+
+    width: 100%;
+
+    min-height: 420px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    max-height: 600px;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.workshop-section-wide .container {
+    max-width: 1100px;
+}
+
+.workshop-section-wide .workshop-gallery-image {
+    width: 100%;
+
+    aspect-ratio: 16 / 9;
+
+    background: var(--light-bg);
+
+    overflow: hidden;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+.workshop-section-wide .workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.workshop-section-wide .gallery-grid {
+    display: block;
+
+    width: 100%;
+
+    max-width: 980px;
+
+    margin: 0 auto;
+}
+
+.workshop-section-wide .gallery-item {
+    width: 100%;
+}
+
+.workshop-section-wide .workshop-gallery-image {
+    width: 100%;
+
+    aspect-ratio: 16 / 9;
+
+    overflow: hidden;
+
+    background: var(--light-bg);
+}
+
+.workshop-section-wide .workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+
+/* =========================================================
+   30. WEBSITE-WIDE HEADER SYSTEM
+   ========================================================= */
+
+.site-header {
+    background: var(--white);
+
+    border-bottom: 1px solid var(--border);
+
+    position: relative;
+
+    z-index: 1000;
+}
+
+.header-inner {
+    min-height: 82px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 24px;
+
+    padding-top: 12px;
+
+    padding-bottom: 12px;
+}
+
+.brand {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    text-decoration: none;
+
+    min-width: 0;
+}
+
+.brand-logo {
+    width: 46px;
+
+    height: 46px;
+
+    object-fit: contain;
+
+    flex: 0 0 auto;
+}
+
+.brand-text {
+    display: flex;
+
+    flex-direction: column;
+
+    line-height: 1.15;
+}
+
+.brand-name {
+    color: var(--teal);
+
+    font-size: 25px;
+
+    font-weight: 700;
+
+    letter-spacing: .3px;
+}
+
+.brand-tagline {
+    color: var(--black);
+
+    font-size: 13px;
+
+    margin-top: 4px;
+}
+
+.main-navigation {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: flex-end;
+
+    flex-wrap: wrap;
+
+    gap: 6px;
+}
+
+.main-navigation a {
+    white-space: nowrap;
+}
+
+.menu-toggle {
+    display: none;
+
+    width: 44px;
+
+    height: 44px;
+
+    padding: 8px;
+
+    border: 1px solid var(--teal);
+
+    border-radius: 6px;
+
+    background: var(--white);
+
+    cursor: pointer;
+}
+
+.menu-toggle span {
+    display: block;
+
+    width: 100%;
+
+    height: 3px;
+
+    margin: 4px 0;
+
+    background: var(--teal);
+
+    border-radius: 3px;
+}
+
+
+/* =========================================================
+   31. STICKY WHATSAPP
+   ========================================================= */
+
+.whatsapp-button {
+    position: fixed;
+
+    right: 20px;
+
+    bottom: 20px;
+
+    width: 56px;
+
+    height: 56px;
+
+    z-index: 9999;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 5px 15px rgba(0, 0, 0, .22);
+
+    background: #25D366;
+}
+
+.whatsapp-button img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: cover;
+}
+
+
+/* =========================================================
+   32. ACCESSIBILITY
+   ========================================================= */
+
+a:focus,
+button:focus,
+input:focus,
+textarea:focus,
+select:focus {
+    outline-offset: 2px;
+}
+
+
+/* =========================================================
+   33. PRINT
+   ========================================================= */
+
+@media print {
+
+    nav,
+    .button,
+    .cta-buttons,
+    .contact-action,
+    footer {
+        display: none !important;
+    }
+
+    body {
+        background: #ffffff;
+
+        color: #000000;
+    }
+}
+
+
+/* =========================================================
+   34. RESPONSIVE TABLETS
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    .gallery-grid,
+    .training-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .contact-details {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .header-inner {
+        flex-wrap: wrap;
+    }
+
+    .menu-toggle {
+        display: block;
+
+        margin-left: auto;
+    }
+
+    .main-navigation {
+        display: none;
+
+        width: 100%;
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+        gap: 2px;
+
+        padding-top: 10px;
+    }
+
+    .main-navigation.is-open {
+        display: flex;
+    }
+
+    .main-navigation a {
+        width: 100%;
+    }
+
+    .service-grid,
+    .services-grid,
+    .featured-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+
+/* =========================================================
+   35. RESPONSIVE PHONES
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .container {
+        width: min(100% - 28px, var(--container));
+    }
+
+    section {
+        padding: 50px 0;
+    }
+
+    .page-intro {
+        padding: 55px 15px;
+    }
+
+    nav {
+        flex-direction: column;
+
+        gap: 2px;
+    }
+
+    nav a {
+        display: block;
+
+        width: 100%;
+    }
+
+    .hero {
+        min-height: 520px;
+    }
+
+    .hero-content {
+        padding: 55px 0;
+    }
+
+    .gallery-grid,
+    .training-grid,
+    .contact-details,
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .service-grid,
+    .services-grid,
+    .featured-grid,
+    .footer-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quote-form {
+        padding: 20px;
+    }
+
+    .cta-buttons {
+        flex-direction: column;
+    }
+
+    .cta-buttons .button {
+        width: 100%;
+
+        text-align: center;
+    }
+
+    .footer-grid {
+        gap: 32px;
+    }
+
+    .location-image {
+        height: 300px;
+    }
+
+    .workshop-gallery-image {
+        min-height: 300px;
+    }
+
+    .whatsapp-button {
+        right: 14px;
+
+        bottom: 14px;
+
+        width: 52px;
+
+        height: 52px;
+    }
+
+    #galleryViewer {
+        padding: 15px;
+    }
+
+    #galleryViewerContent {
+        width: 96vw;
+
+        height: 85vh;
+    }
+
+    #galleryViewerClose {
+        top: 10px;
+
+        right: 12px;
+
+        width: 40px;
+
+        height: 40px;
+
+        font-size: 28px;
+    }
+
+    #aprilGalleryViewer {
+        padding: 15px;
+    }
+
+    #aprilGalleryViewerContent {
+        width: 96vw;
+
+        height: 85vh;
+    }
+
+    #aprilGalleryClose {
+        top: 10px;
+
+        right: 12px;
+
+        width: 42px;
+
+        height: 42px;
+
+        font-size: 30px;
+    }
+
+    .brand-logo {
+        width: 40px;
+
+        height: 40px;
+    }
+
+    .brand-name {
+        font-size: 21px;
+    }
+
+    .brand-tagline {
+        font-size: 12px;
+    }
+}
+
+
+/* =========================================================
+   36. FINAL CORRECTION SAFETY OVERRIDES
+   ========================================================= */
+
+/*
+   These rules specifically protect the corrections requested
+   for this final editing stage.
+*/
+
+
+/* Full Home Featured Collection videos */
+
+.featured-card .featured-video {
+    overflow: hidden;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+.featured-card .featured-video video {
+    object-fit: contain !important;
+
+    width: 100%;
+
+    height: 100%;
+
+    background: #171717;
+}
+
+
+/* About Photo 5 / workshop image */
+
+.location-image img,
+.workshop-gallery-image img {
+    object-fit: contain !important;
+}
+
+
+/* Social links must be clickable */
+
+.footer-social a {
+    pointer-events: auto;
+
+    cursor: pointer;
+}
+
+
+/* Google link must be clickable */
+
+.footer-google {
+    pointer-events: auto;
+
+    cursor: pointer;
+}
+
+
+/* Phone and email links */
+
+.footer-column a[href^="tel:"],
+.footer-column a[href^="mailto:"],
+.footer-column a[href^="https://wa.me/"] {
+    cursor: pointer;
+}
+
+
+/* Policy training headings */
+
+.policy-section .training-policy-heading {
+    color: var(--gold) !important;
+}
+
+
+/* Footer remains two columns on larger screens */
+
+@media (min-width: 901px) {
+
+    .footer-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+.admin-website-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.admin-website-link:hover {
+    color: #c9a227;
+}
