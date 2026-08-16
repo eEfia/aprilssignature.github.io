@@ -1,1373 +1,4062 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Aprils Signature | Admin Dashboard</title>
+<meta charset="UTF-8">
 
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
 
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            background: #f7f7f7;
-            color: #222;
-        }
+<title>
+Aprils Signature | Admin Dashboard
+</title>
 
-        header {
-            background: #008c95;
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+<style>
 
-        header h1 {
-            font-size: 22px;
-        }
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+}
 
-        header p {
-            font-size: 13px;
-            margin-top: 4px;
-        }
+body{
+font-family:Arial,Helvetica,sans-serif;
+background:#f5f5f5;
+color:#222;
+}
 
-        .logout-btn {
-            background: #c9a227;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+button,
+input,
+textarea,
+select{
+font:inherit;
+}
 
-        .dashboard {
-            display: flex;
-            min-height: calc(100vh - 80px);
-        }
+header{
+background:#008c95;
+color:white;
+padding:18px 22px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:15px;
+}
 
-        .sidebar {
-            width: 240px;
-            background: #222;
-            padding: 20px 0;
-        }
+header h1{
+font-size:22px;
+}
 
-        .sidebar button {
-            width: 100%;
-            padding: 14px 20px;
-            border: none;
-            background: transparent;
-            color: white;
-            text-align: left;
-            cursor: pointer;
-            font-size: 14px;
-        }
+header p{
+font-size:13px;
+margin-top:4px;
+}
 
-        .sidebar button:hover,
-        .sidebar button.active {
-            background: #008c95;
-        }
+.logout-btn{
+background:#c9a227;
+color:white;
+border:0;
+padding:10px 16px;
+border-radius:5px;
+cursor:pointer;
+font-weight:bold;
+}
 
-        .main {
-            flex: 1;
-            padding: 30px;
-        }
+.dashboard{
+display:flex;
+min-height:calc(100vh - 80px);
+}
 
-        .section {
-            display: none;
-        }
+.sidebar{
+width:245px;
+background:#222;
+padding:15px 0;
+flex-shrink:0;
+}
 
-        .section.active {
-            display: block;
-        }
+.sidebar button{
+width:100%;
+padding:14px 18px;
+border:0;
+background:transparent;
+color:white;
+text-align:left;
+cursor:pointer;
+font-size:14px;
+}
 
-        .section h2 {
-            color: #008c95;
-            margin-bottom: 10px;
-        }
+.sidebar button:hover,
+.sidebar button.active{
+background:#008c95;
+}
 
-        .section-intro {
-            color: #666;
-            margin-bottom: 25px;
-        }
+.main{
+flex:1;
+padding:28px;
+overflow:auto;
+}
 
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 20px;
-        }
+.section{
+display:none;
+}
 
-        .card {
-            background: white;
-            padding: 22px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
+.section.active{
+display:block;
+}
 
-        .card h3 {
-            color: #008c95;
-            margin-bottom: 8px;
-        }
+.section h2{
+color:#008c95;
+margin-bottom:8px;
+}
 
-        .card p {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 8px;
-        }
+.intro{
+color:#666;
+margin-bottom:20px;
+}
 
-        .notice {
-            background: #fff;
-            border-left: 4px solid #c9a227;
-            padding: 18px;
-            margin-top: 25px;
-            line-height: 1.6;
-        }
+.cards{
+display:grid;
+grid-template-columns:
+repeat(auto-fit,minmax(180px,1fr));
+gap:18px;
+}
 
-        .loading {
-            color: #666;
-            padding: 10px 0;
-        }
+.card{
+background:white;
+padding:20px;
+border-radius:8px;
+box-shadow:
+0 2px 8px rgba(0,0,0,.08);
+}
 
-        .request-card {
-            background: #fff;
-            border-left: 4px solid #008c95;
-            padding: 18px;
-            margin-bottom: 18px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
+.card h3{
+color:#008c95;
+margin-bottom:8px;
+}
 
-        .request-card h3 {
-            color: #008c95;
-            margin-bottom: 12px;
-        }
+.card .number{
+font-size:30px;
+font-weight:bold;
+color:#222;
+}
 
-        .request-card p {
-            margin-bottom: 7px;
-            color: #444;
-        }
+.toolbar{
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+margin-bottom:18px;
+}
 
-        .request-card strong {
-            color: #222;
-        }
+.primary{
+background:#008c95;
+color:white;
+border:0;
+padding:10px 16px;
+border-radius:5px;
+cursor:pointer;
+font-weight:bold;
+}
 
-        .admin-message {
-            background: #fff3cd;
-            border-left: 4px solid #c9a227;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
+.secondary{
+background:#c9a227;
+color:white;
+border:0;
+padding:10px 16px;
+border-radius:5px;
+cursor:pointer;
+font-weight:bold;
+}
 
-        #adminLogin {
-            position: fixed;
-            inset: 0;
-            background: #f7f7f7;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 20px;
-        }
+.danger{
+background:#b00020;
+color:white;
+border:0;
+padding:8px 12px;
+border-radius:4px;
+cursor:pointer;
+}
 
-        .login-box {
-            background: white;
-            width: 100%;
-            max-width: 420px;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
-        }
+.table-wrap{
+background:white;
+border-radius:8px;
+overflow:auto;
+box-shadow:
+0 2px 8px rgba(0,0,0,.08);
+}
 
-        .login-box h2 {
-            color: #008c95;
-            margin-bottom: 10px;
-        }
+table{
+width:100%;
+border-collapse:collapse;
+min-width:700px;
+}
 
-        .login-box p {
-            color: #666;
-            margin-bottom: 20px;
-            line-height: 1.5;
-        }
+th,
+td{
+padding:12px;
+border-bottom:1px solid #eee;
+text-align:left;
+vertical-align:top;
+font-size:13px;
+}
 
-        .login-box label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 7px;
-        }
+th{
+background:#008c95;
+color:white;
+}
 
-        .login-box input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
+.form-card{
+background:white;
+padding:22px;
+border-radius:8px;
+box-shadow:
+0 2px 8px rgba(0,0,0,.08);
+margin-bottom:20px;
+}
 
-        .login-box button {
-            width: 100%;
-            padding: 13px;
-            border: none;
-            border-radius: 5px;
-            background: #008c95;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-        }
+.form-grid{
+display:grid;
+grid-template-columns:
+repeat(auto-fit,minmax(220px,1fr));
+gap:15px;
+}
 
-        .login-error {
-            color: #b00020;
-            margin-top: 12px;
-            font-size: 14px;
-        }
+.form-group{
+margin-bottom:15px;
+}
 
-        @media (max-width: 768px) {
-            .dashboard {
-                flex-direction: column;
-            }
+.form-group label{
+display:block;
+font-weight:bold;
+font-size:13px;
+margin-bottom:6px;
+}
 
-            .sidebar {
-                width: 100%;
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-            }
+.form-group input,
+.form-group textarea,
+.form-group select{
+width:100%;
+padding:11px;
+border:1px solid #ccc;
+border-radius:5px;
+background:white;
+}
 
-            .sidebar button {
-                font-size: 13px;
-            }
+.form-group textarea{
+min-height:110px;
+resize:vertical;
+}
 
-            .main {
-                padding: 20px;
-            }
+.checkbox{
+display:flex;
+gap:8px;
+align-items:center;
+}
 
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
-        }
-    </style>
+.checkbox input{
+width:auto;
+}
+
+.hidden{
+display:none!important;
+}
+
+.notice{
+background:white;
+border-left:4px solid #c9a227;
+padding:18px;
+margin-bottom:20px;
+line-height:1.6;
+}
+
+.status{
+padding:10px 14px;
+border-radius:5px;
+margin-bottom:15px;
+display:none;
+}
+
+.status.success{
+display:block;
+background:#e8f7ee;
+color:#145c31;
+}
+
+.status.error{
+display:block;
+background:#fff0f0;
+color:#8a0018;
+}
+
+.login-screen{
+position:fixed;
+inset:0;
+background:#f5f5f5;
+display:flex;
+align-items:center;
+justify-content:center;
+padding:20px;
+z-index:1000;
+}
+
+.login-box{
+width:100%;
+max-width:420px;
+background:white;
+padding:30px;
+border-radius:10px;
+box-shadow:
+0 5px 25px rgba(0,0,0,.12);
+}
+
+.login-box h2{
+color:#008c95;
+margin-bottom:8px;
+}
+
+.login-box p{
+color:#666;
+margin-bottom:20px;
+font-size:14px;
+}
+
+.login-box input{
+width:100%;
+padding:12px;
+margin-bottom:12px;
+border:1px solid #ccc;
+border-radius:5px;
+}
+
+.empty{
+padding:30px;
+text-align:center;
+color:#777;
+}
+
+.small{
+font-size:12px;
+color:#777;
+}
+
+@media(max-width:768px){
+
+.dashboard{
+flex-direction:column;
+}
+
+.sidebar{
+width:100%;
+display:grid;
+grid-template-columns:
+repeat(2,1fr);
+}
+
+.sidebar button{
+font-size:12px;
+}
+
+.main{
+padding:18px;
+}
+
+header{
+align-items:flex-start;
+flex-direction:column;
+}
+
+}
+
+</style>
+
 </head>
+
 
 <body>
 
-<div id="adminLogin">
 
-    <div class="login-box">
+<div
+id="loginScreen"
+class="login-screen"
+>
 
-        <h2>Aprils Signature</h2>
+<div class="login-box">
 
-        <p>
-            Administrator Login
-        </p>
+<h2>
+Aprils Signature
+</h2>
 
-        <form id="loginForm">
+<p>
+Administrator Login
+</p>
 
-            <label for="adminEmail">
-                Administrator Email
-            </label>
+<form id="loginForm">
 
-            <input
-                type="email"
-                id="adminEmail"
-                required
-            >
+<input
+type="email"
+id="loginEmail"
+placeholder="Administrator email"
+required
+>
 
-            <label for="adminPassword">
-                Password
-            </label>
+<input
+type="password"
+id="loginPassword"
+placeholder="Password"
+required
+>
 
-            <input
-                type="password"
-                id="adminPassword"
-                required
-            >
+<button
+class="primary"
+type="submit"
+style="width:100%"
+>
+Log In
+</button>
 
-            <button type="submit">
-                Log In
-            </button>
+</form>
 
-            <div
-                id="loginError"
-                class="login-error"
-            ></div>
-
-        </form>
-
-    </div>
+<div
+id="loginMessage"
+class="status"
+style="margin-top:15px"
+></div>
 
 </div>
+
+</div>
+
 
 
 <header>
 
-    <div>
-        <h1>Aprils Signature</h1>
-        <p>Admin Dashboard</p>
-    </div>
+<div>
 
-    <button
-        class="logout-btn"
-        onclick="logout()"
-    >
-        Log Out
-    </button>
+<h1>
+Aprils Signature
+</h1>
+
+<p>
+Admin Dashboard
+</p>
+
+</div>
+
+<button
+class="logout-btn"
+id="logoutButton"
+>
+Log Out
+</button>
 
 </header>
 
 
+
 <div class="dashboard">
 
-    <aside class="sidebar">
-
-        <button
-            class="active"
-            onclick="showSection('dashboard', this)"
-        >
-            Dashboard Overview
-        </button>
-
-        <button
-            onclick="showSection('content', this)"
-        >
-            Website Content
-        </button>
-
-        <button
-            onclick="showSection('gallery', this)"
-        >
-            Gallery & Media
-        </button>
-
-        <button
-            onclick="showSection('services', this)"
-        >
-            Services
-        </button>
-
-        <button
-            onclick="showSection('training', this)"
-        >
-            Training
-        </button>
-
-        <button
-            onclick="showSection('registrations', this)"
-        >
-            Training Registrations
-        </button>
-
-        <button
-            onclick="showSection('orders', this)"
-        >
-            Order / Quote Requests
-        </button>
-
-        <button
-            onclick="showSection('enquiries', this)"
-        >
-            Customer Enquiries
-        </button>
-
-        <button
-            onclick="showSection('testimonials', this)"
-        >
-            Testimonials
-        </button>
-
-        <button
-            onclick="showSection('faq', this)"
-        >
-            FAQs
-        </button>
-
-        <button
-            onclick="showSection('policies', this)"
-        >
-            Policies & Terms
-        </button>
-
-        <button
-            onclick="showSection('contact', this)"
-        >
-            Contact Information
-        </button>
-
-        <button
-            onclick="showSection('settings', this)"
-        >
-            Website Settings
-        </button>
-
-    </aside>
-
-
-    <main class="main">
-
-        <section
-            id="dashboard"
-            class="section active"
-        >
-
-            <h2>Dashboard Overview</h2>
-
-            <p class="section-intro">
-                Welcome to the Aprils Signature Admin Dashboard.
-            </p>
-
-            <div class="cards">
-
-                <div class="card">
-                    <h3>Gallery</h3>
-                    <p>
-                        Manage website images and featured creations.
-                    </p>
-                </div>
 
-                <div class="card">
-                    <h3>Training</h3>
-                    <p>
-                        Manage training programmes and classes.
-                    </p>
-                </div>
+<aside class="sidebar">
 
-                <div class="card">
-                    <h3>Orders / Quotes</h3>
-                    <p id="quoteCount">
-                        Loading...
-                    </p>
-                </div>
 
-                <div class="card">
-                    <h3>Registrations</h3>
-                    <p id="registrationCount">
-                        Loading...
-                    </p>
-                </div>
+<button
+class="active"
+data-section="dashboard"
+>
+Dashboard Overview
+</button>
 
-                <div class="card">
-                    <h3>Testimonials</h3>
-                    <p>
-                        Manage customer testimonials.
-                    </p>
-                </div>
 
-                <div class="card">
-                    <h3>FAQs</h3>
-                    <p>
-                        Manage frequently asked questions.
-                    </p>
-                </div>
+<button
+data-section="content"
+>
+Website Content
+</button>
 
-            </div>
 
-            <div class="notice">
+<button
+data-section="gallery"
+>
+Gallery &amp; Media
+</button>
 
-                <strong>Aprils Signature</strong><br>
 
-                Elegance in Every Stitch
+<button
+data-section="services"
+>
+Services
+</button>
 
-            </div>
 
-        </section>
+<button
+data-section="training"
+>
+Training
+</button>
 
 
-        <section
-            id="content"
-            class="section"
-        >
+<button
+data-section="registrations"
+>
+Training Registrations
+</button>
 
-            <h2>Website Content</h2>
 
-            <p class="section-intro">
-                Manage homepage and general website content.
-            </p>
+<button
+data-section="orders"
+>
+Order / Quote Requests
+</button>
 
-            <div class="card">
-                Website content management will be connected here.
-            </div>
 
-        </section>
+<button
+data-section="enquiries"
+>
+Customer Enquiries
+</button>
 
 
-        <section
-            id="gallery"
-            class="section"
-        >
+<button
+data-section="testimonials"
+>
+Testimonials
+</button>
 
-            <h2>Gallery & Media</h2>
 
-            <p class="section-intro">
-                Manage Gallery photos, garment titles and Featured Collection.
-            </p>
+<button
+data-section="faq"
+>
+FAQs
+</button>
 
-            <div class="card">
-                Gallery management will be connected here.
-            </div>
 
-        </section>
+<button
+data-section="policies"
+>
+Policies &amp; Terms
+</button>
 
 
-        <section
-            id="services"
-            class="section"
-        >
+<button
+data-section="contact"
+>
+Contact Information
+</button>
 
-            <h2>Services</h2>
 
-            <p class="section-intro">
-                Manage Aprils Signature services.
-            </p>
+<button
+data-section="settings"
+>
+Website Settings
+</button>
 
-            <div class="card">
-                Streetwear<br>
-                Ladies Wear<br>
-                Kids Wear<br>
-                Embellishment Services<br>
-                Practical Fashion Training
-            </div>
 
-        </section>
+</aside>
 
 
-        <section
-            id="training"
-            class="section"
-        >
 
-            <h2>Training</h2>
+<main class="main">
 
-            <p class="section-intro">
-                Manage training programmes, specialty classes and add-on classes.
-            </p>
 
-            <div class="card">
-                Training management will be connected here.
-            </div>
+<div
+id="globalStatus"
+class="status"
+></div>
 
-        </section>
 
 
-        <section
-            id="registrations"
-            class="section"
-        >
+<!-- =====================================================
+DASHBOARD
+===================================================== -->
 
-            <h2>Training Registrations</h2>
+<section
+id="dashboard"
+class="section active"
+>
 
-            <p class="section-intro">
-                View training registrations submitted through the website.
-            </p>
+<h2>
+Dashboard Overview
+</h2>
 
-            <div
-                id="registrationList"
-                class="card"
-            >
-                <p class="loading">
-                    Loading training registrations...
-                </p>
-            </div>
+<p class="intro">
+Welcome to the Aprils Signature Admin Dashboard.
+</p>
 
-        </section>
 
+<div class="cards">
 
-        <section
-            id="orders"
-            class="section"
-        >
 
-            <h2>Order / Quote Requests</h2>
+<div class="card">
 
-            <p class="section-intro">
-                View customer order and quote requests.
-            </p>
+<h3>
+Gallery
+</h3>
 
-            <div
-                id="quoteList"
-                class="card"
-            >
-                <p class="loading">
-                    Loading quote requests...
-                </p>
-            </div>
+<div
+class="number"
+id="galleryCount"
+>
+0
+</div>
 
-        </section>
-
-
-        <section
-            id="enquiries"
-            class="section"
-        >
-
-            <h2>Customer Enquiries</h2>
-
-            <p class="section-intro">
-                View enquiries submitted by customers.
-            </p>
-
-            <div
-                id="enquiryList"
-                class="card"
-            >
-                <p class="loading">
-                    Loading enquiries...
-                </p>
-            </div>
-
-        </section>
-
-
-        <section
-            id="testimonials"
-            class="section"
-        >
-
-            <h2>Testimonials</h2>
-
-            <p class="section-intro">
-                Add, edit, display and remove customer testimonials.
-            </p>
-
-            <div class="card">
-                Testimonial management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section
-            id="faq"
-            class="section"
-        >
-
-            <h2>Frequently Asked Questions</h2>
-
-            <p class="section-intro">
-                Manage questions and answers displayed on the website.
-            </p>
-
-            <div class="card">
-                FAQ management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section
-            id="policies"
-            class="section"
-        >
-
-            <h2>Policies & Terms</h2>
-
-            <p class="section-intro">
-                Manage Payment, Refund, Delivery & Collection and Privacy Policies.
-            </p>
-
-            <div class="card">
-                Policy management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section
-            id="contact"
-            class="section"
-        >
-
-            <h2>Contact Information</h2>
-
-            <p class="section-intro">
-                Manage business contact information and opening hours.
-            </p>
-
-            <div class="card">
-
-                Aprils Signature<br>
-                +233 59 298 3027<br>
-                info@aprilssignature.com<br>
-                Winneba, Central Region
-
-            </div>
-
-        </section>
-
-
-        <section
-            id="settings"
-            class="section"
-        >
-
-            <h2>Website Settings</h2>
-
-            <p class="section-intro">
-                Website settings and administrative controls.
-            </p>
-
-            <div class="card">
-                Website settings will be connected here.
-            </div>
-
-        </section>
-
-    </main>
+<p>
+Gallery items
+</p>
 
 </div>
 
 
+<div class="card">
+
+<h3>
+Training
+</h3>
+
+<div
+class="number"
+id="trainingCount"
+>
+0
+</div>
+
+<p>
+Training programmes
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+Orders / Quotes
+</h3>
+
+<div
+class="number"
+id="quoteCount"
+>
+0
+</div>
+
+<p>
+Requests received
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+Registrations
+</h3>
+
+<div
+class="number"
+id="registrationCount"
+>
+0
+</div>
+
+<p>
+Training registrations
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+Testimonials
+</h3>
+
+<div
+class="number"
+id="testimonialCount"
+>
+0
+</div>
+
+<p>
+Testimonials
+</p>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+FAQs
+</h3>
+
+<div
+class="number"
+id="faqCount"
+>
+0
+</div>
+
+<p>
+Frequently asked questions
+</p>
+
+</div>
+
+
+</div>
+
+
+<div class="notice">
+
+<strong>
+Aprils Signature
+</strong>
+
+<br>
+
+Elegance in Every Stitch
+
+<br><br>
+
+Use the menu on the left to manage
+your website.
+
+</div>
+
+</section>
+
+
+
+<!-- =====================================================
+WEBSITE CONTENT
+===================================================== -->
+
+<section
+id="content"
+class="section"
+>
+
+<h2>
+Website Content
+</h2>
+
+<p class="intro">
+Add and edit general website content.
+</p>
+
+
+<div class="form-card">
+
+<form id="contentForm">
+
+<div class="form-grid">
+
+<div class="form-group">
+
+<label>
+Content Key
+</label>
+
+<input
+id="contentKey"
+required
+placeholder="example: homepage_intro"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Content Value
+</label>
+
+<textarea
+id="contentValue"
+required
+placeholder="Enter the website content."
+></textarea>
+
+</div>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Content
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="contentList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+GALLERY
+===================================================== -->
+
+<section
+id="gallery"
+class="section"
+>
+
+<h2>
+Gallery &amp; Media
+</h2>
+
+<p class="intro">
+Add, edit and remove website gallery items.
+</p>
+
+
+<div class="form-card">
+
+<form id="galleryForm">
+
+<input
+type="hidden"
+id="galleryId"
+>
+
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Title
+</label>
+
+<input
+id="galleryTitle"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Category
+</label>
+
+<input
+id="galleryCategory"
+placeholder="Streetwear, Dresses, etc."
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Image URL
+</label>
+
+<input
+id="galleryImage"
+placeholder="https://..."
+>
+
+</div>
+
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Description
+</label>
+
+<textarea
+id="galleryDescription"
+></textarea>
+
+</div>
+
+
+<label class="checkbox">
+
+<input
+type="checkbox"
+id="galleryFeatured"
+>
+
+Featured Collection
+
+</label>
+
+<br>
+
+<label class="checkbox">
+
+<input
+type="checkbox"
+id="galleryActive"
+checked
+>
+
+Active
+
+</label>
+
+<br>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Gallery Item
+</button>
+
+<button
+type="button"
+class="secondary"
+id="galleryCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="galleryList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+SERVICES
+===================================================== -->
+
+<section
+id="services"
+class="section"
+>
+
+<h2>
+Services
+</h2>
+
+<p class="intro">
+Manage the services displayed in your admin system.
+</p>
+
+
+<div class="form-card">
+
+<p>
+Your current public service categories are:
+</p>
+
+<br>
+
+<ul style="line-height:2">
+
+<li>
+Streetwear
+</li>
+
+<li>
+Ladies Wear
+</li>
+
+<li>
+Kids Wear
+</li>
+
+<li>
+Rhinestone Embellishment
+</li>
+
+<li>
+T-Shirt Printing
+</li>
+
+<li>
+Dressmaking Training
+</li>
+
+<li>
+Screen Painting
+</li>
+
+<li>
+Glitter Works
+</li>
+
+</ul>
+
+<br>
+
+<p class="small">
+Services can be expanded into a database-managed
+section later without changing the public design.
+</p>
+
+</div>
+
+</section>
+
+
+
+<!-- =====================================================
+TRAINING
+===================================================== -->
+
+<section
+id="training"
+class="section"
+>
+
+<h2>
+Training
+</h2>
+
+<p class="intro">
+Add, edit and remove training programmes.
+</p>
+
+
+<div class="form-card">
+
+<form id="trainingForm">
+
+<input
+type="hidden"
+id="trainingId"
+>
+
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Programme Name
+</label>
+
+<input
+id="trainingTitle"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Duration
+</label>
+
+<input
+id="trainingDuration"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Price (GHC)
+</label>
+
+<input
+type="number"
+step="0.01"
+id="trainingPrice"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Category
+</label>
+
+<input
+id="trainingCategory"
+>
+
+</div>
+
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Description
+</label>
+
+<textarea
+id="trainingDescription"
+></textarea>
+
+</div>
+
+
+<label class="checkbox">
+
+<input
+type="checkbox"
+id="trainingActive"
+checked
+>
+
+Active
+
+</label>
+
+<br>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Training Programme
+</button>
+
+
+<button
+type="button"
+class="secondary"
+id="trainingCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="trainingList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+TRAINING REGISTRATIONS
+===================================================== -->
+
+<section
+id="registrations"
+class="section"
+>
+
+<h2>
+Training Registrations
+</h2>
+
+<p class="intro">
+View training registrations submitted through
+the website.
+</p>
+
+
+<div
+id="registrationList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+ORDERS
+===================================================== -->
+
+<section
+id="orders"
+class="section"
+>
+
+<h2>
+Order / Quote Requests
+</h2>
+
+<p class="intro">
+View customer order and quote requests.
+</p>
+
+
+<div
+id="quoteList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+ENQUIRIES
+===================================================== -->
+
+<section
+id="enquiries"
+class="section"
+>
+
+<h2>
+Customer Enquiries
+</h2>
+
+<p class="intro">
+View customer enquiries submitted through
+the website.
+</p>
+
+
+<div
+id="enquiryList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+TESTIMONIALS
+===================================================== -->
+
+<section
+id="testimonials"
+class="section"
+>
+
+<h2>
+Testimonials
+</h2>
+
+<p class="intro">
+Add, edit and remove customer testimonials.
+</p>
+
+
+<div class="form-card">
+
+<form id="testimonialForm">
+
+<input
+type="hidden"
+id="testimonialId"
+>
+
+
+<div class="form-group">
+
+<label>
+Customer Name
+</label>
+
+<input
+id="testimonialName"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Testimonial
+</label>
+
+<textarea
+id="testimonialText"
+required
+></textarea>
+
+</div>
+
+
+<label class="checkbox">
+
+<input
+type="checkbox"
+id="testimonialActive"
+checked
+>
+
+Active
+
+</label>
+
+<br>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Testimonial
+</button>
+
+
+<button
+type="button"
+class="secondary"
+id="testimonialCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="testimonialList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+FAQ
+===================================================== -->
+
+<section
+id="faq"
+class="section"
+>
+
+<h2>
+Frequently Asked Questions
+</h2>
+
+<p class="intro">
+Add, edit and remove FAQs.
+</p>
+
+
+<div class="form-card">
+
+<form id="faqForm">
+
+<input
+type="hidden"
+id="faqId"
+>
+
+
+<div class="form-group">
+
+<label>
+Question
+</label>
+
+<input
+id="faqQuestion"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Answer
+</label>
+
+<textarea
+id="faqAnswer"
+required
+></textarea>
+
+</div>
+
+
+<label class="checkbox">
+
+<input
+type="checkbox"
+id="faqActive"
+checked
+>
+
+Active
+
+</label>
+
+<br>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save FAQ
+</button>
+
+
+<button
+type="button"
+class="secondary"
+id="faqCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="faqList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+POLICIES
+===================================================== -->
+
+<section
+id="policies"
+class="section"
+>
+
+<h2>
+Policies &amp; Terms
+</h2>
+
+<p class="intro">
+Manage payment, refund, delivery, collection,
+privacy and other policies.
+</p>
+
+
+<div class="form-card">
+
+<form id="policyForm">
+
+<input
+type="hidden"
+id="policyId"
+>
+
+
+<div class="form-grid">
+
+<div class="form-group">
+
+<label>
+Policy Name
+</label>
+
+<input
+id="policyTitle"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Policy Key
+</label>
+
+<input
+id="policyKey"
+required
+placeholder="payment_policy"
+>
+
+</div>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Policy Content
+</label>
+
+<textarea
+id="policyContent"
+required
+></textarea>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Policy
+</button>
+
+
+<button
+type="button"
+class="secondary"
+id="policyCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="policyList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+
+<!-- =====================================================
+CONTACT
+===================================================== -->
+
+<section
+id="contact"
+class="section"
+>
+
+<h2>
+Contact Information
+</h2>
+
+<p class="intro">
+Manage business contact information.
+</p>
+
+
+<div class="form-card">
+
+<form id="contactForm">
+
+<input
+type="hidden"
+id="contactId"
+>
+
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Business Name
+</label>
+
+<input
+id="contactBusiness"
+value="Aprils Signature"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Phone
+</label>
+
+<input
+id="contactPhone"
+value="+233 59 298 3027"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+WhatsApp
+</label>
+
+<input
+id="contactWhatsapp"
+value="+233 59 298 3027"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Email
+</label>
+
+<input
+id="contactEmail"
+value="info@aprilssignature.com"
+>
+
+</div>
+
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Address
+</label>
+
+<textarea
+id="contactAddress"
+>CE-003-0009 AL174 Windy Avenue
+Opposite Former Perez Chapel International
+Winneba, Central Region, Ghana.</textarea>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Opening Hours
+</label>
+
+<textarea
+id="contactHours"
+>Monday – Friday: 8:00 AM – 5:30 PM
+Saturday: Closed
+Sunday: Closed</textarea>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Contact Information
+</button>
+
+</form>
+
+</div>
+
+</section>
+
+
+
+<!-- =====================================================
+SETTINGS
+===================================================== -->
+
+<section
+id="settings"
+class="section"
+>
+
+<h2>
+Website Settings
+</h2>
+
+<p class="intro">
+Manage basic website settings.
+</p>
+
+
+<div class="form-card">
+
+<form id="settingsForm">
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Setting Name
+</label>
+
+<input
+id="settingKey"
+required
+placeholder="site_title"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Setting Value
+</label>
+
+<input
+id="settingValue"
+required
+>
+
+</div>
+
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Setting
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="settingsList"
+class="table-wrap"
+></div>
+
+</section>
+
+
+</main>
+
+</div>
+
+
+
 <script src="../js/supabase-config.js"></script>
+
 <script src="../js/supabase-client.js"></script>
 
 
 <script>
 
+(function(){
+
 "use strict";
 
 
-document.addEventListener(
-    "aprilsSupabaseReady",
-    async function () {
+let db = null;
 
-        await checkAdmin();
 
-    }
+/* =========================================================
+   WAIT FOR SUPABASE
+========================================================= */
+
+function waitForSupabase(){
+
+return new Promise(function(resolve){
+
+let tries = 0;
+
+const timer = setInterval(function(){
+
+tries++;
+
+if(window.aprilsSupabase){
+
+clearInterval(timer);
+
+resolve(
+window.aprilsSupabase
+);
+
+return;
+
+}
+
+if(window.AprilsSupabase){
+
+clearInterval(timer);
+
+resolve(
+window.AprilsSupabase
+);
+
+return;
+
+}
+
+if(tries >= 100){
+
+clearInterval(timer);
+
+resolve(null);
+
+}
+
+},100);
+
+});
+
+}
+
+
+/* =========================================================
+   MESSAGE
+========================================================= */
+
+function message(text,type){
+
+const box =
+document.getElementById(
+"globalStatus"
+);
+
+box.textContent = text;
+
+box.className =
+"status " +
+(type || "success");
+
+setTimeout(function(){
+
+box.className = "status";
+
+},5000);
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHTML(value){
+
+return String(value ?? "")
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;")
+.replace(/'/g,"&#039;");
+
+}
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+async function checkSession(){
+
+if(!db) return;
+
+const result =
+await db.auth.getSession();
+
+if(result.data.session){
+
+document.getElementById(
+"loginScreen"
+).style.display="none";
+
+await loadDashboard();
+
+}else{
+
+document.getElementById(
+"loginScreen"
+).style.display="flex";
+
+}
+
+}
+
+
+document.getElementById(
+"loginForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const email =
+document.getElementById(
+"loginEmail"
+).value.trim();
+
+const password =
+document.getElementById(
+"loginPassword"
+).value;
+
+const box =
+document.getElementById(
+"loginMessage"
+);
+
+box.className="status";
+
+try{
+
+const result =
+await db.auth.signInWithPassword({
+
+email:email,
+
+password:password
+
+});
+
+if(result.error){
+
+throw result.error;
+
+}
+
+box.textContent=
+"Login successful.";
+
+box.className=
+"status success";
+
+document.getElementById(
+"loginScreen"
+).style.display="none";
+
+await loadDashboard();
+
+}catch(error){
+
+console.error(error);
+
+box.textContent=
+"Login failed. Check your email and password.";
+
+box.className=
+"status error";
+
+}
+
+});
+
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
+document.getElementById(
+"logoutButton"
+).addEventListener(
+"click",
+async function(){
+
+await db.auth.signOut();
+
+location.reload();
+
+});
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+document.querySelectorAll(
+".sidebar button"
+).forEach(function(button){
+
+button.addEventListener(
+"click",
+async function(){
+
+document.querySelectorAll(
+".sidebar button"
+).forEach(function(b){
+
+b.classList.remove("active");
+
+});
+
+button.classList.add("active");
+
+
+document.querySelectorAll(
+".section"
+).forEach(function(section){
+
+section.classList.remove("active");
+
+});
+
+
+const id =
+button.dataset.section;
+
+document.getElementById(
+id
+).classList.add("active");
+
+
+await loadSection(id);
+
+});
+
+});
+
+
+/* =========================================================
+   GENERIC FETCH
+========================================================= */
+
+async function getRows(table){
+
+const result =
+await db
+.from(table)
+.select("*")
+.order(
+"created_at",
+{ascending:false}
+);
+
+if(result.error){
+
+throw result.error;
+
+}
+
+return result.data || [];
+
+}
+
+
+async function countRows(table){
+
+const result =
+await db
+.from(table)
+.select("*",{count:"exact",head:true});
+
+if(result.error){
+
+return 0;
+
+}
+
+return result.count || 0;
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+async function loadDashboard(){
+
+try{
+
+document.getElementById(
+"galleryCount"
+).textContent =
+await countRows(
+"gallery_items"
 );
 
 
-/* =====================================================
-   ADMIN AUTHENTICATION
-   ===================================================== */
+document.getElementById(
+"trainingCount"
+).textContent =
+await countRows(
+"training_programs"
+);
 
-async function checkAdmin() {
 
-    if (!window.aprilsSupabase) {
-        return;
-    }
+document.getElementById(
+"testimonialCount"
+).textContent =
+await countRows(
+"testimonials"
+);
 
-    const result =
-        await window.aprilsSupabase.auth.getSession();
 
-    if (
-        result.error ||
-        !result.data.session
-    ) {
+document.getElementById(
+"faqCount"
+).textContent =
+await countRows(
+"faqs"
+);
 
-        document.getElementById(
-            "adminLogin"
-        ).style.display = "flex";
 
-        return;
-    }
+document.getElementById(
+"registrationCount"
+).textContent =
+await countRows(
+"training_registrations"
+);
 
-    loadAdminData();
+
+document.getElementById(
+"quoteCount"
+).textContent =
+await countRows(
+"quote_requests"
+);
+
+}catch(error){
+
+console.error(error);
+
 }
-
-
-/* =====================================================
-   LOGIN
-   ===================================================== */
-
-document
-    .getElementById("loginForm")
-    .addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-            const email =
-                document.getElementById(
-                    "adminEmail"
-                ).value.trim();
-
-            const password =
-                document.getElementById(
-                    "adminPassword"
-                ).value;
-
-            const errorBox =
-                document.getElementById(
-                    "loginError"
-                );
-
-            errorBox.textContent =
-                "Logging in...";
-
-
-            const result =
-                await window.aprilsSupabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-
-
-            if (result.error) {
-
-                errorBox.textContent =
-                    "Login failed: " +
-                    result.error.message;
-
-                return;
-            }
-
-
-            document.getElementById(
-                "adminLogin"
-            ).style.display = "none";
-
-
-            loadAdminData();
-
-        }
-    );
-
-
-/* =====================================================
-   LOAD ALL ADMIN DATA
-   ===================================================== */
-
-async function loadAdminData() {
-
-    loadQuoteRequests();
-
-    loadTrainingRegistrations();
-
-    loadEnquiries();
 
 }
 
 
-/* =====================================================
+/* =========================================================
+   LOAD SECTION
+========================================================= */
+
+async function loadSection(id){
+
+try{
+
+if(id==="dashboard"){
+
+await loadDashboard();
+
+}
+
+if(id==="gallery"){
+
+await loadGallery();
+
+}
+
+if(id==="training"){
+
+await loadTraining();
+
+}
+
+if(id==="registrations"){
+
+await loadRegistrations();
+
+}
+
+if(id==="orders"){
+
+await loadQuotes();
+
+}
+
+if(id==="enquiries"){
+
+await loadEnquiries();
+
+}
+
+if(id==="testimonials"){
+
+await loadTestimonials();
+
+}
+
+if(id==="faq"){
+
+await loadFAQs();
+
+}
+
+if(id==="policies"){
+
+await loadPolicies();
+
+}
+
+if(id==="content"){
+
+await loadContent();
+
+}
+
+if(id==="settings"){
+
+await loadSettings();
+
+}
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Could not load this section. Check your Supabase tables and policies.",
+"error"
+);
+
+}
+
+}
+
+
+/* =========================================================
+   GALLERY
+========================================================= */
+
+async function loadGallery(){
+
+const rows =
+await getRows(
+"gallery_items"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No gallery items yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>" +
+"<th>Title</th>" +
+"<th>Category</th>" +
+"<th>Featured</th>" +
+"<th>Active</th>" +
+"<th>Actions</th>" +
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html +=
+"<tr>" +
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.category)+
+"</td>"+
+
+"<td>"+
+(row.featured ? "Yes":"No")+
+"</td>"+
+
+"<td>"+
+(row.active ? "Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editGallery('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'gallery_items\','+
+row.id+
+',loadGallery)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"galleryList"
+).innerHTML=html;
+
+}
+
+
+window.editGallery=function(row){
+
+document.getElementById(
+"galleryId"
+).value=row.id;
+
+document.getElementById(
+"galleryTitle"
+).value=row.title||"";
+
+document.getElementById(
+"galleryCategory"
+).value=row.category||"";
+
+document.getElementById(
+"galleryImage"
+).value=row.image_url||"";
+
+document.getElementById(
+"galleryDescription"
+).value=row.description||"";
+
+document.getElementById(
+"galleryFeatured"
+).checked=!!row.featured;
+
+document.getElementById(
+"galleryActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"galleryForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"galleryId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"galleryTitle"
+).value.trim(),
+
+category:
+document.getElementById(
+"galleryCategory"
+).value.trim(),
+
+image_url:
+document.getElementById(
+"galleryImage"
+).value.trim(),
+
+description:
+document.getElementById(
+"galleryDescription"
+).value.trim(),
+
+featured:
+document.getElementById(
+"galleryFeatured"
+).checked,
+
+active:
+document.getElementById(
+"galleryActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("gallery_items")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("gallery_items")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Gallery item saved.",
+"success"
+);
+
+document.getElementById(
+"galleryForm"
+).reset();
+
+document.getElementById(
+"galleryId"
+).value="";
+
+await loadGallery();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Gallery item could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"galleryCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"galleryForm"
+).reset();
+
+document.getElementById(
+"galleryId"
+).value="";
+
+});
+
+
+/* =========================================================
+   TRAINING
+========================================================= */
+
+async function loadTraining(){
+
+const rows =
+await getRows(
+"training_programs"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No training programmes yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Programme</th>"+
+"<th>Duration</th>"+
+"<th>Price</th>"+
+"<th>Category</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html +=
+"<tr>"+
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.duration)+
+"</td>"+
+
+"<td>GHC "+
+Number(row.price||0).toFixed(2)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.category)+
+"</td>"+
+
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editTraining('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'training_programs\','+
+row.id+
+',loadTraining)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"trainingList"
+).innerHTML=html;
+
+}
+
+
+window.editTraining=function(row){
+
+document.getElementById(
+"trainingId"
+).value=row.id;
+
+document.getElementById(
+"trainingTitle"
+).value=row.title||"";
+
+document.getElementById(
+"trainingDuration"
+).value=row.duration||"";
+
+document.getElementById(
+"trainingPrice"
+).value=row.price||"";
+
+document.getElementById(
+"trainingCategory"
+).value=row.category||"";
+
+document.getElementById(
+"trainingDescription"
+).value=row.description||"";
+
+document.getElementById(
+"trainingActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"trainingForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"trainingId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"trainingTitle"
+).value.trim(),
+
+duration:
+document.getElementById(
+"trainingDuration"
+).value.trim(),
+
+price:
+parseFloat(
+document.getElementById(
+"trainingPrice"
+).value
+)||0,
+
+category:
+document.getElementById(
+"trainingCategory"
+).value.trim(),
+
+description:
+document.getElementById(
+"trainingDescription"
+).value.trim(),
+
+active:
+document.getElementById(
+"trainingActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("training_programs")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("training_programs")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Training programme saved.",
+"success"
+);
+
+document.getElementById(
+"trainingForm"
+).reset();
+
+document.getElementById(
+"trainingId"
+).value="";
+
+await loadTraining();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Training programme could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"trainingCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"trainingForm"
+).reset();
+
+document.getElementById(
+"trainingId"
+).value="";
+
+});
+
+
+/* =========================================================
+   REGISTRATIONS
+========================================================= */
+
+async function loadRegistrations(){
+
+const rows =
+await getRows(
+"training_registrations"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No training registrations received.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Location</th>"+
+"<th>Course</th>"+
+"<th>Email</th>"+
+"<th>Message</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.full_name
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.phone
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.whatsapp
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.location
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.course
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.email
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.message
+)+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"registrationList"
+).innerHTML=html;
+
+}
+
+
+/* =========================================================
    QUOTE REQUESTS
-   ===================================================== */
+========================================================= */
 
-async function loadQuoteRequests() {
+async function loadQuotes(){
 
-    const list =
-        document.getElementById(
-            "quoteList"
-        );
+const rows =
+await getRows(
+"quote_requests"
+);
 
-    const count =
-        document.getElementById(
-            "quoteCount"
-        );
+let html="";
 
+if(!rows.length){
 
-    const result =
-        await window.aprilsSupabase
-            .from("quote_requests")
-            .select("*")
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
+html=
+'<div class="empty">No quote requests received.</div>';
 
+}else{
 
-    if (result.error) {
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Location</th>"+
+"<th>Service</th>"+
+"<th>Details</th>"+
+"<th>Date</th>"+
+"</tr></thead><tbody>";
 
-        console.error(
-            result.error
-        );
+rows.forEach(function(row){
 
-        list.innerHTML =
-            "<p>Unable to load quote requests.</p>";
+const date =
+row.created_at
+?
+new Date(
+row.created_at
+).toLocaleString()
+:
+"";
 
-        count.textContent =
-            "Unable to load.";
+html+=
+"<tr>"+
 
-        return;
-    }
+"<td>"+
+escapeHTML(
+row.full_name
+)+
+"</td>"+
 
+"<td>"+
+escapeHTML(
+row.phone
+)+
+"</td>"+
 
-    const requests =
-        result.data || [];
+"<td>"+
+escapeHTML(
+row.whatsapp
+)+
+"</td>"+
 
+"<td>"+
+escapeHTML(
+row.location
+)+
+"</td>"+
 
-    count.textContent =
-        requests.length +
-        " request(s) received.";
+"<td>"+
+escapeHTML(
+row.service
+)+
+"</td>"+
 
+"<td style='max-width:350px;white-space:pre-wrap'>"+
+escapeHTML(
+row.request_details ||
+row.details ||
+row.message ||
+""
+)+
+"</td>"+
 
-    if (!requests.length) {
+"<td>"+
+escapeHTML(
+date
+)+
+"</td>"+
 
-        list.innerHTML =
-            "<p>No order / quote requests yet.</p>";
+"</tr>";
 
-        return;
-    }
+});
 
+html+="</tbody></table>";
 
-    list.innerHTML =
-        requests.map(
-            function (request) {
+}
 
-                return `
-                    <div class="request-card">
-
-                        <h3>
-                            ${escapeHTML(
-                                request.full_name
-                            )}
-                        </h3>
-
-                        <p>
-                            <strong>Service:</strong>
-                            ${escapeHTML(
-                                request.service
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Phone:</strong>
-                            ${escapeHTML(
-                                request.phone
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>WhatsApp:</strong>
-                            ${escapeHTML(
-                                request.whatsapp || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Location:</strong>
-                            ${escapeHTML(
-                                request.location
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Email:</strong>
-                            ${escapeHTML(
-                                request.email || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Additional Details:</strong><br>
-                            ${escapeHTML(
-                                request.additional_details || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Status:</strong>
-                            ${escapeHTML(
-                                request.status || "New"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Submitted:</strong>
-                            ${formatDate(
-                                request.created_at
-                            )}
-                        </p>
-
-                    </div>
-                `;
-
-            }
-        ).join("");
+document.getElementById(
+"quoteList"
+).innerHTML=html;
 
 }
 
 
-/* =====================================================
-   TRAINING REGISTRATIONS
-   ===================================================== */
+/* =========================================================
+   ENQUIRIES
+========================================================= */
 
-async function loadTrainingRegistrations() {
+async function loadEnquiries(){
 
-    const list =
-        document.getElementById(
-            "registrationList"
-        );
+const rows =
+await getRows(
+"enquiries"
+);
 
-    const count =
-        document.getElementById(
-            "registrationCount"
-        );
+let html="";
 
+if(!rows.length){
 
-    const result =
-        await window.aprilsSupabase
-            .from("training_registrations")
-            .select("*")
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
+html=
+'<div class="empty">No customer enquiries received.</div>';
 
+}else{
 
-    if (result.error) {
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Email</th>"+
+"<th>Subject</th>"+
+"<th>Message</th>"+
+"</tr></thead><tbody>";
 
-        console.error(
-            result.error
-        );
+rows.forEach(function(row){
 
-        list.innerHTML =
-            "<p>Unable to load training registrations.</p>";
+html+=
+"<tr>"+
 
-        count.textContent =
-            "Unable to load.";
+"<td>"+
+escapeHTML(row.full_name)+
+"</td>"+
 
-        return;
-    }
+"<td>"+
+escapeHTML(row.phone)+
+"</td>"+
 
+"<td>"+
+escapeHTML(row.whatsapp)+
+"</td>"+
 
-    const registrations =
-        result.data || [];
+"<td>"+
+escapeHTML(row.email)+
+"</td>"+
 
+"<td>"+
+escapeHTML(row.subject)+
+"</td>"+
 
-    count.textContent =
-        registrations.length +
-        " registration(s) received.";
+"<td>"+
+escapeHTML(row.message)+
+"</td>"+
 
+"</tr>";
 
-    if (!registrations.length) {
+});
 
-        list.innerHTML =
-            "<p>No training registrations yet.</p>";
+html+="</tbody></table>";
 
-        return;
-    }
+}
 
-
-    list.innerHTML =
-        registrations.map(
-            function (registration) {
-
-                return `
-                    <div class="request-card">
-
-                        <h3>
-                            ${escapeHTML(
-                                registration.full_name
-                            )}
-                        </h3>
-
-                        <p>
-                            <strong>Phone:</strong>
-                            ${escapeHTML(
-                                registration.phone || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>WhatsApp:</strong>
-                            ${escapeHTML(
-                                registration.whatsapp || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Email:</strong>
-                            ${escapeHTML(
-                                registration.email || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Course:</strong>
-                            ${escapeHTML(
-                                registration.course ||
-                                registration.programme ||
-                                "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Location:</strong>
-                            ${escapeHTML(
-                                registration.location || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Status:</strong>
-                            ${escapeHTML(
-                                registration.status || "New"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Submitted:</strong>
-                            ${formatDate(
-                                registration.created_at
-                            )}
-                        </p>
-
-                    </div>
-                `;
-
-            }
-        ).join("");
+document.getElementById(
+"enquiryList"
+).innerHTML=html;
 
 }
 
 
-/* =====================================================
-   CUSTOMER ENQUIRIES
-   ===================================================== */
+/* =========================================================
+   TESTIMONIALS
+========================================================= */
 
-async function loadEnquiries() {
+async function loadTestimonials(){
 
-    const list =
-        document.getElementById(
-            "enquiryList"
-        );
+const rows =
+await getRows(
+"testimonials"
+);
 
+let html="";
 
-    const result =
-        await window.aprilsSupabase
-            .from("customer_enquiries")
-            .select("*")
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
+if(!rows.length){
 
+html=
+'<div class="empty">No testimonials yet.</div>';
 
-    if (result.error) {
+}else{
 
-        console.error(
-            result.error
-        );
+html=
+"<table><thead><tr>"+
+"<th>Customer</th>"+
+"<th>Testimonial</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
 
-        list.innerHTML =
-            "<p>Unable to load enquiries.</p>";
+rows.forEach(function(row){
 
-        return;
-    }
+html+=
+"<tr>"+
 
+"<td>"+
+escapeHTML(
+row.customer_name
+)+
+"</td>"+
 
-    const enquiries =
-        result.data || [];
+"<td>"+
+escapeHTML(
+row.testimonial
+)+
+"</td>"+
 
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
 
-    if (!enquiries.length) {
+"<td>"+
 
-        list.innerHTML =
-            "<p>No customer enquiries yet.</p>";
+'<button class="secondary" onclick=\'editTestimonial('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
 
-        return;
-    }
+'<button class="danger" onclick="deleteRow(\'testimonials\','+
+row.id+
+',loadTestimonials)">Delete</button>'+
 
+"</td>"+
 
-    list.innerHTML =
-        enquiries.map(
-            function (enquiry) {
+"</tr>";
 
-                return `
-                    <div class="request-card">
+});
 
-                        <h3>
-                            ${escapeHTML(
-                                enquiry.full_name || "-"
-                            )}
-                        </h3>
+html+="</tbody></table>";
 
-                        <p>
-                            <strong>Phone:</strong>
-                            ${escapeHTML(
-                                enquiry.phone || "-"
-                            )}
-                        </p>
+}
 
-                        <p>
-                            <strong>WhatsApp:</strong>
-                            ${escapeHTML(
-                                enquiry.whatsapp || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Email:</strong>
-                            ${escapeHTML(
-                                enquiry.email || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Subject:</strong>
-                            ${escapeHTML(
-                                enquiry.subject || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Message:</strong><br>
-                            ${escapeHTML(
-                                enquiry.message || "-"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Status:</strong>
-                            ${escapeHTML(
-                                enquiry.status || "New"
-                            )}
-                        </p>
-
-                        <p>
-                            <strong>Submitted:</strong>
-                            ${formatDate(
-                                enquiry.created_at
-                            )}
-                        </p>
-
-                    </div>
-                `;
-
-            }
-        ).join("");
+document.getElementById(
+"testimonialList"
+).innerHTML=html;
 
 }
 
 
-/* =====================================================
-   SIDEBAR
-   ===================================================== */
+window.editTestimonial=function(row){
 
-function showSection(
-    sectionId,
-    button
-) {
+document.getElementById(
+"testimonialId"
+).value=row.id;
 
-    const sections =
-        document.querySelectorAll(
-            ".section"
-        );
+document.getElementById(
+"testimonialName"
+).value=row.customer_name||"";
 
+document.getElementById(
+"testimonialText"
+).value=row.testimonial||"";
 
-    sections.forEach(
-        function (section) {
+document.getElementById(
+"testimonialActive"
+).checked=!!row.active;
 
-            section.classList.remove(
-                "active"
-            );
+window.scrollTo({top:0,behavior:"smooth"});
 
-        }
-    );
+};
 
 
-    const buttons =
-        document.querySelectorAll(
-            ".sidebar button"
-        );
+document.getElementById(
+"testimonialForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"testimonialId"
+).value;
+
+const data={
+
+customer_name:
+document.getElementById(
+"testimonialName"
+).value.trim(),
+
+testimonial:
+document.getElementById(
+"testimonialText"
+).value.trim(),
+
+active:
+document.getElementById(
+"testimonialActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("testimonials")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("testimonials")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Testimonial saved.",
+"success"
+);
+
+document.getElementById(
+"testimonialForm"
+).reset();
+
+document.getElementById(
+"testimonialId"
+).value="";
+
+await loadTestimonials();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Testimonial could not be saved.",
+"error"
+);
+
+}
+
+});
 
 
-    buttons.forEach(
-        function (item) {
+document.getElementById(
+"testimonialCancel"
+).addEventListener(
+"click",
+function(){
 
-            item.classList.remove(
-                "active"
-            );
+document.getElementById(
+"testimonialForm"
+).reset();
 
-        }
-    );
+document.getElementById(
+"testimonialId"
+).value="";
 
-
-    const selected =
-        document.getElementById(
-            sectionId
-        );
-
-
-    if (selected) {
-
-        selected.classList.add(
-            "active"
-        );
-
-    }
+});
 
 
-    if (button) {
+/* =========================================================
+   FAQ
+========================================================= */
 
-        button.classList.add(
-            "active"
-        );
+async function loadFAQs(){
 
-    }
+const rows =
+await getRows(
+"faqs"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No FAQs yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Question</th>"+
+"<th>Answer</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.question
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.answer
+)+
+"</td>"+
+
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editFAQ('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'faqs\','+
+row.id+
+',loadFAQs)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"faqList"
+).innerHTML=html;
 
 }
 
 
-/* =====================================================
-   LOGOUT
-   ===================================================== */
+window.editFAQ=function(row){
 
-async function logout() {
+document.getElementById(
+"faqId"
+).value=row.id;
 
-    if (window.aprilsSupabase) {
+document.getElementById(
+"faqQuestion"
+).value=row.question||"";
 
-        await window.aprilsSupabase.auth.signOut();
+document.getElementById(
+"faqAnswer"
+).value=row.answer||"";
 
-    }
+document.getElementById(
+"faqActive"
+).checked=!!row.active;
 
-    location.reload();
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"faqForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"faqId"
+).value;
+
+const data={
+
+question:
+document.getElementById(
+"faqQuestion"
+).value.trim(),
+
+answer:
+document.getElementById(
+"faqAnswer"
+).value.trim(),
+
+active:
+document.getElementById(
+"faqActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("faqs")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("faqs")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"FAQ saved.",
+"success"
+);
+
+document.getElementById(
+"faqForm"
+).reset();
+
+document.getElementById(
+"faqId"
+).value="";
+
+await loadFAQs();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"FAQ could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"faqCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"faqForm"
+).reset();
+
+document.getElementById(
+"faqId"
+).value="";
+
+});
+
+
+/* =========================================================
+   POLICIES
+========================================================= */
+
+async function loadPolicies(){
+
+const rows =
+await getRows(
+"policies"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No policies yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Policy</th>"+
+"<th>Key</th>"+
+"<th>Content</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.policy_key)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.content)+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editPolicy('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'policies\','+
+row.id+
+',loadPolicies)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"policyList"
+).innerHTML=html;
 
 }
 
 
-/* =====================================================
-   HELPERS
-   ===================================================== */
+window.editPolicy=function(row){
 
-function escapeHTML(value) {
+document.getElementById(
+"policyId"
+).value=row.id;
 
-    return String(
-        value === null ||
-        value === undefined
-            ? ""
-            : value
-    )
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+document.getElementById(
+"policyTitle"
+).value=row.title||"";
+
+document.getElementById(
+"policyKey"
+).value=row.policy_key||"";
+
+document.getElementById(
+"policyContent"
+).value=row.content||"";
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"policyForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"policyId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"policyTitle"
+).value.trim(),
+
+policy_key:
+document.getElementById(
+"policyKey"
+).value.trim(),
+
+content:
+document.getElementById(
+"policyContent"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("policies")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("policies")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Policy saved.",
+"success"
+);
+
+document.getElementById(
+"policyForm"
+).reset();
+
+document.getElementById(
+"policyId"
+).value="";
+
+await loadPolicies();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Policy could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"policyCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"policyForm"
+).reset();
+
+document.getElementById(
+"policyId"
+).value="";
+
+});
+
+
+/* =========================================================
+   CONTENT
+========================================================= */
+
+async function loadContent(){
+
+const rows =
+await getRows(
+"site_content"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No website content has been added yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Key</th>"+
+"<th>Content</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.content_key
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.content_value
+)+
+"</td>"+
+
+"<td>"+
+
+'<button class="danger" onclick="deleteRow(\'site_content\','+
+row.id+
+',loadContent)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"contentList"
+).innerHTML=html;
 
 }
 
 
-function formatDate(value) {
+document.getElementById(
+"contentForm"
+).addEventListener(
+"submit",
+async function(e){
 
-    if (!value) {
-        return "-";
-    }
+e.preventDefault();
 
-    try {
+const data={
 
-        return new Date(
-            value
-        ).toLocaleString();
+content_key:
+document.getElementById(
+"contentKey"
+).value.trim(),
 
-    } catch (error) {
+content_value:
+document.getElementById(
+"contentValue"
+).value.trim(),
 
-        return String(value);
+updated_at:
+new Date().toISOString()
 
-    }
+};
+
+try{
+
+const result =
+await db
+.from("site_content")
+.upsert(
+data,
+{
+onConflict:"content_key"
+}
+);
+
+if(result.error)
+throw result.error;
+
+message(
+"Website content saved.",
+"success"
+);
+
+document.getElementById(
+"contentForm"
+).reset();
+
+await loadContent();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Website content could not be saved.",
+"error"
+);
 
 }
+
+});
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+async function loadSettings(){
+
+const rows =
+await getRows(
+"site_settings"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No settings yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Setting</th>"+
+"<th>Value</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.setting_key
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.setting_value
+)+
+"</td>"+
+
+"<td>"+
+
+'<button class="danger" onclick="deleteRow(\'site_settings\','+
+row.id+
+',loadSettings)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"settingsList"
+).innerHTML=html;
+
+}
+
+
+document.getElementById(
+"settingsForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const data={
+
+setting_key:
+document.getElementById(
+"settingKey"
+).value.trim(),
+
+setting_value:
+document.getElementById(
+"settingValue"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+const result =
+await db
+.from("site_settings")
+.upsert(
+data,
+{
+onConflict:"setting_key"
+}
+);
+
+if(result.error)
+throw result.error;
+
+message(
+"Website setting saved.",
+"success"
+);
+
+document.getElementById(
+"settingsForm"
+).reset();
+
+await loadSettings();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Setting could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+/* =========================================================
+   CONTACT
+========================================================= */
+
+document.getElementById(
+"contactForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const data={
+
+business_name:
+document.getElementById(
+"contactBusiness"
+).value.trim(),
+
+phone:
+document.getElementById(
+"contactPhone"
+).value.trim(),
+
+whatsapp:
+document.getElementById(
+"contactWhatsapp"
+).value.trim(),
+
+email:
+document.getElementById(
+"contactEmail"
+).value.trim(),
+
+address:
+document.getElementById(
+"contactAddress"
+).value.trim(),
+
+opening_hours:
+document.getElementById(
+"contactHours"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+const existing =
+await db
+.from("contact_settings")
+.select("id")
+.limit(1)
+.maybeSingle();
+
+let result;
+
+if(existing.data){
+
+result =
+await db
+.from("contact_settings")
+.update(data)
+.eq("id",existing.data.id);
+
+}else{
+
+result =
+await db
+.from("contact_settings")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Contact information saved.",
+"success"
+);
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Contact information could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+/* =========================================================
+   DELETE
+========================================================= */
+
+window.deleteRow=
+async function(
+table,
+id,
+reload
+){
+
+if(
+!confirm(
+"Are you sure you want to delete this item?"
+)
+){
+
+return;
+
+}
+
+try{
+
+const result =
+await db
+.from(table)
+.delete()
+.eq("id",id);
+
+if(result.error)
+throw result.error;
+
+message(
+"Item deleted.",
+"success"
+);
+
+await reload();
+
+await loadDashboard();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Item could not be deleted.",
+"error"
+);
+
+}
+
+};
+
+
+/* =========================================================
+   START
+========================================================= */
+
+(async function(){
+
+db =
+await waitForSupabase();
+
+if(!db){
+
+document.getElementById(
+"loginMessage"
+).textContent =
+"Supabase could not be connected.";
+
+document.getElementById(
+"loginMessage"
+).className =
+"status error";
+
+return;
+
+}
+
+await checkSession();
+
+})();
+
+})();
 
 </script>
 
+
 </body>
+
 </html>
