@@ -118,6 +118,7 @@
         .card p {
             color: #666;
             font-size: 14px;
+            margin-bottom: 8px;
         }
 
         .notice {
@@ -126,6 +127,102 @@
             padding: 18px;
             margin-top: 25px;
             line-height: 1.6;
+        }
+
+        .loading {
+            color: #666;
+            padding: 10px 0;
+        }
+
+        .request-card {
+            background: #fff;
+            border-left: 4px solid #008c95;
+            padding: 18px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .request-card h3 {
+            color: #008c95;
+            margin-bottom: 12px;
+        }
+
+        .request-card p {
+            margin-bottom: 7px;
+            color: #444;
+        }
+
+        .request-card strong {
+            color: #222;
+        }
+
+        .admin-message {
+            background: #fff3cd;
+            border-left: 4px solid #c9a227;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        #adminLogin {
+            position: fixed;
+            inset: 0;
+            background: #f7f7f7;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            width: 100%;
+            max-width: 420px;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        }
+
+        .login-box h2 {
+            color: #008c95;
+            margin-bottom: 10px;
+        }
+
+        .login-box p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .login-box label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 7px;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 5px;
+            background: #008c95;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .login-error {
+            color: #b00020;
+            margin-top: 12px;
+            font-size: 14px;
         }
 
         @media (max-width: 768px) {
@@ -158,68 +255,151 @@
 
 <body>
 
+<div id="adminLogin">
+
+    <div class="login-box">
+
+        <h2>Aprils Signature</h2>
+
+        <p>
+            Administrator Login
+        </p>
+
+        <form id="loginForm">
+
+            <label for="adminEmail">
+                Administrator Email
+            </label>
+
+            <input
+                type="email"
+                id="adminEmail"
+                required
+            >
+
+            <label for="adminPassword">
+                Password
+            </label>
+
+            <input
+                type="password"
+                id="adminPassword"
+                required
+            >
+
+            <button type="submit">
+                Log In
+            </button>
+
+            <div
+                id="loginError"
+                class="login-error"
+            ></div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
 <header>
+
     <div>
         <h1>Aprils Signature</h1>
         <p>Admin Dashboard</p>
     </div>
 
-    <button class="logout-btn" onclick="logout()">Log Out</button>
+    <button
+        class="logout-btn"
+        onclick="logout()"
+    >
+        Log Out
+    </button>
+
 </header>
+
 
 <div class="dashboard">
 
     <aside class="sidebar">
 
-        <button class="active" onclick="showSection('dashboard')">
+        <button
+            class="active"
+            onclick="showSection('dashboard', this)"
+        >
             Dashboard Overview
         </button>
 
-        <button onclick="showSection('content')">
+        <button
+            onclick="showSection('content', this)"
+        >
             Website Content
         </button>
 
-        <button onclick="showSection('gallery')">
+        <button
+            onclick="showSection('gallery', this)"
+        >
             Gallery & Media
         </button>
 
-        <button onclick="showSection('services')">
+        <button
+            onclick="showSection('services', this)"
+        >
             Services
         </button>
 
-        <button onclick="showSection('training')">
+        <button
+            onclick="showSection('training', this)"
+        >
             Training
         </button>
 
-        <button onclick="showSection('registrations')">
+        <button
+            onclick="showSection('registrations', this)"
+        >
             Training Registrations
         </button>
 
-        <button onclick="showSection('orders')">
+        <button
+            onclick="showSection('orders', this)"
+        >
             Order / Quote Requests
         </button>
 
-        <button onclick="showSection('enquiries')">
+        <button
+            onclick="showSection('enquiries', this)"
+        >
             Customer Enquiries
         </button>
 
-        <button onclick="showSection('testimonials')">
+        <button
+            onclick="showSection('testimonials', this)"
+        >
             Testimonials
         </button>
 
-        <button onclick="showSection('faq')">
+        <button
+            onclick="showSection('faq', this)"
+        >
             FAQs
         </button>
 
-        <button onclick="showSection('policies')">
+        <button
+            onclick="showSection('policies', this)"
+        >
             Policies & Terms
         </button>
 
-        <button onclick="showSection('contact')">
+        <button
+            onclick="showSection('contact', this)"
+        >
             Contact Information
         </button>
 
-        <button onclick="showSection('settings')">
+        <button
+            onclick="showSection('settings', this)"
+        >
             Website Settings
         </button>
 
@@ -228,7 +408,10 @@
 
     <main class="main">
 
-        <section id="dashboard" class="section active">
+        <section
+            id="dashboard"
+            class="section active"
+        >
 
             <h2>Dashboard Overview</h2>
 
@@ -240,45 +423,63 @@
 
                 <div class="card">
                     <h3>Gallery</h3>
-                    <p>Manage website images and featured creations.</p>
+                    <p>
+                        Manage website images and featured creations.
+                    </p>
                 </div>
 
                 <div class="card">
                     <h3>Training</h3>
-                    <p>Manage training programmes and classes.</p>
+                    <p>
+                        Manage training programmes and classes.
+                    </p>
                 </div>
 
                 <div class="card">
                     <h3>Orders / Quotes</h3>
-                    <p>View customer order and quote requests.</p>
+                    <p id="quoteCount">
+                        Loading...
+                    </p>
                 </div>
 
                 <div class="card">
                     <h3>Registrations</h3>
-                    <p>View training registrations.</p>
+                    <p id="registrationCount">
+                        Loading...
+                    </p>
                 </div>
 
                 <div class="card">
                     <h3>Testimonials</h3>
-                    <p>Manage customer testimonials.</p>
+                    <p>
+                        Manage customer testimonials.
+                    </p>
                 </div>
 
                 <div class="card">
                     <h3>FAQs</h3>
-                    <p>Manage frequently asked questions.</p>
+                    <p>
+                        Manage frequently asked questions.
+                    </p>
                 </div>
 
             </div>
 
             <div class="notice">
+
                 <strong>Aprils Signature</strong><br>
+
                 Elegance in Every Stitch
+
             </div>
 
         </section>
 
 
-        <section id="content" class="section">
+        <section
+            id="content"
+            class="section"
+        >
 
             <h2>Website Content</h2>
 
@@ -293,7 +494,10 @@
         </section>
 
 
-        <section id="gallery" class="section">
+        <section
+            id="gallery"
+            class="section"
+        >
 
             <h2>Gallery & Media</h2>
 
@@ -308,7 +512,10 @@
         </section>
 
 
-        <section id="services" class="section">
+        <section
+            id="services"
+            class="section"
+        >
 
             <h2>Services</h2>
 
@@ -327,7 +534,10 @@
         </section>
 
 
-        <section id="training" class="section">
+        <section
+            id="training"
+            class="section"
+        >
 
             <h2>Training</h2>
 
@@ -342,7 +552,10 @@
         </section>
 
 
-        <section id="registrations" class="section">
+        <section
+            id="registrations"
+            class="section"
+        >
 
             <h2>Training Registrations</h2>
 
@@ -350,14 +563,22 @@
                 View training registrations submitted through the website.
             </p>
 
-            <div class="card">
-                Training registrations will appear here.
+            <div
+                id="registrationList"
+                class="card"
+            >
+                <p class="loading">
+                    Loading training registrations...
+                </p>
             </div>
 
         </section>
 
 
-        <section id="orders" class="section">
+        <section
+            id="orders"
+            class="section"
+        >
 
             <h2>Order / Quote Requests</h2>
 
@@ -365,14 +586,22 @@
                 View customer order and quote requests.
             </p>
 
-            <div class="card">
-                Order and quote requests will appear here.
+            <div
+                id="quoteList"
+                class="card"
+            >
+                <p class="loading">
+                    Loading quote requests...
+                </p>
             </div>
 
         </section>
 
 
-        <section id="enquiries" class="section">
+        <section
+            id="enquiries"
+            class="section"
+        >
 
             <h2>Customer Enquiries</h2>
 
@@ -380,14 +609,22 @@
                 View enquiries submitted by customers.
             </p>
 
-            <div class="card">
-                Customer enquiries will appear here.
+            <div
+                id="enquiryList"
+                class="card"
+            >
+                <p class="loading">
+                    Loading enquiries...
+                </p>
             </div>
 
         </section>
 
 
-        <section id="testimonials" class="section">
+        <section
+            id="testimonials"
+            class="section"
+        >
 
             <h2>Testimonials</h2>
 
@@ -402,7 +639,10 @@
         </section>
 
 
-        <section id="faq" class="section">
+        <section
+            id="faq"
+            class="section"
+        >
 
             <h2>Frequently Asked Questions</h2>
 
@@ -417,7 +657,10 @@
         </section>
 
 
-        <section id="policies" class="section">
+        <section
+            id="policies"
+            class="section"
+        >
 
             <h2>Policies & Terms</h2>
 
@@ -432,7 +675,10 @@
         </section>
 
 
-        <section id="contact" class="section">
+        <section
+            id="contact"
+            class="section"
+        >
 
             <h2>Contact Information</h2>
 
@@ -441,16 +687,21 @@
             </p>
 
             <div class="card">
+
                 Aprils Signature<br>
                 +233 59 298 3027<br>
                 info@aprilssignature.com<br>
                 Winneba, Central Region
+
             </div>
 
         </section>
 
 
-        <section id="settings" class="section">
+        <section
+            id="settings"
+            class="section"
+        >
 
             <h2>Website Settings</h2>
 
@@ -469,31 +720,650 @@
 </div>
 
 
+<script src="../js/supabase-config.js"></script>
+<script src="../js/supabase-client.js"></script>
+
+
 <script>
 
-function showSection(sectionId) {
+"use strict";
 
-    const sections = document.querySelectorAll('.section');
 
-    sections.forEach(function(section) {
-        section.classList.remove('active');
-    });
+document.addEventListener(
+    "aprilsSupabaseReady",
+    async function () {
 
-    const buttons = document.querySelectorAll('.sidebar button');
+        await checkAdmin();
 
-    buttons.forEach(function(button) {
-        button.classList.remove('active');
-    });
+    }
+);
 
-    document.getElementById(sectionId).classList.add('active');
 
-    event.target.classList.add('active');
+/* =====================================================
+   ADMIN AUTHENTICATION
+   ===================================================== */
+
+async function checkAdmin() {
+
+    if (!window.aprilsSupabase) {
+        return;
+    }
+
+    const result =
+        await window.aprilsSupabase.auth.getSession();
+
+    if (
+        result.error ||
+        !result.data.session
+    ) {
+
+        document.getElementById(
+            "adminLogin"
+        ).style.display = "flex";
+
+        return;
+    }
+
+    loadAdminData();
 }
 
 
-function logout() {
+/* =====================================================
+   LOGIN
+   ===================================================== */
 
-    alert("Admin logout will be connected when secure administrator authentication is added.");
+document
+    .getElementById("loginForm")
+    .addEventListener(
+        "submit",
+        async function (event) {
+
+            event.preventDefault();
+
+            const email =
+                document.getElementById(
+                    "adminEmail"
+                ).value.trim();
+
+            const password =
+                document.getElementById(
+                    "adminPassword"
+                ).value;
+
+            const errorBox =
+                document.getElementById(
+                    "loginError"
+                );
+
+            errorBox.textContent =
+                "Logging in...";
+
+
+            const result =
+                await window.aprilsSupabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                });
+
+
+            if (result.error) {
+
+                errorBox.textContent =
+                    "Login failed: " +
+                    result.error.message;
+
+                return;
+            }
+
+
+            document.getElementById(
+                "adminLogin"
+            ).style.display = "none";
+
+
+            loadAdminData();
+
+        }
+    );
+
+
+/* =====================================================
+   LOAD ALL ADMIN DATA
+   ===================================================== */
+
+async function loadAdminData() {
+
+    loadQuoteRequests();
+
+    loadTrainingRegistrations();
+
+    loadEnquiries();
+
+}
+
+
+/* =====================================================
+   QUOTE REQUESTS
+   ===================================================== */
+
+async function loadQuoteRequests() {
+
+    const list =
+        document.getElementById(
+            "quoteList"
+        );
+
+    const count =
+        document.getElementById(
+            "quoteCount"
+        );
+
+
+    const result =
+        await window.aprilsSupabase
+            .from("quote_requests")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+
+    if (result.error) {
+
+        console.error(
+            result.error
+        );
+
+        list.innerHTML =
+            "<p>Unable to load quote requests.</p>";
+
+        count.textContent =
+            "Unable to load.";
+
+        return;
+    }
+
+
+    const requests =
+        result.data || [];
+
+
+    count.textContent =
+        requests.length +
+        " request(s) received.";
+
+
+    if (!requests.length) {
+
+        list.innerHTML =
+            "<p>No order / quote requests yet.</p>";
+
+        return;
+    }
+
+
+    list.innerHTML =
+        requests.map(
+            function (request) {
+
+                return `
+                    <div class="request-card">
+
+                        <h3>
+                            ${escapeHTML(
+                                request.full_name
+                            )}
+                        </h3>
+
+                        <p>
+                            <strong>Service:</strong>
+                            ${escapeHTML(
+                                request.service
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Phone:</strong>
+                            ${escapeHTML(
+                                request.phone
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>WhatsApp:</strong>
+                            ${escapeHTML(
+                                request.whatsapp || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Location:</strong>
+                            ${escapeHTML(
+                                request.location
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Email:</strong>
+                            ${escapeHTML(
+                                request.email || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Additional Details:</strong><br>
+                            ${escapeHTML(
+                                request.additional_details || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Status:</strong>
+                            ${escapeHTML(
+                                request.status || "New"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Submitted:</strong>
+                            ${formatDate(
+                                request.created_at
+                            )}
+                        </p>
+
+                    </div>
+                `;
+
+            }
+        ).join("");
+
+}
+
+
+/* =====================================================
+   TRAINING REGISTRATIONS
+   ===================================================== */
+
+async function loadTrainingRegistrations() {
+
+    const list =
+        document.getElementById(
+            "registrationList"
+        );
+
+    const count =
+        document.getElementById(
+            "registrationCount"
+        );
+
+
+    const result =
+        await window.aprilsSupabase
+            .from("training_registrations")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+
+    if (result.error) {
+
+        console.error(
+            result.error
+        );
+
+        list.innerHTML =
+            "<p>Unable to load training registrations.</p>";
+
+        count.textContent =
+            "Unable to load.";
+
+        return;
+    }
+
+
+    const registrations =
+        result.data || [];
+
+
+    count.textContent =
+        registrations.length +
+        " registration(s) received.";
+
+
+    if (!registrations.length) {
+
+        list.innerHTML =
+            "<p>No training registrations yet.</p>";
+
+        return;
+    }
+
+
+    list.innerHTML =
+        registrations.map(
+            function (registration) {
+
+                return `
+                    <div class="request-card">
+
+                        <h3>
+                            ${escapeHTML(
+                                registration.full_name
+                            )}
+                        </h3>
+
+                        <p>
+                            <strong>Phone:</strong>
+                            ${escapeHTML(
+                                registration.phone || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>WhatsApp:</strong>
+                            ${escapeHTML(
+                                registration.whatsapp || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Email:</strong>
+                            ${escapeHTML(
+                                registration.email || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Course:</strong>
+                            ${escapeHTML(
+                                registration.course ||
+                                registration.programme ||
+                                "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Location:</strong>
+                            ${escapeHTML(
+                                registration.location || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Status:</strong>
+                            ${escapeHTML(
+                                registration.status || "New"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Submitted:</strong>
+                            ${formatDate(
+                                registration.created_at
+                            )}
+                        </p>
+
+                    </div>
+                `;
+
+            }
+        ).join("");
+
+}
+
+
+/* =====================================================
+   CUSTOMER ENQUIRIES
+   ===================================================== */
+
+async function loadEnquiries() {
+
+    const list =
+        document.getElementById(
+            "enquiryList"
+        );
+
+
+    const result =
+        await window.aprilsSupabase
+            .from("customer_enquiries")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+
+    if (result.error) {
+
+        console.error(
+            result.error
+        );
+
+        list.innerHTML =
+            "<p>Unable to load enquiries.</p>";
+
+        return;
+    }
+
+
+    const enquiries =
+        result.data || [];
+
+
+    if (!enquiries.length) {
+
+        list.innerHTML =
+            "<p>No customer enquiries yet.</p>";
+
+        return;
+    }
+
+
+    list.innerHTML =
+        enquiries.map(
+            function (enquiry) {
+
+                return `
+                    <div class="request-card">
+
+                        <h3>
+                            ${escapeHTML(
+                                enquiry.full_name || "-"
+                            )}
+                        </h3>
+
+                        <p>
+                            <strong>Phone:</strong>
+                            ${escapeHTML(
+                                enquiry.phone || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>WhatsApp:</strong>
+                            ${escapeHTML(
+                                enquiry.whatsapp || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Email:</strong>
+                            ${escapeHTML(
+                                enquiry.email || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Subject:</strong>
+                            ${escapeHTML(
+                                enquiry.subject || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Message:</strong><br>
+                            ${escapeHTML(
+                                enquiry.message || "-"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Status:</strong>
+                            ${escapeHTML(
+                                enquiry.status || "New"
+                            )}
+                        </p>
+
+                        <p>
+                            <strong>Submitted:</strong>
+                            ${formatDate(
+                                enquiry.created_at
+                            )}
+                        </p>
+
+                    </div>
+                `;
+
+            }
+        ).join("");
+
+}
+
+
+/* =====================================================
+   SIDEBAR
+   ===================================================== */
+
+function showSection(
+    sectionId,
+    button
+) {
+
+    const sections =
+        document.querySelectorAll(
+            ".section"
+        );
+
+
+    sections.forEach(
+        function (section) {
+
+            section.classList.remove(
+                "active"
+            );
+
+        }
+    );
+
+
+    const buttons =
+        document.querySelectorAll(
+            ".sidebar button"
+        );
+
+
+    buttons.forEach(
+        function (item) {
+
+            item.classList.remove(
+                "active"
+            );
+
+        }
+    );
+
+
+    const selected =
+        document.getElementById(
+            sectionId
+        );
+
+
+    if (selected) {
+
+        selected.classList.add(
+            "active"
+        );
+
+    }
+
+
+    if (button) {
+
+        button.classList.add(
+            "active"
+        );
+
+    }
+
+}
+
+
+/* =====================================================
+   LOGOUT
+   ===================================================== */
+
+async function logout() {
+
+    if (window.aprilsSupabase) {
+
+        await window.aprilsSupabase.auth.signOut();
+
+    }
+
+    location.reload();
+
+}
+
+
+/* =====================================================
+   HELPERS
+   ===================================================== */
+
+function escapeHTML(value) {
+
+    return String(
+        value === null ||
+        value === undefined
+            ? ""
+            : value
+    )
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+
+function formatDate(value) {
+
+    if (!value) {
+        return "-";
+    }
+
+    try {
+
+        return new Date(
+            value
+        ).toLocaleString();
+
+    } catch (error) {
+
+        return String(value);
+
+    }
 
 }
 
