@@ -1,73 +1,65 @@
-(function(){
+(function () {
 
 "use strict";
+
+
+/* =========================================================
+   APRILS SIGNATURE - MAIN JAVASCRIPT
+========================================================= */
 
 
 /* =========================================================
    SUPABASE
 ========================================================= */
 
-function getSupabase(){
+function getSupabase() {
 
-if(window.aprilsSupabase){
-return window.aprilsSupabase;
-}
-
-if(window.AprilsSupabase){
-return window.AprilsSupabase;
-}
-
-return null;
+    return (
+        window.aprilsSupabase ||
+        window.AprilsSupabase ||
+        null
+    );
 
 }
 
 
-function waitForSupabase(){
+function waitForSupabase() {
 
-return new Promise(function(resolve){
+    return new Promise(function (resolve) {
 
-const existing =
-getSupabase();
+        const existing = getSupabase();
 
-if(existing){
+        if (existing) {
+            resolve(existing);
+            return;
+        }
 
-resolve(existing);
+        let attempts = 0;
 
-return;
+        const timer = setInterval(function () {
 
-}
+            attempts++;
 
-let attempts=0;
+            const client = getSupabase();
 
-const timer =
-setInterval(function(){
+            if (client) {
 
-attempts++;
+                clearInterval(timer);
+                resolve(client);
+                return;
 
-const client =
-getSupabase();
+            }
 
-if(client){
+            if (attempts >= 100) {
 
-clearInterval(timer);
+                clearInterval(timer);
+                resolve(null);
 
-resolve(client);
+            }
 
-return;
+        }, 100);
 
-}
-
-if(attempts>=100){
-
-clearInterval(timer);
-
-resolve(null);
-
-}
-
-},100);
-
-});
+    });
 
 }
 
@@ -76,65 +68,49 @@ resolve(null);
    MOBILE MENU
 ========================================================= */
 
-function setupMobileMenu(){
+function setupMobileMenu() {
 
-const button =
-document.querySelector(
-".menu-toggle"
-);
+    const button =
+        document.querySelector(".menu-toggle");
 
-const navigation =
-document.querySelector(
-".main-navigation"
-);
+    const navigation =
+        document.querySelector(".main-navigation");
 
-if(!button || !navigation){
-return;
-}
+    if (!button || !navigation) {
+        return;
+    }
 
-button.addEventListener(
-"click",
-function(){
+    button.addEventListener("click", function () {
 
-const open =
-button.getAttribute(
-"aria-expanded"
-)==="true";
+        const open =
+            button.getAttribute("aria-expanded") === "true";
 
-button.setAttribute(
-"aria-expanded",
-String(!open)
-);
+        button.setAttribute(
+            "aria-expanded",
+            String(!open)
+        );
 
-navigation.classList.toggle(
-"open"
-);
+        navigation.classList.toggle("open");
 
-}
-);
+    });
 
 
-navigation
-.querySelectorAll("a")
-.forEach(function(link){
+    navigation
+        .querySelectorAll("a")
+        .forEach(function (link) {
 
-link.addEventListener(
-"click",
-function(){
+            link.addEventListener("click", function () {
 
-button.setAttribute(
-"aria-expanded",
-"false"
-);
+                button.setAttribute(
+                    "aria-expanded",
+                    "false"
+                );
 
-navigation.classList.remove(
-"open"
-);
+                navigation.classList.remove("open");
 
-}
-);
+            });
 
-});
+        });
 
 }
 
@@ -143,19 +119,17 @@ navigation.classList.remove(
    COPYRIGHT
 ========================================================= */
 
-function setupCopyright(){
+function setupCopyright() {
 
-const element =
-document.getElementById(
-"copyrightYear"
-);
+    const element =
+        document.getElementById("copyrightYear");
 
-if(element){
+    if (element) {
 
-element.textContent =
-new Date().getFullYear();
+        element.textContent =
+            new Date().getFullYear();
 
-}
+    }
 
 }
 
@@ -164,23 +138,90 @@ new Date().getFullYear();
    GOOGLE REVIEW
 ========================================================= */
 
-function setupGoogleReview(){
+function setupGoogleReview() {
 
-document
-.querySelectorAll(
-'[data-google-review]'
-)
-.forEach(function(link){
+    const reviewURL =
+        "https://g.page/r/CcD7hxB7NK7pEAE/review";
 
-link.href =
-"https://g.page/r/CcD7hxB7NK7pEAE/review";
+    document
+        .querySelectorAll("[data-google-review]")
+        .forEach(function (link) {
 
-link.target="_blank";
+            link.href = reviewURL;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
 
-link.rel=
-"noopener noreferrer";
+        });
 
-});
+}
+
+
+/* =========================================================
+   COMMON MESSAGE
+========================================================= */
+
+function showFormMessage(element, text, success) {
+
+    if (!element) {
+        return;
+    }
+
+    element.textContent = text;
+
+    element.style.display = "block";
+
+    element.style.background =
+        success
+            ? "#e8f7ee"
+            : "#fff0f0";
+
+    element.style.color =
+        success
+            ? "#145c31"
+            : "#8a0018";
+
+    element.style.borderLeft =
+        success
+            ? "4px solid #168544"
+            : "4px solid #b00020";
+
+    element.style.padding = "16px";
+
+    element.style.marginTop = "20px";
+
+    element.style.borderRadius = "5px";
+
+}
+
+
+/* =========================================================
+   REMOVE REQUIRED FROM TRAINING WHATSAPP
+========================================================= */
+
+function setupTrainingWhatsApp() {
+
+    const field =
+        document.getElementById("trainingWhatsapp");
+
+    if (!field) {
+        return;
+    }
+
+    field.required = false;
+
+    const label =
+        field.closest(".form-group")
+            ?.querySelector("label");
+
+    if (label) {
+
+        label.innerHTML =
+            label.innerHTML.replace(
+                /<span[^>]*class=["']required["'][^>]*>\s*\*\s*<\/span>/i,
+                ""
+            );
+
+    }
 
 }
 
@@ -189,349 +230,868 @@ link.rel=
    TRAINING REGISTRATION
 ========================================================= */
 
-function setupTrainingForm(){
+function setupTrainingForm() {
 
-const form =
-document.getElementById(
-"trainingForm"
-);
+    const form =
+        document.getElementById("trainingForm");
 
-if(!form){
-return;
-}
+    if (!form) {
+        return;
+    }
 
 
-const button =
-document.getElementById(
-"trainingSubmitButton"
-);
-
-const message =
-document.getElementById(
-"trainingFormMessage"
-);
+    const button =
+        document.getElementById(
+            "trainingSubmitButton"
+        );
 
 
-function show(text,success){
-
-if(!message){
-return;
-}
-
-message.textContent=text;
-
-message.style.display="block";
-
-message.style.background=
-success
-?
-"#e8f7ee"
-:
-"#fff0f0";
-
-message.style.color=
-success
-?
-"#145c31"
-:
-"#8a0018";
-
-}
+    const message =
+        document.getElementById(
+            "trainingFormMessage"
+        );
 
 
-form.addEventListener(
-"submit",
-async function(event){
-
-event.preventDefault();
+    setupTrainingWhatsApp();
 
 
-if(button){
+    form.addEventListener(
+        "submit",
+        async function (event) {
 
-button.disabled=true;
-
-button.textContent=
-"Submitting...";
-
-}
+            event.preventDefault();
 
 
-try{
+            if (button) {
 
-const supabase =
-await waitForSupabase();
+                button.disabled = true;
 
-if(!supabase){
+                button.textContent =
+                    "Submitting...";
 
-throw new Error(
-"Supabase unavailable."
-);
-
-}
+            }
 
 
-const data =
-new FormData(form);
+            try {
+
+                const supabase =
+                    await waitForSupabase();
+
+                if (!supabase) {
+
+                    throw new Error(
+                        "Supabase connection unavailable."
+                    );
+
+                }
 
 
-const payload={
-
-full_name:
-String(
-data.get("fullName")||""
-).trim(),
-
-phone:
-String(
-data.get("phone")||""
-).trim(),
-
-whatsapp:
-String(
-data.get("whatsapp")||""
-).trim(),
-
-location:
-String(
-data.get("location")||""
-).trim(),
-
-course:
-String(
-data.get("course")||""
-).trim(),
-
-email:
-String(
-data.get("email")||""
-).trim(),
-
-message:
-String(
-data.get("message")||""
-).trim()
-
-};
+                const data =
+                    new FormData(form);
 
 
-const result =
-await supabase
-.from(
-"training_registrations"
-)
-.insert(payload);
+                const payload = {
+
+                    full_name:
+                        String(
+                            data.get("fullName") || ""
+                        ).trim(),
+
+                    phone:
+                        String(
+                            data.get("phone") || ""
+                        ).trim(),
+
+                    whatsapp:
+                        String(
+                            data.get("whatsapp") || ""
+                        ).trim(),
+
+                    location:
+                        String(
+                            data.get("location") || ""
+                        ).trim(),
+
+                    course:
+                        String(
+                            data.get("course") || ""
+                        ).trim(),
+
+                    email:
+                        String(
+                            data.get("email") || ""
+                        ).trim(),
+
+                    message:
+                        String(
+                            data.get("message") || ""
+                        ).trim()
+
+                };
 
 
-if(result.error){
+                if (!payload.full_name) {
+                    throw new Error(
+                        "Full name is required."
+                    );
+                }
 
-console.error(
-"TRAINING ERROR:",
-result.error
-);
+                if (!payload.phone) {
+                    throw new Error(
+                        "Phone number is required."
+                    );
+                }
 
-throw result.error;
+                if (!payload.location) {
+                    throw new Error(
+                        "Location is required."
+                    );
+                }
 
-}
+                if (!payload.course) {
+                    throw new Error(
+                        "Course is required."
+                    );
+                }
 
 
-show(
-"Your training registration has been submitted successfully. Aprils Signature will contact you.",
-true
-);
+                const result =
+                    await supabase
+                        .from(
+                            "training_registrations"
+                        )
+                        .insert([payload]);
 
-form.reset();
+
+                if (result.error) {
+
+                    console.error(
+                        "Training registration error:",
+                        result.error
+                    );
+
+                    throw result.error;
+
+                }
 
 
-}catch(error){
+                showFormMessage(
+                    message,
+                    "Thank you! Your training registration has been received successfully. Aprils Signature will review your registration and contact you shortly with the next steps.",
+                    true
+                );
 
-console.error(
-"TRAINING SUBMISSION ERROR:",
-error
-);
 
-show(
-"Your registration could not be submitted right now. Please contact Aprils Signature directly.",
-false
-);
+                form.reset();
 
-}finally{
+                setupTrainingWhatsApp();
 
-if(button){
 
-button.disabled=false;
+                window.scrollTo({
+                    top: 0,
+                    behavior: "smooth"
+                });
 
-button.textContent=
-"Submit Training Registration";
 
-}
+            } catch (error) {
 
-}
+                console.error(
+                    "TRAINING ERROR:",
+                    error
+                );
 
-});
+
+                showFormMessage(
+                    message,
+                    "We could not submit your registration right now. Please try again. If the problem continues, contact Aprils Signature directly.",
+                    false
+                );
+
+
+            } finally {
+
+                if (button) {
+
+                    button.disabled = false;
+
+                    button.textContent =
+                        "Submit Training Registration";
+
+                }
+
+            }
+
+        }
+    );
 
 }
 
 
 /* =========================================================
-   ENQUIRY FORM
+   ENQUIRY
 ========================================================= */
 
-function setupEnquiryForm(){
+function setupEnquiryForm() {
 
-const form =
-document.getElementById(
-"enquiryForm"
-);
+    const form =
+        document.getElementById("enquiryForm");
 
-if(!form){
-return;
-}
+    if (!form) {
+        return;
+    }
 
 
-form.addEventListener(
-"submit",
-async function(event){
+    form.addEventListener(
+        "submit",
+        async function (event) {
 
-event.preventDefault();
-
-
-const button =
-form.querySelector(
-'button[type="submit"]'
-);
+            event.preventDefault();
 
 
-const message =
-document.getElementById(
-"enquiryFormMessage"
-);
+            const button =
+                form.querySelector(
+                    'button[type="submit"]'
+                );
 
 
-if(button){
-
-button.disabled=true;
-
-button.textContent=
-"Sending...";
-
-}
+            const message =
+                document.getElementById(
+                    "enquiryFormMessage"
+                );
 
 
-try{
+            if (button) {
 
-const supabase =
-await waitForSupabase();
+                button.disabled = true;
+                button.textContent = "Sending...";
 
-if(!supabase){
-
-throw new Error(
-"Supabase unavailable."
-);
-
-}
+            }
 
 
-const data =
-new FormData(form);
+            try {
+
+                const supabase =
+                    await waitForSupabase();
+
+                if (!supabase) {
+                    throw new Error(
+                        "Supabase unavailable."
+                    );
+                }
 
 
-const payload={
-
-full_name:
-String(
-data.get("fullName")||""
-).trim(),
-
-phone:
-String(
-data.get("phone")||""
-).trim(),
-
-whatsapp:
-String(
-data.get("whatsapp")||""
-).trim(),
-
-email:
-String(
-data.get("email")||""
-).trim(),
-
-subject:
-String(
-data.get("subject")||""
-).trim(),
-
-message:
-String(
-data.get("message")||
-data.get("enquiry")||
-""
-).trim()
-
-};
+                const data =
+                    new FormData(form);
 
 
-const result =
-await supabase
-.from("enquiries")
-.insert(payload);
+                const payload = {
+
+                    full_name:
+                        String(
+                            data.get("fullName") || ""
+                        ).trim(),
+
+                    phone:
+                        String(
+                            data.get("phone") || ""
+                        ).trim(),
+
+                    whatsapp:
+                        String(
+                            data.get("whatsapp") || ""
+                        ).trim(),
+
+                    email:
+                        String(
+                            data.get("email") || ""
+                        ).trim(),
+
+                    subject:
+                        String(
+                            data.get("subject") || ""
+                        ).trim(),
+
+                    message:
+                        String(
+                            data.get("message") ||
+                            data.get("enquiry") ||
+                            ""
+                        ).trim()
+
+                };
 
 
-if(result.error){
-
-throw result.error;
-
-}
-
-
-if(message){
-
-message.textContent=
-"Your enquiry has been submitted successfully.";
-
-message.style.display="block";
-
-message.style.background="#e8f7ee";
-
-message.style.color="#145c31";
-
-}
+                const result =
+                    await supabase
+                        .from("enquiries")
+                        .insert([payload]);
 
 
-form.reset();
+                if (result.error) {
+                    throw result.error;
+                }
 
 
-}catch(error){
+                showFormMessage(
+                    message,
+                    "Thank you for contacting Aprils Signature. Your enquiry has been received successfully. We will get back to you shortly.",
+                    true
+                );
 
-console.error(error);
 
-if(message){
+                form.reset();
 
-message.textContent=
-"Your enquiry could not be submitted. Please contact Aprils Signature directly.";
 
-message.style.display="block";
+            } catch (error) {
 
-message.style.background="#fff0f0";
+                console.error(
+                    "ENQUIRY ERROR:",
+                    error
+                );
 
-message.style.color="#8a0018";
 
-}
+                showFormMessage(
+                    message,
+                    "Your enquiry could not be submitted right now. Please try again.",
+                    false
+                );
 
-}finally{
 
-if(button){
+            } finally {
 
-button.disabled=false;
+                if (button) {
 
-button.textContent="Submit";
+                    button.disabled = false;
+                    button.textContent = "Submit";
+
+                }
+
+            }
+
+        }
+    );
 
 }
 
-}
 
-});
+/* =========================================================
+   QUOTE FORM
+   MULTIPLE SERVICES IN ONE REQUEST
+========================================================= */
+
+function setupQuoteForm() {
+
+    const form =
+        document.getElementById("quoteForm");
+
+    if (!form) {
+        return;
+    }
+
+
+    /*
+       Convert the existing service radio buttons
+       into checkboxes so one customer can select
+       multiple services in ONE request.
+    */
+
+    const serviceInputs =
+        form.querySelectorAll(
+            'input[name="service"]'
+        );
+
+
+    serviceInputs.forEach(function (input) {
+
+        input.type = "checkbox";
+
+        input.name = "services[]";
+
+        input.required = false;
+
+    });
+
+
+    const serviceContainer =
+        form.querySelector(".service-options");
+
+
+    if (serviceContainer) {
+
+        const note =
+            document.createElement("p");
+
+        note.textContent =
+            "You can select more than one service.";
+
+        note.style.marginTop = "12px";
+        note.style.fontSize = "14px";
+        note.style.color = "#555";
+
+        serviceContainer.appendChild(note);
+
+    }
+
+
+    /*
+       Add extra detail boxes for services
+       that currently do not have their own
+       detailed selection section.
+    */
+
+    const serviceSection =
+        serviceContainer?.closest(
+            ".form-section"
+        );
+
+
+    if (serviceSection) {
+
+        const extra =
+            document.createElement("div");
+
+        extra.id =
+            "additionalServiceDetails";
+
+        extra.style.marginTop = "25px";
+
+
+        extra.innerHTML = `
+
+            <div
+                class="form-group"
+                data-service-detail="Ladies Wear"
+                style="display:none"
+            >
+                <label>
+                    Ladies Wear — Specify Request
+                </label>
+
+                <textarea
+                    name="ladiesWearDetails"
+                    placeholder="Tell us what ladies wear you need, quantity, design or other details."
+                ></textarea>
+            </div>
+
+
+            <div
+                class="form-group"
+                data-service-detail="Kids Wear"
+                style="display:none"
+            >
+                <label>
+                    Kids Wear — Specify Request
+                </label>
+
+                <textarea
+                    name="kidsWearDetails"
+                    placeholder="Tell us what kids wear you need, quantity, design or other details."
+                ></textarea>
+            </div>
+
+
+            <div
+                class="form-group"
+                data-service-detail="Practical Fashion Training"
+                style="display:none"
+            >
+                <label>
+                    Training Request
+                </label>
+
+                <textarea
+                    name="trainingDetails"
+                    placeholder="Please specify the training/class you are interested in."
+                ></textarea>
+            </div>
+
+        `;
+
+        serviceSection.appendChild(extra);
+
+    }
+
+
+    function updateServiceSections() {
+
+        const selected = [];
+
+        form.querySelectorAll(
+            'input[name="services[]"]:checked'
+        ).forEach(function (input) {
+
+            selected.push(input.value);
+
+        });
+
+
+        form.querySelectorAll(
+            "[data-service-detail]"
+        ).forEach(function (box) {
+
+            box.style.display =
+                selected.includes(
+                    box.getAttribute(
+                        "data-service-detail"
+                    )
+                )
+                    ? "block"
+                    : "none";
+
+        });
+
+
+        const streetwear =
+            document.getElementById(
+                "streetwearSection"
+            );
+
+        const embellishment =
+            document.getElementById(
+                "embellishmentSection"
+            );
+
+
+        if (streetwear) {
+
+            streetwear.style.display =
+                selected.includes("Streetwear")
+                    ? "block"
+                    : "none";
+
+        }
+
+
+        if (embellishment) {
+
+            embellishment.style.display =
+                selected.includes(
+                    "Embellishment Services"
+                )
+                    ? "block"
+                    : "none";
+
+        }
+
+    }
+
+
+    serviceInputs.forEach(function (input) {
+
+        input.addEventListener(
+            "change",
+            updateServiceSections
+        );
+
+    });
+
+
+    /*
+       CAPTURE PHASE
+
+       The old quote page has an older submit
+       handler inside quotes.html.
+
+       This handler catches the submission
+       first so the old handler cannot create
+       a duplicate/broken submission.
+    */
+
+    form.addEventListener(
+        "submit",
+        async function (event) {
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+
+            const message =
+                document.getElementById(
+                    "quoteFormMessage"
+                );
+
+
+            const button =
+                document.getElementById(
+                    "quoteSubmitButton"
+                );
+
+
+            const selectedServices =
+                Array.from(
+                    form.querySelectorAll(
+                        'input[name="services[]"]:checked'
+                    )
+                ).map(function (input) {
+
+                    return input.value;
+
+                });
+
+
+            if (!selectedServices.length) {
+
+                showFormMessage(
+                    message,
+                    "Please select at least one service.",
+                    false
+                );
+
+                return;
+
+            }
+
+
+            if (button) {
+
+                button.disabled = true;
+
+                button.textContent =
+                    "Submitting...";
+
+            }
+
+
+            try {
+
+                const supabase =
+                    await waitForSupabase();
+
+
+                if (!supabase) {
+
+                    throw new Error(
+                        "Supabase unavailable."
+                    );
+
+                }
+
+
+                const data =
+                    new FormData(form);
+
+
+                const get =
+                    function (name) {
+
+                        return String(
+                            data.get(name) || ""
+                        ).trim();
+
+                    };
+
+
+                const streetwearItems = {};
+
+                [
+                    "jerseys",
+                    "hoodies",
+                    "joggers",
+                    "tshirts",
+                    "poloShirts",
+                    "sweatshirts",
+                    "sweatpants",
+                    "ladiesTankTops",
+                    "mensTankTops",
+                    "varsityJackets",
+                    "cargoPants",
+                    "cargoSkirts",
+                    "joggerShorts",
+                    "hoodiesJoggersSet",
+                    "tshirtsShortsSet",
+                    "sweatshirtsShortsSet"
+                ].forEach(function (name) {
+
+                    streetwearItems[name] =
+                        get(name);
+
+                });
+
+
+                const embellishment =
+                    data.getAll(
+                        "embellishment[]"
+                    );
+
+
+                const requestDetails = {
+
+                    selectedServices:
+                        selectedServices,
+
+                    streetwear:
+                        streetwearItems,
+
+                    streetwearOther:
+                        get("streetwearOther"),
+
+                    ladiesWear:
+                        get("ladiesWearDetails"),
+
+                    kidsWear:
+                        get("kidsWearDetails"),
+
+                    training:
+                        get("trainingDetails"),
+
+                    embellishment:
+                        embellishment,
+
+                    embellishmentOther:
+                        get("embellishmentOther"),
+
+                    additionalDetails:
+                        get("additionalDetails"),
+
+                    agreement:
+                        get("agreement"),
+
+                    mockups:
+                        Array.from(
+                            document.getElementById(
+                                "mockups"
+                            )?.files || []
+                        ).map(function (file) {
+
+                            return file.name;
+
+                        }),
+
+                    inspiration:
+                        Array.from(
+                            document.getElementById(
+                                "inspiration"
+                            )?.files || []
+                        ).map(function (file) {
+
+                            return file.name;
+
+                        }),
+
+                    submittedFrom:
+                        window.location.href
+
+                };
+
+
+                const payload = {
+
+                    full_name:
+                        get("fullName"),
+
+                    phone:
+                        get("phone"),
+
+                    whatsapp:
+                        get("whatsapp"),
+
+                    location:
+                        get("location"),
+
+                    email:
+                        get("email"),
+
+                    service:
+                        selectedServices.join(", "),
+
+                    journey:
+                        JSON.stringify(
+                            requestDetails
+                        )
+
+                };
+
+
+                if (!payload.full_name) {
+                    throw new Error(
+                        "Full name is required."
+                    );
+                }
+
+
+                if (!payload.phone) {
+                    throw new Error(
+                        "Phone number is required."
+                    );
+                }
+
+
+                if (!payload.location) {
+                    throw new Error(
+                        "Location is required."
+                    );
+
+
+                }
+
+
+                const result =
+                    await supabase
+                        .from("quote_requests")
+                        .insert([payload]);
+
+
+                if (result.error) {
+
+                    console.error(
+                        "QUOTE ERROR:",
+                        result.error
+                    );
+
+                    throw result.error;
+
+                }
+
+
+                showFormMessage(
+                    message,
+                    "Thank you! Your order / quote request has been received successfully. Aprils Signature will review your request and contact you shortly regarding your quotation.",
+                    true
+                );
+
+
+                form.reset();
+
+                updateServiceSections();
+
+
+                window.scrollTo({
+                    top: 0,
+                    behavior: "smooth"
+                });
+
+
+            } catch (error) {
+
+                console.error(
+                    "QUOTE SUBMISSION ERROR:",
+                    error
+                );
+
+
+                showFormMessage(
+                    message,
+                    "We could not submit your request right now. Please try again. If the problem continues, contact Aprils Signature directly.",
+                    false
+                );
+
+
+            } finally {
+
+                if (button) {
+
+                    button.disabled = false;
+
+                    button.textContent =
+                        "Submit Order / Request a Quote";
+
+                }
+
+            }
+
+        },
+        true
+    );
 
 }
 
@@ -540,34 +1100,39 @@ button.textContent="Submit";
    START
 ========================================================= */
 
-function start(){
+function start() {
 
-setupMobileMenu();
+    setupMobileMenu();
 
-setupCopyright();
+    setupCopyright();
 
-setupGoogleReview();
+    setupGoogleReview();
 
-setupTrainingForm();
+    setupTrainingWhatsApp();
 
-setupEnquiryForm();
+    setupTrainingForm();
+
+    setupEnquiryForm();
+
+    setupQuoteForm();
+
+}
+
+
+if (
+    document.readyState === "loading"
+) {
+
+    document.addEventListener(
+        "DOMContentLoaded",
+        start
+    );
+
+} else {
+
+    start();
 
 }
 
-
-if(
-document.readyState==="loading"
-){
-
-document.addEventListener(
-"DOMContentLoaded",
-start
-);
-
-}else{
-
-start();
-
-}
 
 })();
