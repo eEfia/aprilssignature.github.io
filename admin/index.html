@@ -1,502 +1,672 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Aprils Signature | Admin Dashboard</title>
-
-    <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: Arial, Helvetica, sans-serif;
-            background: #f7f7f7;
-            color: #222;
-        }
-
-        header {
-            background: #008c95;
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        header h1 {
-            font-size: 22px;
-        }
-
-        header p {
-            font-size: 13px;
-            margin-top: 4px;
-        }
-
-        .logout-btn {
-            background: #c9a227;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .dashboard {
-            display: flex;
-            min-height: calc(100vh - 80px);
-        }
-
-        .sidebar {
-            width: 240px;
-            background: #222;
-            padding: 20px 0;
-        }
-
-        .sidebar button {
-            width: 100%;
-            padding: 14px 20px;
-            border: none;
-            background: transparent;
-            color: white;
-            text-align: left;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        .sidebar button:hover,
-        .sidebar button.active {
-            background: #008c95;
-        }
-
-        .main {
-            flex: 1;
-            padding: 30px;
-        }
-
-        .section {
-            display: none;
-        }
-
-        .section.active {
-            display: block;
-        }
-
-        .section h2 {
-            color: #008c95;
-            margin-bottom: 10px;
-        }
-
-        .section-intro {
-            color: #666;
-            margin-bottom: 25px;
-        }
-
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: white;
-            padding: 22px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .card h3 {
-            color: #008c95;
-            margin-bottom: 8px;
-        }
-
-        .card p {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .notice {
-            background: #fff;
-            border-left: 4px solid #c9a227;
-            padding: 18px;
-            margin-top: 25px;
-            line-height: 1.6;
-        }
-
-        @media (max-width: 768px) {
-            .dashboard {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .sidebar button {
-                font-size: 13px;
-            }
-
-            .main {
-                padding: 20px;
-            }
-
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprils Signature | Admin Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;color:#222}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+header{background:#008c95;color:#fff;padding:20px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:22px}
+header p{font-size:13px;margin-top:4px}
+.logout-btn{background:#c9a227;color:#fff;border:none;padding:10px 16px;border-radius:5px;font-weight:bold}
+.dashboard{display:flex;min-height:calc(100vh - 80px)}
+.sidebar{width:240px;background:#222;padding:20px 0}
+.sidebar button{width:100%;padding:14px 20px;border:none;background:transparent;color:#fff;text-align:left;font-size:14px}
+.sidebar button:hover,.sidebar button.active{background:#008c95}
+.main{flex:1;padding:30px}
+.section{display:none}
+.section.active{display:block}
+.section h2{color:#008c95;margin-bottom:10px}
+.section-intro{color:#666;margin-bottom:25px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:20px}
+.card{background:#fff;padding:22px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.card h3{color:#008c95;margin-bottom:8px}
+.card p{color:#666;font-size:14px}
+.notice{background:#fff;border-left:4px solid #c9a227;padding:18px;margin-top:25px;line-height:1.6}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:25px;background:#f7f7f7}
+.login-card{width:min(100%,430px);background:#fff;padding:35px;border-radius:10px;box-shadow:0 5px 25px rgba(0,0,0,.1)}
+.login-card h1{color:#008c95;margin-bottom:8px}
+.login-card p{color:#666;margin-bottom:25px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-weight:bold;margin-bottom:7px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:12px;border:1px solid #ccc;border-radius:5px}
+.primary-btn{background:#008c95;color:#fff;border:none;padding:12px 18px;border-radius:5px;font-weight:bold}
+.danger-btn{background:#b3261e;color:#fff;border:none;padding:8px 12px;border-radius:4px}
+.table-wrap{overflow:auto;background:#fff;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+table{width:100%;border-collapse:collapse;min-width:900px}
+th,td{padding:12px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;font-size:13px}
+th{background:#008c95;color:#fff;position:sticky;top:0}
+.status-select{padding:7px;border:1px solid #ccc;border-radius:4px}
+.small{font-size:12px;color:#666}
+.loading{padding:25px;text-align:center;color:#666}
+.error-message{background:#fff0f0;border-left:4px solid #b3261e;padding:15px;margin-bottom:20px}
+.success-message{background:#eaf7ee;border-left:4px solid #2d8a4b;padding:15px;margin-bottom:20px}
+.hidden{display:none!important}
+@media(max-width:768px){
+.dashboard{flex-direction:column}
+.sidebar{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}
+.sidebar button{font-size:13px}
+.main{padding:20px}
+header{flex-direction:column;align-items:flex-start;gap:12px}
+}
+</style>
 </head>
-
 <body>
 
-<header>
-    <div>
-        <h1>Aprils Signature</h1>
-        <p>Admin Dashboard</p>
-    </div>
+<div id="loginView" class="login-wrap">
+  <div class="login-card">
+    <h1>Aprils Signature</h1>
+    <p>Admin Dashboard</p>
 
-    <button class="logout-btn" onclick="logout()">Log Out</button>
+    <div id="loginMessage"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="adminEmail">Email Address</label>
+        <input
+          type="email"
+          id="adminEmail"
+          value="info@aprilssignature.com"
+          required
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="adminPassword">Password</label>
+        <input
+          type="password"
+          id="adminPassword"
+          required
+        >
+      </div>
+
+      <button class="primary-btn" type="submit">
+        Log In
+      </button>
+    </form>
+  </div>
+</div>
+
+<div id="dashboardView" class="hidden">
+<header>
+  <div>
+    <h1>Aprils Signature</h1>
+    <p>Admin Dashboard</p>
+  </div>
+  <button class="logout-btn" id="logoutButton">Log Out</button>
 </header>
 
 <div class="dashboard">
-
-    <aside class="sidebar">
-
-        <button class="active" onclick="showSection('dashboard')">
-            Dashboard Overview
-        </button>
-
-        <button onclick="showSection('content')">
-            Website Content
-        </button>
-
-        <button onclick="showSection('gallery')">
-            Gallery & Media
-        </button>
-
-        <button onclick="showSection('services')">
-            Services
-        </button>
-
-        <button onclick="showSection('training')">
-            Training
-        </button>
-
-        <button onclick="showSection('registrations')">
-            Training Registrations
-        </button>
-
-        <button onclick="showSection('orders')">
-            Order / Quote Requests
-        </button>
-
-        <button onclick="showSection('enquiries')">
-            Customer Enquiries
-        </button>
-
-        <button onclick="showSection('testimonials')">
-            Testimonials
-        </button>
-
-        <button onclick="showSection('faq')">
-            FAQs
-        </button>
-
-        <button onclick="showSection('policies')">
-            Policies & Terms
-        </button>
-
-        <button onclick="showSection('contact')">
-            Contact Information
-        </button>
-
-        <button onclick="showSection('settings')">
-            Website Settings
-        </button>
-
-    </aside>
-
-
-    <main class="main">
-
-        <section id="dashboard" class="section active">
-
-            <h2>Dashboard Overview</h2>
-
-            <p class="section-intro">
-                Welcome to the Aprils Signature Admin Dashboard.
-            </p>
-
-            <div class="cards">
-
-                <div class="card">
-                    <h3>Gallery</h3>
-                    <p>Manage website images and featured creations.</p>
-                </div>
-
-                <div class="card">
-                    <h3>Training</h3>
-                    <p>Manage training programmes and classes.</p>
-                </div>
-
-                <div class="card">
-                    <h3>Orders / Quotes</h3>
-                    <p>View customer order and quote requests.</p>
-                </div>
-
-                <div class="card">
-                    <h3>Registrations</h3>
-                    <p>View training registrations.</p>
-                </div>
-
-                <div class="card">
-                    <h3>Testimonials</h3>
-                    <p>Manage customer testimonials.</p>
-                </div>
-
-                <div class="card">
-                    <h3>FAQs</h3>
-                    <p>Manage frequently asked questions.</p>
-                </div>
-
-            </div>
-
-            <div class="notice">
-                <strong>Aprils Signature</strong><br>
-                Elegance in Every Stitch
-            </div>
-
-        </section>
-
-
-        <section id="content" class="section">
-
-            <h2>Website Content</h2>
-
-            <p class="section-intro">
-                Manage homepage and general website content.
-            </p>
-
-            <div class="card">
-                Website content management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="gallery" class="section">
-
-            <h2>Gallery & Media</h2>
-
-            <p class="section-intro">
-                Manage Gallery photos, garment titles and Featured Collection.
-            </p>
-
-            <div class="card">
-                Gallery management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="services" class="section">
-
-            <h2>Services</h2>
-
-            <p class="section-intro">
-                Manage Aprils Signature services.
-            </p>
-
-            <div class="card">
-                Streetwear<br>
-                Ladies Wear<br>
-                Kids Wear<br>
-                Embellishment Services<br>
-                Practical Fashion Training
-            </div>
-
-        </section>
-
-
-        <section id="training" class="section">
-
-            <h2>Training</h2>
-
-            <p class="section-intro">
-                Manage training programmes, specialty classes and add-on classes.
-            </p>
-
-            <div class="card">
-                Training management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="registrations" class="section">
-
-            <h2>Training Registrations</h2>
-
-            <p class="section-intro">
-                View training registrations submitted through the website.
-            </p>
-
-            <div class="card">
-                Training registrations will appear here.
-            </div>
-
-        </section>
-
-
-        <section id="orders" class="section">
-
-            <h2>Order / Quote Requests</h2>
-
-            <p class="section-intro">
-                View customer order and quote requests.
-            </p>
-
-            <div class="card">
-                Order and quote requests will appear here.
-            </div>
-
-        </section>
-
-
-        <section id="enquiries" class="section">
-
-            <h2>Customer Enquiries</h2>
-
-            <p class="section-intro">
-                View enquiries submitted by customers.
-            </p>
-
-            <div class="card">
-                Customer enquiries will appear here.
-            </div>
-
-        </section>
-
-
-        <section id="testimonials" class="section">
-
-            <h2>Testimonials</h2>
-
-            <p class="section-intro">
-                Add, edit, display and remove customer testimonials.
-            </p>
-
-            <div class="card">
-                Testimonial management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="faq" class="section">
-
-            <h2>Frequently Asked Questions</h2>
-
-            <p class="section-intro">
-                Manage questions and answers displayed on the website.
-            </p>
-
-            <div class="card">
-                FAQ management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="policies" class="section">
-
-            <h2>Policies & Terms</h2>
-
-            <p class="section-intro">
-                Manage Payment, Refund, Delivery & Collection and Privacy Policies.
-            </p>
-
-            <div class="card">
-                Policy management will be connected here.
-            </div>
-
-        </section>
-
-
-        <section id="contact" class="section">
-
-            <h2>Contact Information</h2>
-
-            <p class="section-intro">
-                Manage business contact information and opening hours.
-            </p>
-
-            <div class="card">
-                Aprils Signature<br>
-                +233 59 298 3027<br>
-                info@aprilssignature.com<br>
-                Winneba, Central Region
-            </div>
-
-        </section>
-
-
-        <section id="settings" class="section">
-
-            <h2>Website Settings</h2>
-
-            <p class="section-intro">
-                Website settings and administrative controls.
-            </p>
-
-            <div class="card">
-                Website settings will be connected here.
-            </div>
-
-        </section>
-
-    </main>
-
+<aside class="sidebar">
+  <button class="active" data-section="dashboard">Dashboard Overview</button>
+  <button data-section="registrations">Training Registrations</button>
+  <button data-section="orders">Order / Quote Requests</button>
+</aside>
+
+<main class="main">
+
+<section id="dashboard" class="section active">
+  <h2>Dashboard Overview</h2>
+  <p class="section-intro">View the latest website submissions.</p>
+
+  <div id="dashboardMessage"></div>
+
+  <div class="cards">
+    <div class="card">
+      <h3>Training Registrations</h3>
+      <p id="trainingCount">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Order / Quote Requests</h3>
+      <p id="quoteCount">0</p>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>Aprils Signature</strong><br>
+    Elegance in Every Stitch
+  </div>
+</section>
+
+<section id="registrations" class="section">
+  <h2>Training Registrations</h2>
+  <p class="section-intro">
+    View and update training registrations submitted through the website.
+  </p>
+
+  <div id="trainingMessage"></div>
+  <div id="trainingTable" class="table-wrap">
+    <div class="loading">Loading registrations...</div>
+  </div>
+</section>
+
+<section id="orders" class="section">
+  <h2>Order / Quote Requests</h2>
+  <p class="section-intro">
+    View and update customer order and quote requests.
+  </p>
+
+  <div id="quoteMessage"></div>
+  <div id="quoteTable" class="table-wrap">
+    <div class="loading">Loading quote requests...</div>
+  </div>
+</section>
+
+</main>
+</div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+"use strict";
 
-function showSection(sectionId) {
+const SUPABASE_URL =
+  "https://dftljtpebiozagvclfwv.supabase.co";
 
-    const sections = document.querySelectorAll('.section');
+const SUPABASE_PUBLISHABLE_KEY =
+  "sb_publishable_SMSVcooUHVx6Vi2FzFNP9A_VrFcTaZm";
 
-    sections.forEach(function(section) {
-        section.classList.remove('active');
-    });
+const ADMIN_EMAIL = "info@aprilssignature.com";
 
-    const buttons = document.querySelectorAll('.sidebar button');
+const supabaseClient = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_PUBLISHABLE_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  }
+);
 
-    buttons.forEach(function(button) {
-        button.classList.remove('active');
-    });
+const loginView =
+  document.getElementById("loginView");
 
-    document.getElementById(sectionId).classList.add('active');
+const dashboardView =
+  document.getElementById("dashboardView");
 
-    event.target.classList.add('active');
+const loginForm =
+  document.getElementById("loginForm");
+
+const loginMessage =
+  document.getElementById("loginMessage");
+
+function showMessage(target, type, text) {
+  target.innerHTML =
+    '<div class="' +
+    (type === "success"
+      ? "success-message"
+      : "error-message") +
+    '">' +
+    escapeHtml(text) +
+    "</div>";
 }
 
-
-function logout() {
-
-    alert("Admin logout will be connected when secure administrator authentication is added.");
-
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleString();
+}
+
+function showDashboard() {
+  loginView.classList.add("hidden");
+  dashboardView.classList.remove("hidden");
+  loadAll();
+}
+
+function showLogin() {
+  dashboardView.classList.add("hidden");
+  loginView.classList.remove("hidden");
+}
+
+async function checkSession() {
+  const {
+    data: { session }
+  } = await supabaseClient.auth.getSession();
+
+  if (
+    session &&
+    session.user &&
+    session.user.email === ADMIN_EMAIL
+  ) {
+    showDashboard();
+  } else {
+    showLogin();
+  }
+}
+
+loginForm.addEventListener("submit", async function(event) {
+  event.preventDefault();
+
+  const email =
+    document.getElementById("adminEmail").value.trim();
+
+  const password =
+    document.getElementById("adminPassword").value;
+
+  if (email.toLowerCase() !== ADMIN_EMAIL) {
+    showMessage(
+      loginMessage,
+      "error",
+      "Only the Aprils Signature administrator account can access this dashboard."
+    );
+    return;
+  }
+
+  const { data, error } =
+    await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+
+  if (error) {
+    console.error(error);
+    showMessage(
+      loginMessage,
+      "error",
+      "Login failed. Check the email address and password."
+    );
+    return;
+  }
+
+  if (
+    !data.user ||
+    data.user.email !== ADMIN_EMAIL
+  ) {
+    await supabaseClient.auth.signOut();
+
+    showMessage(
+      loginMessage,
+      "error",
+      "This account is not authorised for the Aprils Signature admin dashboard."
+    );
+    return;
+  }
+
+  loginMessage.innerHTML = "";
+  showDashboard();
+});
+
+document
+  .getElementById("logoutButton")
+  .addEventListener("click", async function() {
+    await supabaseClient.auth.signOut();
+    showLogin();
+  });
+
+document
+  .querySelectorAll(".sidebar button")
+  .forEach(function(button) {
+    button.addEventListener("click", function() {
+      document
+        .querySelectorAll(".sidebar button")
+        .forEach(function(item) {
+          item.classList.remove("active");
+        });
+
+      document
+        .querySelectorAll(".section")
+        .forEach(function(section) {
+          section.classList.remove("active");
+        });
+
+      button.classList.add("active");
+
+      document
+        .getElementById(button.dataset.section)
+        .classList.add("active");
+
+      if (button.dataset.section === "registrations") {
+        loadTrainingRegistrations();
+      }
+
+      if (button.dataset.section === "orders") {
+        loadQuoteRequests();
+      }
+    });
+  });
+
+async function loadAll() {
+  await Promise.all([
+    loadTrainingRegistrations(),
+    loadQuoteRequests()
+  ]);
+}
+
+async function loadTrainingRegistrations() {
+  const container =
+    document.getElementById("trainingTable");
+
+  try {
+    const { data, error } =
+      await supabaseClient
+        .from("training_registrations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    document.getElementById("trainingCount")
+      .textContent = data.length;
+
+    if (!data.length) {
+      container.innerHTML =
+        '<div class="loading">No training registrations yet.</div>';
+      return;
+    }
+
+    let html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Location</th>
+            <th>Course</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    data.forEach(function(row) {
+      html += `
+        <tr>
+          <td>${escapeHtml(formatDate(row.created_at))}</td>
+          <td>${escapeHtml(row.full_name)}</td>
+          <td>
+            ${escapeHtml(row.phone)}<br>
+            ${escapeHtml(row.whatsapp)}
+          </td>
+          <td>${escapeHtml(row.location)}</td>
+          <td>${escapeHtml(row.course)}</td>
+          <td>${escapeHtml(row.email || "")}</td>
+          <td>
+            <select
+              class="status-select"
+              data-training-status="${row.id}"
+            >
+              ${statusOption("New", row.status)}
+              ${statusOption("Contacted", row.status)}
+              ${statusOption("Enrolled", row.status)}
+              ${statusOption("Completed", row.status)}
+              ${statusOption("Cancelled", row.status)}
+            </select>
+          </td>
+          <td>
+            <button
+              class="primary-btn"
+              type="button"
+              onclick="saveTrainingStatus('${row.id}')"
+            >
+              Save
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += "</tbody></table>";
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error(error);
+    container.innerHTML =
+      '<div class="error-message">Could not load training registrations.</div>';
+  }
+}
+
+async function loadQuoteRequests() {
+  const container =
+    document.getElementById("quoteTable");
+
+  try {
+    const { data, error } =
+      await supabaseClient
+        .from("quote_requests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    document.getElementById("quoteCount")
+      .textContent = data.length;
+
+    if (!data.length) {
+      container.innerHTML =
+        '<div class="loading">No quote requests yet.</div>';
+      return;
+    }
+
+    let html = `
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Location</th>
+            <th>Service</th>
+            <th>Products</th>
+            <th>Details</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    data.forEach(function(row) {
+      html += `
+        <tr>
+          <td>${escapeHtml(formatDate(row.created_at))}</td>
+          <td>
+            <strong>${escapeHtml(row.full_name)}</strong><br>
+            <span class="small">${escapeHtml(row.email || "")}</span>
+          </td>
+          <td>
+            ${escapeHtml(row.phone)}<br>
+            ${escapeHtml(row.whatsapp || "")}
+          </td>
+          <td>${escapeHtml(row.location)}</td>
+          <td>${escapeHtml(row.service)}</td>
+          <td>${formatProducts(row)}</td>
+          <td>
+            ${escapeHtml(row.streetwear_other || "")}
+            ${escapeHtml(row.embellishment_other || "")}
+            ${escapeHtml(row.additional_details || "")}
+            ${formatUploads(row.upload_files)}
+          </td>
+          <td>
+            <select
+              class="status-select"
+              data-quote-status="${row.id}"
+            >
+              ${quoteStatusOption("New", row.status)}
+              ${quoteStatusOption("Contacted", row.status)}
+              ${quoteStatusOption("Quoted", row.status)}
+              ${quoteStatusOption("Confirmed", row.status)}
+              ${quoteStatusOption("Completed", row.status)}
+              ${quoteStatusOption("Cancelled", row.status)}
+            </select>
+          </td>
+          <td>
+            <button
+              class="primary-btn"
+              type="button"
+              onclick="saveQuoteStatus('${row.id}')"
+            >
+              Save
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += "</tbody></table>";
+    container.innerHTML = html;
+
+  } catch (error) {
+    console.error(error);
+    container.innerHTML =
+      '<div class="error-message">Could not load quote requests.</div>';
+  }
+}
+
+function statusOption(value, current) {
+  return `
+    <option value="${escapeHtml(value)}"
+      ${value === current ? "selected" : ""}>
+      ${escapeHtml(value)}
+    </option>
+  `;
+}
+
+function quoteStatusOption(value, current) {
+  return statusOption(value, current);
+}
+
+function formatProducts(row) {
+  const items = [
+    ["Jerseys", row.jerseys],
+    ["Hoodies", row.hoodies],
+    ["Joggers", row.joggers],
+    ["T-shirts", row.tshirts],
+    ["Polo Shirts", row.polo_shirts],
+    ["Sweatshirts", row.sweatshirts],
+    ["Sweatpants", row.sweatpants],
+    ["Ladies Tank Tops", row.ladies_tank_tops],
+    ["Men's Tank Tops", row.mens_tank_tops],
+    ["Varsity Jackets", row.varsity_jackets],
+    ["Cargo Pants", row.cargo_pants],
+    ["Cargo Skirts", row.cargo_skirts],
+    ["Jogger Shorts", row.jogger_shorts],
+    ["Hoodies & Joggers Set", row.hoodies_joggers_set],
+    ["T-shirts & Shorts Set", row.tshirts_shorts_set],
+    ["Sweatshirts & Shorts Set", row.sweatshirts_shorts_set]
+  ];
+
+  return items
+    .filter(function(item) {
+      return Number(item[1]) > 0;
+    })
+    .map(function(item) {
+      return escapeHtml(item[0]) +
+        ": " +
+        escapeHtml(item[1]);
+    })
+    .join("<br>") || "—";
+}
+
+function formatUploads(files) {
+  if (!Array.isArray(files) || !files.length) {
+    return "";
+  }
+
+  return "<br><strong>Uploads:</strong><br>" +
+    files.map(function(file) {
+      return escapeHtml(
+        file.type + ": " + file.original_name
+      );
+    }).join("<br>");
+}
+
+window.saveTrainingStatus =
+  async function(id) {
+    const select =
+      document.querySelector(
+        '[data-training-status="' + id + '"]'
+      );
+
+    if (!select) return;
+
+    const { error } =
+      await supabaseClient
+        .from("training_registrations")
+        .update({ status: select.value })
+        .eq("id", id);
+
+    if (error) {
+      console.error(error);
+      showMessage(
+        document.getElementById("trainingMessage"),
+        "error",
+        "Could not save the training status."
+      );
+      return;
+    }
+
+    showMessage(
+      document.getElementById("trainingMessage"),
+      "success",
+      "Training registration status saved."
+    );
+  };
+
+window.saveQuoteStatus =
+  async function(id) {
+    const select =
+      document.querySelector(
+        '[data-quote-status="' + id + '"]'
+      );
+
+    if (!select) return;
+
+    const { error } =
+      await supabaseClient
+        .from("quote_requests")
+        .update({ status: select.value })
+        .eq("id", id);
+
+    if (error) {
+      console.error(error);
+      showMessage(
+        document.getElementById("quoteMessage"),
+        "error",
+        "Could not save the quote request status."
+      );
+      return;
+    }
+
+    showMessage(
+      document.getElementById("quoteMessage"),
+      "success",
+      "Quote request status saved."
+    );
+  };
+
+supabaseClient.auth.onAuthStateChange(
+  function(event, session) {
+    if (
+      event === "SIGNED_OUT" ||
+      !session ||
+      !session.user ||
+      session.user.email !== ADMIN_EMAIL
+    ) {
+      showLogin();
+    }
+  }
+);
+
+checkSession();
 </script>
 
 </body>
