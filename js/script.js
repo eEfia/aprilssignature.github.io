@@ -12,6 +12,16 @@
    SUPABASE
 ========================================================= */
 
+
+function escapeHTML(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function getSupabase() {
 
     return (
@@ -820,7 +830,7 @@ function setupQuoteForm() {
             const selectedServices =
                 Array.from(
                     form.querySelectorAll(
-                        'input[name="services[]"]:checked'
+                        'input[name="services[]"]:checked, input[name="service"]:checked'
                     )
                 ).map(function (input) {
 
@@ -1096,6 +1106,261 @@ function setupQuoteForm() {
 }
 
 
+
+/* =========================================================
+   PUBLIC SITE — DATABASE-LINKED CONTENT
+   Falls back to the existing static HTML when a table has
+   no active rows, so the public design is never left blank.
+========================================================= */
+
+async function loadPublicRows(table) {
+    const supabase = await waitForSupabase();
+    if (!supabase) return [];
+    const result = await supabase
+        .from(table)
+        .select("*")
+        .eq("active", true);
+    if (result.error) {
+        console.warn("Public content table unavailable:", table, result.error);
+        return [];
+    }
+    return result.data || [];
+}
+
+function ensureLightbox() {
+    let viewer = document.getElementById("galleryViewer");
+    if (viewer) return viewer;
+
+    viewer = document.createElement("div");
+    viewer.id = "galleryViewer";
+    viewer.innerHTML = `
+        <button id="galleryViewerClose" type="button" aria-label="Close">×</button>
+        <div id="galleryViewerContent"></div>
+    `;
+    document.body.appendChild(viewer);
+
+    viewer.addEventListener("click", function (event) {
+        if (event.target === viewer || event.target.id === "galleryViewerClose") {
+            viewer.classList.remove("active");
+        }
+    });
+
+    return viewer;
+}
+
+function openMediaViewer(source, type, alt) {
+    const viewer = ensureLightbox();
+    const content = document.getElementById("galleryViewerContent");
+    if (!content) return;
+
+    if (type === "video") {
+        content.innerHTML = `<video controls autoplay muted loop playsinline><source src="${source}" type="video/mp4"></video>`;
+    } else {
+        content.innerHTML = `<img src="${source}" alt="${alt || ""}">`;
+    }
+
+    viewer.classList.add("active");
+}
+
+function setupMediaInteractions() {
+    document.querySelectorAll(".gallery-image img, .location-image img").forEach(img => {
+        if (img.dataset.mediaBound) return;
+        img.dataset.mediaBound = "1";
+        img.addEventListener("click", function (event) {
+            event.preventDefault();
+            openMediaViewer(this.currentSrc || this.src, "image", this.alt);
+        });
+    });
+
+    document.querySelectorAll(".gallery-image video, .featured-video video").forEach(video => {
+        video.muted = true;
+        video.loop = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.play().catch(() => {});
+        video.autoplay = true;
+        video.muted = true;
+        video.loop = true;
+        video.playsInline = true;
+
+        if (!video.dataset.mediaBound) {
+            video.dataset.mediaBound = "1";
+            video.addEventListener("click", function () {
+                const source = this.querySelector("source");
+                if (source) openMediaViewer(source.src, "video", "");
+            });
+        }
+    });
+}
+
+async function loadPublicGallery() {
+    if (!document.body.classList.contains("gallery-page")) return;
+
+    const rows = await loadPublicRows("gallery_items");
+    if (!rows.length) {
+        setupMediaInteractions();
+        return;
+    }
+
+    const activeRows = rows.filter(row => row.image_url);
+    if (!activeRows.length) return;
+
+    const main = document.querySelector("main");
+    if (!main) return;
+
+    const intro = main.querySelector(".page-intro");
+    const existingSections = main.querySelectorAll(".full-gallery, .featured-collection, .gallery-note");
+
+    existingSections.forEach(section => section.remove());
+
+    const groups = {};
+    activeRows.forEach(row => {
+        const category = row.category || "Gallery";
+        if (!groups[category]) groups[category] = [];
+        groups[category].push(row);
+    });
+
+    const fragment = document.createDocumentFragment();
+
+    Object.keys(groups).sort().forEach(category => {
+        const section = document.createElement("section");
+        section.className = "full-gallery";
+        section.innerHTML = `
+            <div class="container">
+                <h2>${escapeHTML(category)}</h2>
+                <div class="gallery-grid">
+                    ${groups[category].map(row => `
+                        <article class="gallery-item">
+                            <div class="gallery-image">
+                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url || "")
+                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(row.image_url)}" type="video/mp4"></video>`
+                                    : `<img src="${escapeHTML(row.image_url)}" alt="${escapeHTML(row.title || category)}">`}
+                            </div>
+                            ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
+                            ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
+                        </article>
+                    `).join("")}
+                </div>
+            </div>
+        `;
+        fragment.appendChild(section);
+    });
+
+    const note = document.createElement("section");
+    note.className = "gallery-note";
+    note.innerHTML = `
+        <div class="container">
+            <h2>Elegance in Every Stitch</h2>
+            <p>Every creation is made with attention to detail, creativity and the Aprils Signature standard.</p>
+            <div class="cta-buttons">
+                <a href="quotes.html" class="button gold">Order / Request a Quote</a>
+                <a href="contact.html" class="button">Contact Us</a>
+            </div>
+        </div>
+    `;
+    fragment.appendChild(note);
+
+    if (intro) intro.after(fragment);
+    setupMediaInteractions();
+}
+
+async function loadPublicServices() {
+    if (!document.body.classList.contains("services-page")) return;
+
+    const rows = await loadPublicRows("admin_services");
+    if (!rows.length) return;
+
+    const sections = document.querySelectorAll(".service-section");
+    if (!sections.length) return;
+
+    sections.forEach(section => section.remove());
+
+    const main = document.querySelector("main");
+    const intro = main?.querySelector(".page-intro");
+    if (!main || !intro) return;
+
+    const fragment = document.createDocumentFragment();
+
+    rows.forEach(row => {
+        const section = document.createElement("section");
+        section.className = "service-section";
+        section.innerHTML = `
+            <div class="container">
+                <h2>${escapeHTML(row.title)}</h2>
+                ${row.category ? `<p class="eyebrow">${escapeHTML(row.category)}</p>` : ""}
+                <p>${escapeHTML(row.description || "")}</p>
+                <a href="quotes.html" class="button">Order / Request a Quote</a>
+            </div>
+        `;
+        fragment.appendChild(section);
+    });
+
+    intro.after(fragment);
+}
+
+async function loadPublicTraining() {
+    if (!document.body.classList.contains("training-page")) return;
+
+    const rows = await loadPublicRows("training_programs");
+    if (!rows.length) return;
+
+    const grid = document.querySelector(".training-section .training-grid");
+    if (!grid) return;
+
+    grid.innerHTML = rows.map(row => `
+        <article class="training-card">
+            <h3>${escapeHTML(row.title)}</h3>
+            ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
+            ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
+            ${row.price ? `<p><strong>GHC ${Number(row.price).toFixed(2)}</strong></p>` : ""}
+        </article>
+    `).join("");
+}
+
+async function loadPublicTestimonials() {
+    if (!document.body.classList.contains("home-page")) return;
+
+    const rows = await loadPublicRows("testimonials");
+    const placeholder = document.querySelector(".testimonial-placeholder");
+    if (!placeholder || !rows.length) return;
+
+    placeholder.innerHTML = rows.map(row => `
+        <blockquote>
+            <p>“${escapeHTML(row.testimonial || "")}”</p>
+            <cite>— ${escapeHTML(row.customer_name || "Customer")}</cite>
+        </blockquote>
+    `).join("");
+}
+
+async function loadPublicFAQs() {
+    if (!document.body.classList.contains("policies-page")) return;
+
+    const rows = await loadPublicRows("faqs");
+    const section = document.querySelector(".faq-section .container");
+    if (!section || !rows.length) return;
+
+    section.innerHTML = `
+        <h2>Frequently Asked Questions</h2>
+        ${rows.map(row => `
+            <details>
+                <summary>${escapeHTML(row.question || "")}</summary>
+                <p>${escapeHTML(row.answer || "")}</p>
+            </details>
+        `).join("")}
+    `;
+}
+
+async function setupPublicDatabaseContent() {
+    await Promise.all([
+        loadPublicGallery(),
+        loadPublicServices(),
+        loadPublicTraining(),
+        loadPublicTestimonials(),
+        loadPublicFAQs()
+    ]);
+    setupMediaInteractions();
+}
+
 /* =========================================================
    START
 ========================================================= */
@@ -1115,6 +1380,8 @@ function start() {
     setupEnquiryForm();
 
     setupQuoteForm();
+
+    setupPublicDatabaseContent();
 
 }
 
@@ -1136,21 +1403,3 @@ if (
 
 
 })();
-
-async function applyAdminManagedLinks(){
-    const supabase=await waitForSupabase();
-    if(!supabase)return;
-    try{
-        const r=await supabase.from("site_content").select("content_key,content_value");
-        const map={social_tiktok:"tiktok",social_instagram:"instagram",social_facebook:"facebook",social_whatsapp:"whatsapp"};
-        if(!r.error)(r.data||[]).forEach(x=>{const a=map[x.content_key];if(a&&x.content_value)document.querySelectorAll('[data-social="'+a+'"]').forEach(el=>el.href=x.content_value);});
-        const c=await supabase.from("contact_settings").select("*").limit(1).maybeSingle();
-        if(!c.error&&c.data){
-            const x=c.data;
-            if(x.email)document.querySelectorAll('a[href^="mailto:"]').forEach(a=>a.href="mailto:"+x.email);
-            if(x.phone)document.querySelectorAll('a[href^="tel:"]').forEach(a=>a.href="tel:"+x.phone.replace(/[^\d+]/g,""));
-            if(x.whatsapp){const n=x.whatsapp.replace(/[^\d]/g,"");document.querySelectorAll('a[href*="wa.me/"]').forEach(a=>a.href="https://wa.me/"+n);}
-        }
-    }catch(e){console.warn("Admin-managed links unavailable",e);}
-}
-applyAdminManagedLinks();
