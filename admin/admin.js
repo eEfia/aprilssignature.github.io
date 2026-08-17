@@ -1,48 +1,39 @@
 "use strict";
 
-/*
-=========================================================
-APRILS SIGNATURE ADMIN DASHBOARD
-=========================================================
-Uses the existing Supabase client.
-Does not create a second database.
-=========================================================
-*/
+/* =========================================================
+   APRILS SIGNATURE — ADMIN DASHBOARD
+   One Supabase client. No duplicate inline dashboard code.
+========================================================= */
 
 let db = null;
 
+const DEFAULT_GALLERY_COLLECTIONS = [
+    "Streetwear Collection",
+    "Rhinestone Embellishment",
+    "Fashion Creations",
+    "Featured Collection",
+    "Embellishment Projects"
+];
 
-/* =====================================================
-SUPABASE
-===================================================== */
+const DEFAULT_SERVICE_CATEGORIES = [
+    "Streetwear",
+    "Ladies Wear",
+    "Kids Wear",
+    "Rhinestone Embellishment",
+    "T-Shirt Printing",
+    "Dressmaking Training",
+    "Screen Painting",
+    "Glitter Works",
+    "Practical Fashion Training"
+];
 
-async function waitForSupabase() {
-
-    for (let i = 0; i < 100; i++) {
-
-        if (window.aprilsSupabase) {
-            return window.aprilsSupabase;
-        }
-
-        if (window.AprilsSupabase) {
-            return window.AprilsSupabase;
-        }
-
-        await new Promise(resolve =>
-            setTimeout(resolve, 100)
-        );
-    }
-
-    return null;
-}
-
-
-/* =====================================================
-HELPERS
-===================================================== */
+const DEFAULT_TRAINING_CATEGORIES = [
+    "Main Training Programmes",
+    "Specialty Classes",
+    "Add-On Classes"
+];
 
 function escapeHTML(value) {
-
     return String(value ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -51,1442 +42,1310 @@ function escapeHTML(value) {
         .replace(/'/g, "&#039;");
 }
 
-
 function message(text, type = "success") {
-
-    const box =
-        document.getElementById("globalStatus");
-
+    const box = document.getElementById("globalStatus");
     if (!box) return;
-
     box.textContent = text;
-
-    box.className =
-        "status " + type;
-
-    setTimeout(function () {
-
+    box.className = "status " + type;
+    setTimeout(() => {
         box.className = "status";
-
     }, 5000);
 }
 
+async function waitForSupabase() {
+    for (let i = 0; i < 100; i++) {
+        if (window.aprilsSupabase) return window.aprilsSupabase;
+        if (window.AprilsSupabase) return window.AprilsSupabase;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return null;
+}
 
 async function getRows(table) {
-
     if (!db) return [];
-
-    const result =
-        await db
-            .from(table)
-            .select("*")
-            .order(
-                "created_at",
-                { ascending: false }
-            );
-
-    if (result.error) {
-        console.error(table, result.error);
-        throw result.error;
-    }
-
+    const result = await db.from(table).select("*").order("created_at", { ascending: false });
+    if (result.error) throw result.error;
     return result.data || [];
 }
 
-
 async function countRows(table) {
-
     if (!db) return 0;
-
-    const result =
-        await db
-            .from(table)
-            .select("*", {
-                count: "exact",
-                head: true
-            });
-
-    if (result.error) {
-        console.error(table, result.error);
-        return 0;
-    }
-
+    const result = await db.from(table).select("*", { count: "exact", head: true });
+    if (result.error) return 0;
     return result.count || 0;
 }
 
-
-/* =====================================================
-LOGIN
-===================================================== */
-
 async function checkSession() {
-
     if (!db) return;
-
-    const result =
-        await db.auth.getSession();
-
-    const login =
-        document.getElementById("loginScreen");
-
+    const result = await db.auth.getSession();
+    const login = document.getElementById("loginScreen");
     if (!login) return;
 
-
     if (result.data.session) {
-
         login.style.display = "none";
-
         await loadDashboard();
-
     } else {
-
         login.style.display = "flex";
-
     }
 }
 
+function setupLogin() {
+    const form = document.getElementById("loginForm");
+    if (!form) return;
 
-const loginForm =
-    document.getElementById("loginForm");
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
 
+        const email = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        const box = document.getElementById("loginMessage");
 
-if (loginForm) {
+        try {
+            const result = await db.auth.signInWithPassword({ email, password });
+            if (result.error) throw result.error;
 
-    loginForm.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-            const email =
-                document.getElementById(
-                    "loginEmail"
-                ).value.trim();
-
-            const password =
-                document.getElementById(
-                    "loginPassword"
-                ).value;
-
-            const box =
-                document.getElementById(
-                    "loginMessage"
-                );
-
-
-            try {
-
-                const result =
-                    await db.auth.signInWithPassword({
-                        email,
-                        password
-                    });
-
-
-                if (result.error) {
-                    throw result.error;
-                }
-
-
-                box.textContent =
-                    "Login successful.";
-
-                box.className =
-                    "status success";
-
-
-                document.getElementById(
-                    "loginScreen"
-                ).style.display = "none";
-
-
-                await loadDashboard();
-
-
-            } catch (error) {
-
-                console.error(error);
-
-                box.textContent =
-                    "Login failed. Check your email and password.";
-
-                box.className =
-                    "status error";
-
-            }
-
+            box.textContent = "Login successful.";
+            box.className = "status success";
+            document.getElementById("loginScreen").style.display = "none";
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            box.textContent = "Login failed. Check your email and password.";
+            box.className = "status error";
         }
-    );
-
-}
-
-
-/* =====================================================
-LOGOUT
-===================================================== */
-
-const logoutButton =
-    document.getElementById(
-        "logoutButton"
-    );
-
-
-if (logoutButton) {
-
-    logoutButton.addEventListener(
-        "click",
-        async function () {
-
-            await db.auth.signOut();
-
-            location.reload();
-
-        }
-    );
-
-}
-
-
-/* =====================================================
-NAVIGATION
-===================================================== */
-
-document
-    .querySelectorAll(".sidebar button")
-    .forEach(function (button) {
-
-        button.addEventListener(
-            "click",
-            async function () {
-
-                document
-                    .querySelectorAll(
-                        ".sidebar button"
-                    )
-                    .forEach(function (b) {
-
-                        b.classList.remove(
-                            "active"
-                        );
-
-                    });
-
-
-                button.classList.add(
-                    "active"
-                );
-
-
-                document
-                    .querySelectorAll(
-                        ".section"
-                    )
-                    .forEach(function (section) {
-
-                        section.classList.remove(
-                            "active"
-                        );
-
-                    });
-
-
-                const id =
-                    button.dataset.section ||
-                    button.getAttribute(
-                        "onclick"
-                    )?.match(
-                        /showSection\(['"]([^'"]+)/
-                    )?.[1];
-
-
-                if (!id) return;
-
-
-                const section =
-                    document.getElementById(id);
-
-
-                if (section) {
-
-                    section.classList.add(
-                        "active"
-                    );
-
-                }
-
-
-                await loadSection(id);
-
-            }
-        );
-
     });
+}
 
+function setupLogout() {
+    const button = document.getElementById("logoutButton");
+    if (!button) return;
 
-/* =====================================================
-DASHBOARD COUNTS
-===================================================== */
+    button.addEventListener("click", async () => {
+        if (db) await db.auth.signOut();
+        location.reload();
+    });
+}
+
+function setupNavigation() {
+    document.querySelectorAll(".sidebar button[data-section]").forEach(button => {
+        button.addEventListener("click", async () => {
+            document.querySelectorAll(".sidebar button").forEach(b => b.classList.remove("active"));
+            button.classList.add("active");
+
+            document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
+
+            const id = button.dataset.section;
+            const section = document.getElementById(id);
+            if (section) section.classList.add("active");
+
+            await loadSection(id);
+        });
+    });
+}
 
 async function loadDashboard() {
-
     const counters = {
-
-        galleryCount:
-            "gallery_items",
-
-        trainingCount:
-            "training_programs",
-
-        testimonialCount:
-            "testimonials",
-
-        faqCount:
-            "faqs",
-
-        registrationCount:
-            "training_registrations",
-
-        quoteCount:
-            "quote_requests",
-
-        enquiryCount:
-            "enquiries"
-
+        galleryCount: "gallery_items",
+        trainingCount: "training_programs",
+        testimonialCount: "testimonials",
+        faqCount: "faqs",
+        registrationCount: "training_registrations",
+        quoteCount: "quote_requests",
+        enquiryCount: "enquiries"
     };
 
-
     for (const id in counters) {
-
-        const element =
-            document.getElementById(id);
-
-        if (!element) continue;
-
-        element.textContent =
-            await countRows(
-                counters[id]
-            );
-
+        const element = document.getElementById(id);
+        if (element) element.textContent = await countRows(counters[id]);
     }
-
 }
-
-
-/* =====================================================
-LOAD SECTION
-===================================================== */
 
 async function loadSection(id) {
+    try {
+        if (id === "dashboard") await loadDashboard();
+        if (id === "gallery") await loadGallery();
+        if (id === "training") await loadTraining();
+        if (id === "registrations") await loadRegistrations();
+        if (id === "orders") await loadQuotes();
+        if (id === "enquiries") await loadEnquiries();
+        if (id === "testimonials") await loadTestimonials();
+        if (id === "faq") await loadFAQs();
+        if (id === "policies") await loadPolicies();
+        if (id === "content") await loadContent();
+        if (id === "services") await loadServices();
+        if (id === "contact") await loadContact();
+        if (id === "settings") await loadSettings();
+    } catch (error) {
+        console.error("ADMIN SECTION ERROR:", id, error);
+        message("Could not load this section. Check your Supabase tables and policies.", "error");
+    }
+}
+
+/* =========================================================
+   GALLERY
+========================================================= */
+
+async function getGalleryCollections() {
+    const names = new Set(DEFAULT_GALLERY_COLLECTIONS);
 
     try {
-
-        if (id === "dashboard")
-            await loadDashboard();
-
-        if (id === "gallery")
-            await loadGallery();
-
-        if (id === "training")
-            await loadTraining();
-
-        if (id === "registrations")
-            await loadRegistrations();
-
-        if (id === "orders")
-            await loadQuotes();
-
-        if (id === "enquiries")
-            await loadEnquiries();
-
-        if (id === "testimonials")
-            await loadTestimonials();
-
-        if (id === "faq")
-            await loadFAQs();
-
-        if (id === "policies")
-            await loadPolicies();
-
-        if (id === "content")
-            await loadContent();
-
-        if (id === "services")
-            await loadServices();
-
-        if (id === "contact")
-            await loadContact();
-
-        if (id === "settings")
-            await loadSettings();
-
-
-    } catch (error) {
-
-        console.error(error);
-
-        message(
-            "Could not load this section. Check your Supabase tables and policies.",
-            "error"
-        );
-
-    }
-
-}
-
-
-/* =====================================================
-GALLERY
-===================================================== */
-
-async function loadGallery() {
-
-    const rows =
-        await getRows(
-            "gallery_items"
-        );
-
-
-    const list =
-        document.getElementById(
-            "galleryList"
-        );
-
-    if (!list) return;
-
-
-    if (!rows.length) {
-
-        list.innerHTML =
-            "<div class='empty'>" +
-            "No gallery items yet." +
-            "</div>";
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <div class="admin-actions">
-            <button
-                type="button"
-                onclick="newGalleryItem()"
-            >
-                + Add Gallery Item
-            </button>
-
-            <button
-                type="button"
-                onclick="newGalleryCollection()"
-            >
-                + Add New Collection
-            </button>
-        </div>
-
-        <table>
-        <thead>
-        <tr>
-            <th>Image</th>
-            <th>Title</th>
-            <th>Collection</th>
-            <th>Featured</th>
-            <th>Active</th>
-            <th>Actions</th>
-        </tr>
-        </thead>
-        <tbody>
-    `;
-
-
-    rows.forEach(function (row) {
-
-        html += `
-
-        <tr>
-
-            <td>
-                ${
-                    row.image_url
-                    ?
-                    `<img
-                        src="${escapeHTML(row.image_url)}"
-                        alt=""
-                        style="width:70px;height:70px;object-fit:cover"
-                    >`
-                    :
-                    "No image"
-                }
-            </td>
-
-            <td>
-                ${escapeHTML(row.title)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.category)}
-            </td>
-
-            <td>
-                ${row.featured ? "Yes" : "No"}
-            </td>
-
-            <td>
-                ${row.active ? "Yes" : "No"}
-            </td>
-
-            <td>
-
-                <button
-                    type="button"
-                    onclick='editGallery(${JSON.stringify(row)})'
-                >
-                    Edit
-                </button>
-
-                <button
-                    type="button"
-                    onclick="deleteGallery(${row.id})"
-                >
-                    Delete
-                </button>
-
-            </td>
-
-        </tr>
-        `;
-
-    });
-
-
-    html += `
-        </tbody>
-        </table>
-    `;
-
-
-    list.innerHTML = html;
-
-}
-
-
-window.newGalleryItem =
-function () {
-
-    const form =
-        document.getElementById(
-            "galleryForm"
-        );
-
-    if (!form) return;
-
-    form.reset();
-
-    document.getElementById(
-        "galleryId"
-    ).value = "";
-
-};
-
-
-window.newGalleryCollection =
-function () {
-
-    const category =
-        prompt(
-            "Enter the name of the new gallery collection:"
-        );
-
-
-    if (!category) return;
-
-
-    const field =
-        document.getElementById(
-            "galleryCategory"
-        );
-
-
-    if (field) {
-
-        field.value =
-            category.trim();
-
-        field.focus();
-
-    }
-
-};
-
-
-window.editGallery =
-function (row) {
-
-    document.getElementById(
-        "galleryId"
-    ).value = row.id;
-
-    document.getElementById(
-        "galleryTitle"
-    ).value =
-        row.title || "";
-
-    document.getElementById(
-        "galleryCategory"
-    ).value =
-        row.category || "";
-
-    document.getElementById(
-        "galleryImage"
-    ).value =
-        row.image_url || "";
-
-    document.getElementById(
-        "galleryDescription"
-    ).value =
-        row.description || "";
-
-    document.getElementById(
-        "galleryFeatured"
-    ).checked =
-        !!row.featured;
-
-    document.getElementById(
-        "galleryActive"
-    ).checked =
-        !!row.active;
-
-};
-
-
-window.deleteGallery =
-async function (id) {
-
-    if (
-        !confirm(
-            "Delete this gallery item?"
-        )
-    ) return;
-
-
-    const result =
-        await db
-            .from("gallery_items")
-            .delete()
-            .eq("id", id);
-
-
-    if (result.error) {
-
-        console.error(result.error);
-
-        message(
-            "Gallery item could not be deleted.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    message(
-        "Gallery item deleted.",
-        "success"
-    );
-
-
-    await loadGallery();
-    await loadDashboard();
-
-};
-
-
-/* =====================================================
-TRAINING
-===================================================== */
-
-async function loadTraining() {
-
-    const rows =
-        await getRows(
-            "training_programs"
-        );
-
-
-    const list =
-        document.getElementById(
-            "trainingList"
-        );
-
-    if (!list) return;
-
-
-    let html = `
-
-        <div class="admin-actions">
-
-            <button
-                type="button"
-                onclick="newTraining()"
-            >
-                + Add Training Programme / Class
-            </button>
-
-        </div>
-
-    `;
-
-
-    if (!rows.length) {
-
-        html +=
-            "<div class='empty'>" +
-            "No training programmes yet." +
-            "</div>";
-
-        list.innerHTML = html;
-
-        return;
-
-    }
-
-
-    html += `
-
-        <table>
-
-        <thead>
-
-        <tr>
-            <th>Programme/Class</th>
-            <th>Duration</th>
-            <th>Price</th>
-            <th>Section</th>
-            <th>Active</th>
-            <th>Actions</th>
-        </tr>
-
-        </thead>
-
-        <tbody>
-    `;
-
-
-    rows.forEach(function (row) {
-
-        html += `
-
-        <tr>
-
-            <td>
-                ${escapeHTML(row.title)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.duration)}
-            </td>
-
-            <td>
-                GHC ${Number(row.price || 0).toFixed(2)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.category)}
-            </td>
-
-            <td>
-                ${row.active ? "Yes" : "No"}
-            </td>
-
-            <td>
-
-                <button
-                    type="button"
-                    onclick='editTraining(${JSON.stringify(row)})'
-                >
-                    Edit
-                </button>
-
-                <button
-                    type="button"
-                    onclick="deleteTraining(${row.id})"
-                >
-                    Delete
-                </button>
-
-            </td>
-
-        </tr>
-        `;
-
-    });
-
-
-    html += `
-        </tbody>
-        </table>
-    `;
-
-
-    list.innerHTML = html;
-
-}
-
-
-window.newTraining =
-function () {
-
-    const form =
-        document.getElementById(
-            "trainingForm"
-        );
-
-    if (!form) return;
-
-    form.reset();
-
-    document.getElementById(
-        "trainingId"
-    ).value = "";
-
-};
-
-
-window.editTraining =
-function (row) {
-
-    document.getElementById(
-        "trainingId"
-    ).value = row.id;
-
-    document.getElementById(
-        "trainingTitle"
-    ).value =
-        row.title || "";
-
-    document.getElementById(
-        "trainingDuration"
-    ).value =
-        row.duration || "";
-
-    document.getElementById(
-        "trainingPrice"
-    ).value =
-        row.price || "";
-
-    document.getElementById(
-        "trainingCategory"
-    ).value =
-        row.category || "";
-
-    document.getElementById(
-        "trainingDescription"
-    ).value =
-        row.description || "";
-
-    document.getElementById(
-        "trainingActive"
-    ).checked =
-        !!row.active;
-
-};
-
-
-window.deleteTraining =
-async function (id) {
-
-    if (
-        !confirm(
-            "Delete this training programme/class?"
-        )
-    ) return;
-
-
-    const result =
-        await db
-            .from("training_programs")
-            .delete()
-            .eq("id", id);
-
-
-    if (result.error) {
-
-        console.error(result.error);
-
-        message(
-            "Training programme could not be deleted.",
-            "error"
-        );
-
-        return;
-
-    }
-
-
-    message(
-        "Training programme deleted.",
-        "success"
-    );
-
-
-    await loadTraining();
-    await loadDashboard();
-
-};
-
-
-/* =====================================================
-TRAINING REGISTRATIONS
-===================================================== */
-
-async function loadRegistrations() {
-
-    const rows =
-        await getRows(
-            "training_registrations"
-        );
-
-
-    const list =
-        document.getElementById(
-            "registrationList"
-        );
-
-    if (!list) return;
-
-
-    if (!rows.length) {
-
-        list.innerHTML =
-            "<div class='empty'>" +
-            "No training registrations received." +
-            "</div>";
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <table>
-
-        <thead>
-
-        <tr>
-            <th>Date</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>WhatsApp</th>
-            <th>Location</th>
-            <th>Course</th>
-            <th>Email</th>
-            <th>Message</th>
-        </tr>
-
-        </thead>
-
-        <tbody>
-    `;
-
-
-    rows.forEach(function (row) {
-
-        html += `
-
-        <tr>
-
-            <td>
-                ${escapeHTML(
-                    row.created_at
-                    ? new Date(
-                        row.created_at
-                    ).toLocaleString()
-                    : ""
-                )}
-            </td>
-
-            <td>
-                ${escapeHTML(row.full_name)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.phone)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.whatsapp)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.location)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.course)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.email)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.message)}
-            </td>
-
-        </tr>
-
-        `;
-
-    });
-
-
-    html += `
-        </tbody>
-        </table>
-    `;
-
-
-    list.innerHTML = html;
-
-}
-
-
-/* =====================================================
-QUOTES
-===================================================== */
-
-async function loadQuotes() {
-
-    const rows =
-        await getRows(
-            "quote_requests"
-        );
-
-
-    const list =
-        document.getElementById(
-            "quoteList"
-        );
-
-    if (!list) return;
-
-
-    if (!rows.length) {
-
-        list.innerHTML =
-            "<div class='empty'>" +
-            "No quote requests received." +
-            "</div>";
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <table>
-
-        <thead>
-
-        <tr>
-            <th>Date</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>WhatsApp</th>
-            <th>Location</th>
-            <th>Services</th>
-            <th>Request Details</th>
-        </tr>
-
-        </thead>
-
-        <tbody>
-    `;
-
-
-    rows.forEach(function (row) {
-
-        let details =
-            row.journey ||
-            row.request_details ||
-            row.details ||
-            row.message ||
-            "";
-
-
-        if (
-            typeof details === "object"
-        ) {
-
-            details =
-                JSON.stringify(
-                    details,
-                    null,
-                    2
-                );
-
-        }
-
-
-        html += `
-
-        <tr>
-
-            <td>
-                ${escapeHTML(
-                    row.created_at
-                    ? new Date(
-                        row.created_at
-                    ).toLocaleString()
-                    : ""
-                )}
-            </td>
-
-            <td>
-                ${escapeHTML(row.full_name)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.phone)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.whatsapp)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.location)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.service)}
-            </td>
-
-            <td>
-                <pre style="
-                    white-space:pre-wrap;
-                    max-width:400px;
-                    font-family:inherit;
-                ">${escapeHTML(details)}</pre>
-            </td>
-
-        </tr>
-
-        `;
-
-    });
-
-
-    html += `
-        </tbody>
-        </table>
-    `;
-
-
-    list.innerHTML = html;
-
-}
-
-
-/* =====================================================
-ENQUIRIES
-===================================================== */
-
-async function loadEnquiries() {
-
-    const rows =
-        await getRows(
-            "enquiries"
-        );
-
-
-    const list =
-        document.getElementById(
-            "enquiryList"
-        );
-
-    if (!list) return;
-
-
-    if (!rows.length) {
-
-        list.innerHTML =
-            "<div class='empty'>" +
-            "No customer enquiries received." +
-            "</div>";
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <table>
-
-        <thead>
-
-        <tr>
-            <th>Date</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>WhatsApp</th>
-            <th>Email</th>
-            <th>Subject</th>
-            <th>Message</th>
-        </tr>
-
-        </thead>
-
-        <tbody>
-    `;
-
-
-    rows.forEach(function (row) {
-
-        html += `
-
-        <tr>
-
-            <td>
-                ${escapeHTML(
-                    row.created_at
-                    ? new Date(
-                        row.created_at
-                    ).toLocaleString()
-                    : ""
-                )}
-            </td>
-
-            <td>
-                ${escapeHTML(row.full_name)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.phone)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.whatsapp)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.email)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.subject)}
-            </td>
-
-            <td>
-                ${escapeHTML(row.message)}
-            </td>
-
-        </tr>
-
-        `;
-
-    });
-
-
-    html += `
-        </tbody>
-        </table>
-    `;
-
-
-    list.innerHTML = html;
-
-}
-
-
-/* =====================================================
-GENERIC SAVE HANDLER
-===================================================== */
-
-async function saveExistingForm(
-    formId,
-    table,
-    fields
-) {
-
-    const form =
-        document.getElementById(formId);
-
-    if (!form) return;
-
-
-    form.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            const idElement =
-                form.querySelector(
-                    'input[name="id"], #galleryId, #trainingId, #testimonialId, #faqId'
-                );
-
-
-            const id =
-                idElement
-                ? idElement.value
-                : "";
-
-
-            const data = {};
-
-
-            fields.forEach(function (field) {
-
-                const element =
-                    document.getElementById(
-                        field.id
-                    );
-
-                if (!element) return;
-
-
-                if (
-                    element.type ===
-                    "checkbox"
-                ) {
-
-                    data[field.column] =
-                        element.checked;
-
-                } else {
-
-                    data[field.column] =
-                        element.value.trim();
-
-                }
-
+        const result = await db.from("gallery_collections").select("name,active").order("name");
+        if (!result.error) {
+            (result.data || []).forEach(row => {
+                if (row.active !== false && row.name) names.add(row.name);
             });
+        }
+    } catch (error) {
+        console.warn("Gallery collections table unavailable:", error);
+    }
 
+    try {
+        const rows = await db.from("gallery_items").select("category");
+        if (!rows.error) {
+            (rows.data || []).forEach(row => {
+                if (row.category) names.add(row.category);
+            });
+        }
+    } catch (error) {
+        console.warn("Could not read gallery categories:", error);
+    }
 
-            data.updated_at =
-                new Date().toISOString();
+    return [...names].sort((a, b) => a.localeCompare(b));
+}
 
+async function renderGalleryCategorySelect(currentValue = "") {
+    const input = document.getElementById("galleryCategory");
+    if (!input) return;
+
+    const select = document.createElement("select");
+    select.id = "galleryCategory";
+    select.name = "galleryCategory";
+
+    const collections = await getGalleryCollections();
+
+    select.innerHTML =
+        `<option value="">Select Collection</option>` +
+        collections.map(name =>
+            `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`
+        ).join("");
+
+    select.value = currentValue || "";
+
+    input.replaceWith(select);
+
+    const wrapper = select.parentElement;
+    let add = wrapper.querySelector("#addGalleryCollection");
+
+    if (!add) {
+        add = document.createElement("button");
+        add.type = "button";
+        add.id = "addGalleryCollection";
+        add.className = "secondary";
+        add.style.marginTop = "10px";
+        add.textContent = "+ Add New Collection";
+
+        add.addEventListener("click", async () => {
+            const name = window.prompt("Enter the new collection name:");
+            if (!name) return;
+
+            const cleanName = name.trim();
+            if (!cleanName) return;
 
             try {
+                const result = await db.from("gallery_collections").insert({ name: cleanName, active: true });
+                if (result.error) throw result.error;
 
-                let result;
-
-
-                if (id) {
-
-                    result =
-                        await db
-                            .from(table)
-                            .update(data)
-                            .eq("id", id);
-
-                } else {
-
-                    result =
-                        await db
-                            .from(table)
-                            .insert(data);
-
-                }
-
-
-                if (result.error) {
-                    throw result.error;
-                }
-
-
-                message(
-                    "Saved successfully.",
-                    "success"
-                );
-
-
-                form.reset();
-
-
-                if (idElement) {
-                    idElement.value = "";
-                }
-
-
-                await loadSection(
-                    form.closest(
-                        ".section"
-                    )?.id || ""
-                );
-
-
-                await loadDashboard();
-
-
+                await renderGalleryCategorySelect(cleanName);
+                message("Collection added.", "success");
             } catch (error) {
+                console.error(error);
+                message("Collection could not be added. You can still use the new name after saving the gallery item.", "error");
 
-                console.error(
-                    table,
-                    error
-                );
+                const current = document.getElementById("galleryCategory");
+                if (current && ![...current.options].some(o => o.value === cleanName)) {
+                    current.add(new Option(cleanName, cleanName));
+                    current.value = cleanName;
+                }
+            }
+        });
 
-                message(
-                    "Could not save. Check the database fields.",
-                    "error"
-                );
+        wrapper.appendChild(add);
+    }
+}
 
+async function loadGallery() {
+    const list = document.getElementById("galleryList");
+    if (!list) return;
+
+    const rows = await getRows("gallery_items");
+
+    list.innerHTML = `
+        <div class="admin-actions">
+            <button type="button" class="primary" id="newGalleryItemButton">+ Add Gallery Item</button>
+            <button type="button" class="secondary" id="newGalleryCollectionButton">+ Add New Collection</button>
+        </div>
+        ${rows.length ? `
+        <table>
+            <thead>
+                <tr>
+                    <th>Image</th>
+                    <th>Title</th>
+                    <th>Collection</th>
+                    <th>Featured</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rows.map(row => `
+                    <tr>
+                        <td>${row.image_url ? `<img src="${escapeHTML(row.image_url)}" alt="" style="width:70px;height:70px;object-fit:cover;border-radius:4px">` : "No image"}</td>
+                        <td>${escapeHTML(row.title)}</td>
+                        <td>${escapeHTML(row.category)}</td>
+                        <td>${row.featured ? "Yes" : "No"}</td>
+                        <td>${row.active ? "Yes" : "No"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-gallery="${row.id}">Edit</button>
+                            <button type="button" class="danger" data-delete-gallery="${row.id}">Delete</button>
+                        </td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>` : `<div class="empty">No gallery items yet. Add your first item above.</div>`}
+    `;
+
+    document.getElementById("newGalleryItemButton").onclick = newGalleryItem;
+    document.getElementById("newGalleryCollectionButton").onclick = addGalleryCollection;
+
+    list.querySelectorAll("[data-edit-gallery]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editGallery));
+            if (row) editGallery(row);
+        };
+    });
+
+    list.querySelectorAll("[data-delete-gallery]").forEach(button => {
+        button.onclick = () => deleteGallery(button.dataset.deleteGallery);
+    });
+
+    await renderGalleryCategorySelect(document.getElementById("galleryCategory")?.value || "");
+}
+
+async function addGalleryCollection() {
+    const name = window.prompt("Enter the new collection name:");
+    if (!name) return;
+
+    const cleanName = name.trim();
+    if (!cleanName) return;
+
+    try {
+        const result = await db.from("gallery_collections").insert({ name: cleanName, active: true });
+        if (result.error) throw result.error;
+        await renderGalleryCategorySelect(cleanName);
+        message("Collection added.", "success");
+    } catch (error) {
+        console.error(error);
+        message("Collection could not be added. Check the gallery_collections table and its permissions.", "error");
+    }
+}
+
+function newGalleryItem() {
+    const form = document.getElementById("galleryForm");
+    if (!form) return;
+    form.reset();
+    document.getElementById("galleryId").value = "";
+    document.getElementById("galleryActive").checked = true;
+    renderGalleryCategorySelect("");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function editGallery(row) {
+    document.getElementById("galleryId").value = row.id;
+    document.getElementById("galleryTitle").value = row.title || "";
+    renderGalleryCategorySelect(row.category || "");
+    document.getElementById("galleryImage").value = row.image_url || "";
+    document.getElementById("galleryDescription").value = row.description || "";
+    document.getElementById("galleryFeatured").checked = !!row.featured;
+    document.getElementById("galleryActive").checked = row.active !== false;
+    document.getElementById("galleryForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteGallery(id) {
+    if (!confirm("Delete this gallery item?")) return;
+    const result = await db.from("gallery_items").delete().eq("id", id);
+    if (result.error) {
+        console.error(result.error);
+        message("Gallery item could not be deleted.", "error");
+        return;
+    }
+    message("Gallery item deleted.", "success");
+    await loadGallery();
+    await loadDashboard();
+}
+
+function setupGalleryForm() {
+    const form = document.getElementById("galleryForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("galleryId").value.trim();
+        const data = {
+            title: document.getElementById("galleryTitle").value.trim(),
+            category: document.getElementById("galleryCategory").value.trim(),
+            image_url: document.getElementById("galleryImage").value.trim(),
+            description: document.getElementById("galleryDescription").value.trim(),
+            featured: document.getElementById("galleryFeatured").checked,
+            active: document.getElementById("galleryActive").checked,
+            updated_at: new Date().toISOString()
+        };
+
+        if (!data.title) {
+            message("Please enter a gallery title.", "error");
+            return;
+        }
+
+        try {
+            const result = id
+                ? await db.from("gallery_items").update(data).eq("id", id)
+                : await db.from("gallery_items").insert(data);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("galleryId").value = "";
+            document.getElementById("galleryActive").checked = true;
+
+            message("Gallery item saved successfully.", "success");
+            await loadGallery();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("Gallery item could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("galleryCancel")?.addEventListener("click", newGalleryItem);
+}
+
+/* =========================================================
+   CATEGORY HELPERS
+========================================================= */
+
+function makeCategorySelect(inputId, categories, currentValue, addLabel, onAdd) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const select = document.createElement("select");
+    select.id = inputId;
+    select.name = inputId;
+    select.innerHTML =
+        `<option value="">Select Category</option>` +
+        categories.map(name => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`).join("");
+    select.value = currentValue || "";
+    input.replaceWith(select);
+
+    const wrapper = select.parentElement;
+    let button = wrapper.querySelector(`[data-add-category="${inputId}"]`);
+
+    if (!button) {
+        button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary";
+        button.dataset.addCategory = inputId;
+        button.style.marginTop = "10px";
+        button.textContent = addLabel;
+
+        button.addEventListener("click", async () => {
+            const name = prompt("Enter the new category name:");
+            if (!name) return;
+
+            const clean = name.trim();
+            if (!clean) return;
+
+            const updated = [...new Set([...categories, clean])].sort((a, b) => a.localeCompare(b));
+            makeCategorySelect(inputId, updated, clean, addLabel, onAdd);
+
+            if (onAdd) await onAdd(clean);
+        });
+
+        wrapper.appendChild(button);
+    }
+}
+
+async function getServiceCategories() {
+    const categories = new Set(DEFAULT_SERVICE_CATEGORIES);
+    try {
+        const result = await db.from("admin_services").select("category");
+        if (!result.error) (result.data || []).forEach(r => r.category && categories.add(r.category));
+    } catch {}
+    return [...categories];
+}
+
+async function getTrainingCategories() {
+    const categories = new Set(DEFAULT_TRAINING_CATEGORIES);
+    try {
+        const result = await db.from("training_programs").select("category");
+        if (!result.error) (result.data || []).forEach(r => r.category && categories.add(r.category));
+    } catch {}
+    return [...categories];
+}
+
+/* =========================================================
+   SERVICES
+========================================================= */
+
+async function loadServices() {
+    const section = document.getElementById("services");
+    if (!section) return;
+
+    const result = await db.from("admin_services").select("*").order("created_at", { ascending: false });
+    if (result.error) throw result.error;
+
+    const rows = result.data || [];
+
+    section.innerHTML = `
+        <h2>Services</h2>
+        <p class="intro">Add, edit and remove the services displayed on the website.</p>
+
+        <div class="form-card">
+            <form id="adminServiceForm">
+                <input type="hidden" id="adminServiceId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Service Name</label>
+                        <input type="text" id="adminServiceTitle" required placeholder="Service name">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <input type="text" id="adminServiceCategory" placeholder="Category">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="adminServiceDescription" rows="5" placeholder="Describe this service"></textarea>
+                </div>
+
+                <label class="checkbox">
+                    <input type="checkbox" id="adminServiceActive" checked> Active
+                </label>
+                <br>
+                <button class="primary" type="submit">Save Service</button>
+                <button class="secondary" type="button" id="adminServiceCancel">Cancel</button>
+            </form>
+        </div>
+
+        <div id="adminServicesList" class="table-wrap"></div>
+    `;
+
+    renderServices(rows);
+    setupServiceForm();
+
+    makeCategorySelect("adminServiceCategory", await getServiceCategories(), "", "+ Add New Category");
+}
+
+function renderServices(rows) {
+    const list = document.getElementById("adminServicesList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table>
+            <thead><tr>
+                <th>Service</th><th>Category</th><th>Description</th><th>Active</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+                ${rows.map(row => `
+                    <tr>
+                        <td>${escapeHTML(row.title)}</td>
+                        <td>${escapeHTML(row.category)}</td>
+                        <td>${escapeHTML(row.description)}</td>
+                        <td>${row.active ? "Yes" : "No"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-service="${row.id}">Edit</button>
+                            <button type="button" class="danger" data-delete-service="${row.id}">Delete</button>
+                        </td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No services have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-service]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editService));
+            if (!row) return;
+
+            document.getElementById("adminServiceId").value = row.id;
+            document.getElementById("adminServiceTitle").value = row.title || "";
+            makeCategorySelect("adminServiceCategory", [...new Set([...DEFAULT_SERVICE_CATEGORIES, ...(rows.map(r => r.category).filter(Boolean))])], row.category || "", "+ Add New Category");
+            document.getElementById("adminServiceDescription").value = row.description || "";
+            document.getElementById("adminServiceActive").checked = row.active !== false;
+            document.getElementById("services").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-service]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.deleteService));
+            if (!row || !confirm(`Delete "${row.title}"?`)) return;
+
+            const result = await db.from("admin_services").delete().eq("id", button.dataset.deleteService);
+            if (result.error) {
+                message("Service could not be deleted: " + result.error.message, "error");
+                return;
             }
 
-        }
-    );
-
+            message("Service deleted.", "success");
+            await loadServices();
+        };
+    });
 }
 
+function setupServiceForm() {
+    const form = document.getElementById("adminServiceForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
 
-/* =====================================================
-START
-===================================================== */
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
 
-async function startAdmin() {
+        const id = document.getElementById("adminServiceId").value.trim();
+        const payload = {
+            title: document.getElementById("adminServiceTitle").value.trim(),
+            category: document.getElementById("adminServiceCategory").value.trim(),
+            description: document.getElementById("adminServiceDescription").value.trim(),
+            active: document.getElementById("adminServiceActive").checked,
+            updated_at: new Date().toISOString()
+        };
 
-    db =
-        await waitForSupabase();
+        if (!payload.title) {
+            message("Please enter a service name.", "error");
+            return;
+        }
 
+        try {
+            const result = id
+                ? await db.from("admin_services").update(payload).eq("id", id)
+                : await db.from("admin_services").insert(payload);
 
-    if (!db) {
+            if (result.error) throw result.error;
 
-        message(
-            "Supabase could not be loaded.",
-            "error"
-        );
+            form.reset();
+            document.getElementById("adminServiceId").value = "";
+            document.getElementById("adminServiceActive").checked = true;
+            message("Service saved successfully.", "success");
+            await loadServices();
+        } catch (error) {
+            console.error(error);
+            message("Service could not be saved: " + error.message, "error");
+        }
+    });
 
+    document.getElementById("adminServiceCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("adminServiceId").value = "";
+        document.getElementById("adminServiceActive").checked = true;
+    });
+}
+
+/* =========================================================
+   TRAINING
+========================================================= */
+
+async function loadTraining() {
+    const list = document.getElementById("trainingList");
+    if (!list) return;
+
+    const rows = await getRows("training_programs");
+
+    list.innerHTML = `
+        <div class="admin-actions">
+            <button type="button" class="primary" id="newTrainingButton">+ Add Training Programme / Class</button>
+        </div>
+        ${rows.length ? `
+        <table>
+            <thead><tr>
+                <th>Programme/Class</th><th>Duration</th><th>Price</th><th>Category</th><th>Active</th><th>Actions</th>
+            </tr></thead>
+            <tbody>
+                ${rows.map(row => `
+                    <tr>
+                        <td>${escapeHTML(row.title)}</td>
+                        <td>${escapeHTML(row.duration)}</td>
+                        <td>GHC ${Number(row.price || 0).toFixed(2)}</td>
+                        <td>${escapeHTML(row.category)}</td>
+                        <td>${row.active ? "Yes" : "No"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-training="${row.id}">Edit</button>
+                            <button type="button" class="danger" data-delete-training="${row.id}">Delete</button>
+                        </td>
+                    </tr>
+                `).join("")}
+            </tbody>
+        </table>` : `<div class="empty">No training programmes yet.</div>`}
+    `;
+
+    document.getElementById("newTrainingButton").onclick = newTraining;
+
+    list.querySelectorAll("[data-edit-training]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editTraining));
+            if (row) editTraining(row);
+        };
+    });
+
+    list.querySelectorAll("[data-delete-training]").forEach(button => {
+        button.onclick = () => deleteTraining(button.dataset.deleteTraining);
+    });
+
+    makeCategorySelect("trainingCategory", await getTrainingCategories(), document.getElementById("trainingCategory")?.value || "", "+ Add New Category");
+}
+
+function newTraining() {
+    const form = document.getElementById("trainingForm");
+    if (!form) return;
+    form.reset();
+    document.getElementById("trainingId").value = "";
+    document.getElementById("trainingActive").checked = true;
+    makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, "", "+ Add New Category");
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function editTraining(row) {
+    document.getElementById("trainingId").value = row.id;
+    document.getElementById("trainingTitle").value = row.title || "";
+    document.getElementById("trainingDuration").value = row.duration || "";
+    document.getElementById("trainingPrice").value = row.price || "";
+    makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, row.category || "", "+ Add New Category");
+    document.getElementById("trainingDescription").value = row.description || "";
+    document.getElementById("trainingActive").checked = row.active !== false;
+    document.getElementById("trainingForm").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteTraining(id) {
+    if (!confirm("Delete this training programme/class?")) return;
+
+    const result = await db.from("training_programs").delete().eq("id", id);
+    if (result.error) {
+        message("Training programme could not be deleted.", "error");
         return;
-
     }
 
-
-    await checkSession();
-
-
+    message("Training programme deleted.", "success");
+    await loadTraining();
     await loadDashboard();
-
 }
 
+function setupTrainingForm() {
+    const form = document.getElementById("trainingForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
 
-if (
-    document.readyState ===
-    "loading"
-) {
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
 
-    document.addEventListener(
-        "DOMContentLoaded",
-        startAdmin
-    );
+        const id = document.getElementById("trainingId").value.trim();
+        const payload = {
+            title: document.getElementById("trainingTitle").value.trim(),
+            duration: document.getElementById("trainingDuration").value.trim(),
+            price: Number(document.getElementById("trainingPrice").value || 0),
+            category: document.getElementById("trainingCategory").value.trim(),
+            description: document.getElementById("trainingDescription").value.trim(),
+            active: document.getElementById("trainingActive").checked,
+            updated_at: new Date().toISOString()
+        };
 
+        try {
+            const result = id
+                ? await db.from("training_programs").update(payload).eq("id", id)
+                : await db.from("training_programs").insert(payload);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("trainingId").value = "";
+            document.getElementById("trainingActive").checked = true;
+            message("Training programme saved successfully.", "success");
+            await loadTraining();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("Training programme could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("trainingCancel")?.addEventListener("click", newTraining);
+}
+
+/* =========================================================
+   READ-ONLY CUSTOMER SUBMISSIONS
+========================================================= */
+
+async function loadRegistrations() {
+    const rows = await getRows("training_registrations");
+    const list = document.getElementById("registrationList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Course</th><th>Email</th><th>Message</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+            <td>${escapeHTML(row.full_name)}</td>
+            <td>${escapeHTML(row.phone)}</td>
+            <td>${escapeHTML(row.whatsapp)}</td>
+            <td>${escapeHTML(row.location)}</td>
+            <td>${escapeHTML(row.course)}</td>
+            <td>${escapeHTML(row.email)}</td>
+            <td>${escapeHTML(row.message)}</td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No training registrations received.</div>`;
+}
+
+async function loadQuotes() {
+    const rows = await getRows("quote_requests");
+    const list = document.getElementById("quoteList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Request Details</th>
+        </tr></thead><tbody>
+        ${rows.map(row => {
+            let details = row.journey || row.request_details || row.details || row.message || "";
+            if (typeof details === "object") details = JSON.stringify(details, null, 2);
+            return `<tr>
+                <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+                <td>${escapeHTML(row.full_name)}</td>
+                <td>${escapeHTML(row.phone)}</td>
+                <td>${escapeHTML(row.whatsapp)}</td>
+                <td>${escapeHTML(row.location)}</td>
+                <td>${escapeHTML(row.service)}</td>
+                <td><pre style="white-space:pre-wrap;max-width:400px;font-family:inherit">${escapeHTML(details)}</pre></td>
+            </tr>`;
+        }).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No quote requests received.</div>`;
+}
+
+async function loadEnquiries() {
+    const rows = await getRows("enquiries");
+    const list = document.getElementById("enquiryList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Email</th><th>Subject</th><th>Message</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+            <td>${escapeHTML(row.full_name)}</td>
+            <td>${escapeHTML(row.phone)}</td>
+            <td>${escapeHTML(row.whatsapp)}</td>
+            <td>${escapeHTML(row.email)}</td>
+            <td>${escapeHTML(row.subject)}</td>
+            <td>${escapeHTML(row.message)}</td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No customer enquiries received.</div>`;
+}
+
+/* =========================================================
+   TESTIMONIALS
+   Admin enters a customer's actual/approved testimonial.
+========================================================= */
+
+async function loadTestimonials() {
+    const rows = await getRows("testimonials");
+    const list = document.getElementById("testimonialList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Customer</th><th>Testimonial</th><th>Active</th><th>Actions</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.customer_name)}</td>
+            <td>${escapeHTML(row.testimonial)}</td>
+            <td>${row.active ? "Yes" : "No"}</td>
+            <td>
+                <button type="button" class="secondary" data-edit-testimonial="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-testimonial="${row.id}">Delete</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No testimonials yet. Add one only after you have the customer's testimonial/permission to publish it.</div>`;
+
+    list.querySelectorAll("[data-edit-testimonial]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editTestimonial));
+            if (!row) return;
+            document.getElementById("testimonialId").value = row.id;
+            document.getElementById("testimonialName").value = row.customer_name || "";
+            document.getElementById("testimonialText").value = row.testimonial || "";
+            document.getElementById("testimonialActive").checked = row.active !== false;
+            document.getElementById("testimonialForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-testimonial]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this testimonial?")) return;
+            const result = await db.from("testimonials").delete().eq("id", button.dataset.deleteTestimonial);
+            if (result.error) {
+                message("Testimonial could not be deleted.", "error");
+                return;
+            }
+            message("Testimonial deleted.", "success");
+            await loadTestimonials();
+            await loadDashboard();
+        };
+    });
+}
+
+function setupTestimonialForm() {
+    const form = document.getElementById("testimonialForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("testimonialId").value.trim();
+        const payload = {
+            customer_name: document.getElementById("testimonialName").value.trim(),
+            testimonial: document.getElementById("testimonialText").value.trim(),
+            active: document.getElementById("testimonialActive").checked,
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("testimonials").update(payload).eq("id", id)
+                : await db.from("testimonials").insert(payload);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("testimonialId").value = "";
+            document.getElementById("testimonialActive").checked = true;
+            message("Testimonial saved.", "success");
+            await loadTestimonials();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("Testimonial could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("testimonialCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("testimonialId").value = "";
+        document.getElementById("testimonialActive").checked = true;
+    });
+}
+
+/* =========================================================
+   FAQ
+========================================================= */
+
+async function loadFAQs() {
+    const rows = await getRows("faqs");
+    const list = document.getElementById("faqList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Question</th><th>Answer</th><th>Active</th><th>Actions</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.question)}</td>
+            <td>${escapeHTML(row.answer)}</td>
+            <td>${row.active ? "Yes" : "No"}</td>
+            <td>
+                <button type="button" class="secondary" data-edit-faq="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-faq="${row.id}">Delete</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No FAQs yet.</div>`;
+
+    list.querySelectorAll("[data-edit-faq]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editFaq));
+            if (!row) return;
+            document.getElementById("faqId").value = row.id;
+            document.getElementById("faqQuestion").value = row.question || "";
+            document.getElementById("faqAnswer").value = row.answer || "";
+            document.getElementById("faqActive").checked = row.active !== false;
+            document.getElementById("faqForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-faq]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this FAQ?")) return;
+            const result = await db.from("faqs").delete().eq("id", button.dataset.deleteFaq);
+            if (result.error) {
+                message("FAQ could not be deleted.", "error");
+                return;
+            }
+            message("FAQ deleted.", "success");
+            await loadFAQs();
+            await loadDashboard();
+        };
+    });
+}
+
+function setupFAQForm() {
+    const form = document.getElementById("faqForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("faqId").value.trim();
+        const payload = {
+            question: document.getElementById("faqQuestion").value.trim(),
+            answer: document.getElementById("faqAnswer").value.trim(),
+            active: document.getElementById("faqActive").checked,
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("faqs").update(payload).eq("id", id)
+                : await db.from("faqs").insert(payload);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("faqId").value = "";
+            document.getElementById("faqActive").checked = true;
+            message("FAQ saved.", "success");
+            await loadFAQs();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("FAQ could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("faqCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("faqId").value = "";
+        document.getElementById("faqActive").checked = true;
+    });
+}
+
+/* =========================================================
+   POLICIES / CONTENT / SETTINGS / CONTACT
+========================================================= */
+
+async function loadPolicies() {
+    const rows = await getRows("policies");
+    const list = document.getElementById("policyList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr><th>Policy</th><th>Key</th><th>Content</th><th>Actions</th></tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.title)}</td>
+            <td>${escapeHTML(row.policy_key)}</td>
+            <td><pre style="white-space:pre-wrap;max-width:550px;font-family:inherit">${escapeHTML(row.content)}</pre></td>
+            <td>
+                <button type="button" class="secondary" data-edit-policy="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-policy="${row.id}">Delete</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No policy records yet.</div>`;
+
+    list.querySelectorAll("[data-edit-policy]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editPolicy));
+            if (!row) return;
+            document.getElementById("policyId").value = row.id;
+            document.getElementById("policyTitle").value = row.title || "";
+            document.getElementById("policyKey").value = row.policy_key || "";
+            document.getElementById("policyContent").value = row.content || "";
+            document.getElementById("policyForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-policy]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this policy?")) return;
+            const result = await db.from("policies").delete().eq("id", button.dataset.deletePolicy);
+            if (result.error) {
+                message("Policy could not be deleted.", "error");
+                return;
+            }
+            message("Policy deleted.", "success");
+            await loadPolicies();
+        };
+    });
+}
+
+function setupPolicyForm() {
+    const form = document.getElementById("policyForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const id = document.getElementById("policyId").value.trim();
+        const payload = {
+            title: document.getElementById("policyTitle").value.trim(),
+            policy_key: document.getElementById("policyKey").value.trim(),
+            content: document.getElementById("policyContent").value.trim(),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("policies").update(payload).eq("id", id)
+                : await db.from("policies").insert(payload);
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("policyId").value = "";
+            message("Policy saved.", "success");
+            await loadPolicies();
+        } catch (error) {
+            console.error(error);
+            message("Policy could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("policyCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("policyId").value = "";
+    });
+}
+
+async function loadContent() {
+    const rows = await getRows("site_content");
+    const list = document.getElementById("contentList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr><th>Content Key</th><th>Content Value</th><th>Actions</th></tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.content_key)}</td>
+            <td><pre style="white-space:pre-wrap;max-width:650px;font-family:inherit">${escapeHTML(row.content_value)}</pre></td>
+            <td>
+                <button type="button" class="secondary" data-edit-content="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-content="${row.id}">Delete</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No editable website content records yet.</div>`;
+
+    list.querySelectorAll("[data-edit-content]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editContent));
+            if (!row) return;
+            document.getElementById("contentKey").value = row.content_key || "";
+            document.getElementById("contentValue").value = row.content_value || "";
+            document.getElementById("contentForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-content]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this content record?")) return;
+            const result = await db.from("site_content").delete().eq("id", button.dataset.deleteContent);
+            if (result.error) {
+                message("Content record could not be deleted.", "error");
+                return;
+            }
+            message("Content record deleted.", "success");
+            await loadContent();
+        };
+    });
+}
+
+function setupContentForm() {
+    const form = document.getElementById("contentForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const key = document.getElementById("contentKey").value.trim();
+        const value = document.getElementById("contentValue").value.trim();
+        if (!key) return;
+
+        try {
+            const existing = await db.from("site_content").select("id").eq("content_key", key).maybeSingle();
+            let result;
+            if (existing.data?.id) {
+                result = await db.from("site_content").update({
+                    content_value: value,
+                    updated_at: new Date().toISOString()
+                }).eq("id", existing.data.id);
+            } else {
+                result = await db.from("site_content").insert({
+                    content_key: key,
+                    content_value: value
+                });
+            }
+            if (result.error) throw result.error;
+
+            form.reset();
+            message("Website content saved.", "success");
+            await loadContent();
+        } catch (error) {
+            console.error(error);
+            message("Website content could not be saved: " + error.message, "error");
+        }
+    });
+}
+
+async function loadContact() {
+    try {
+        const result = await db.from("contact_settings").select("*").limit(1).maybeSingle();
+        if (result.error || !result.data) return;
+        const row = result.data;
+        document.getElementById("contactId").value = row.id || "";
+        document.getElementById("contactBusiness").value = row.business_name || "";
+        document.getElementById("contactPhone").value = row.phone || "";
+        document.getElementById("contactWhatsapp").value = row.whatsapp || "";
+        document.getElementById("contactEmail").value = row.email || "";
+        document.getElementById("contactAddress").value = row.address || "";
+        document.getElementById("contactHours").value = row.opening_hours || "";
+    } catch (error) {
+        console.warn("Contact settings could not be loaded:", error);
+    }
+}
+
+function setupContactForm() {
+    const form = document.getElementById("contactForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const data = {
+            business_name: document.getElementById("contactBusiness").value.trim(),
+            phone: document.getElementById("contactPhone").value.trim(),
+            whatsapp: document.getElementById("contactWhatsapp").value.trim(),
+            email: document.getElementById("contactEmail").value.trim(),
+            address: document.getElementById("contactAddress").value.trim(),
+            opening_hours: document.getElementById("contactHours").value.trim(),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const existing = await db.from("contact_settings").select("id").limit(1).maybeSingle();
+            const result = existing.data?.id
+                ? await db.from("contact_settings").update(data).eq("id", existing.data.id)
+                : await db.from("contact_settings").insert(data);
+
+            if (result.error) throw result.error;
+            message("Contact information saved.", "success");
+        } catch (error) {
+            console.error(error);
+            message("Contact information could not be saved: " + error.message, "error");
+        }
+    });
+}
+
+async function loadSettings() {
+    const rows = await getRows("settings");
+    const list = document.getElementById("settingsList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr><th>Setting</th><th>Value</th><th>Actions</th></tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.setting_key)}</td>
+            <td>${escapeHTML(row.setting_value)}</td>
+            <td><button type="button" class="danger" data-delete-setting="${row.id}">Delete</button></td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No website settings records yet.</div>`;
+
+    list.querySelectorAll("[data-delete-setting]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this setting?")) return;
+            const result = await db.from("settings").delete().eq("id", button.dataset.deleteSetting);
+            if (result.error) {
+                message("Setting could not be deleted.", "error");
+                return;
+            }
+            message("Setting deleted.", "success");
+            await loadSettings();
+        };
+    });
+}
+
+function setupSettingsForm() {
+    const form = document.getElementById("settingsForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const key = document.getElementById("settingKey").value.trim();
+        const value = document.getElementById("settingValue").value.trim();
+
+        try {
+            const existing = await db.from("settings").select("id").eq("setting_key", key).maybeSingle();
+            const result = existing.data?.id
+                ? await db.from("settings").update({ setting_value: value, updated_at: new Date().toISOString() }).eq("id", existing.data.id)
+                : await db.from("settings").insert({ setting_key: key, setting_value: value });
+
+            if (result.error) throw result.error;
+            form.reset();
+            message("Setting saved.", "success");
+            await loadSettings();
+        } catch (error) {
+            console.error(error);
+            message("Setting could not be saved: " + error.message, "error");
+        }
+    });
+}
+
+/* =========================================================
+   STARTUP
+========================================================= */
+
+async function startAdmin() {
+    db = await waitForSupabase();
+
+    if (!db) {
+        message("Supabase could not be loaded.", "error");
+        return;
+    }
+
+    setupLogin();
+    setupLogout();
+    setupNavigation();
+
+    setupGalleryForm();
+    setupTrainingForm();
+    setupTestimonialForm();
+    setupFAQForm();
+    setupPolicyForm();
+    setupContentForm();
+    setupContactForm();
+    setupSettingsForm();
+
+    await checkSession();
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startAdmin);
 } else {
-
     startAdmin();
-
 }
