@@ -1166,7 +1166,7 @@
 <p>
 <strong>WhatsApp:</strong><br>
 <a
-    data-social="whatsapp" href="https://wa.me/233592983027"
+    href="https://wa.me/233592983027"
     target="_blank"
     rel="noopener noreferrer"
 >
@@ -1210,7 +1210,7 @@ Sunday: Closed
 >
 
 <a
-    data-social="tiktok" href="https://www.tiktok.com/@aprilssignature"
+    href="https://www.tiktok.com/@aprilssignature"
     target="_blank"
     rel="noopener noreferrer"
 >
@@ -1223,7 +1223,7 @@ Sunday: Closed
 
 
 <a
-    data-social="instagram" href="https://www.instagram.com/aprilssignature_/"
+    href="https://www.instagram.com/aprilssignature_/"
     target="_blank"
     rel="noopener noreferrer"
 >
@@ -1236,7 +1236,7 @@ Sunday: Closed
 
 
 <a
-    data-social="facebook" href="https://www.facebook.com/share/1BwqEnbUkU/"
+    href="https://www.facebook.com/share/1BwqEnbUkU/"
     target="_blank"
     rel="noopener noreferrer"
 >
@@ -1288,7 +1288,7 @@ All rights reserved.
 
 
 <a
-    data-social="whatsapp" href="https://wa.me/233592983027"
+    href="https://wa.me/233592983027"
     class="whatsapp-button"
     target="_blank"
     rel="noopener noreferrer"
@@ -1304,454 +1304,13 @@ All rights reserved.
 
 
 <!-- SUPABASE -->
-
 <script src="js/supabase-config.js"></script>
 <script src="js/supabase-client.js"></script>
 
-
-<script>
-
-(function () {
-
-    "use strict";
-
-
-    function startQuoteForm() {
-
-        const form =
-            document.getElementById("quoteForm");
-
-        if (!form) {
-            return;
-        }
-
-
-        const serviceInputs =
-            form.querySelectorAll(
-                'input[name="service"]'
-            );
-
-
-        const streetwearSection =
-            document.getElementById(
-                "streetwearSection"
-            );
-
-
-        const embellishmentSection =
-            document.getElementById(
-                "embellishmentSection"
-            );
-
-
-        const message =
-            document.getElementById(
-                "quoteFormMessage"
-            );
-
-
-        const submitButton =
-            document.getElementById(
-                "quoteSubmitButton"
-            );
-
-
-        /* SERVICE SELECTION */
-
-        serviceInputs.forEach(
-            function (input) {
-
-                input.addEventListener(
-                    "change",
-                    function () {
-
-                        if (streetwearSection) {
-
-                            streetwearSection.style.display =
-                                "none";
-
-                        }
-
-
-                        if (embellishmentSection) {
-
-                            embellishmentSection.style.display =
-                                "none";
-
-                        }
-
-
-                        if (
-                            this.value ===
-                            "Streetwear"
-                        ) {
-
-                            streetwearSection.style.display =
-                                "block";
-
-                        }
-
-
-                        if (
-                            this.value ===
-                            "Embellishment Services"
-                        ) {
-
-                            embellishmentSection.style.display =
-                                "block";
-
-                        }
-
-
-                        if (
-                            this.value ===
-                            "Practical Fashion Training"
-                        ) {
-
-                            window.location.href =
-                                "training.html";
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-
-        /* FORM SUBMISSION */
-
-        form.addEventListener(
-            "submit",
-            async function (event) {
-
-                event.preventDefault();
-
-
-                if (
-                    !window.aprilsSupabase
-                ) {
-
-                    showMessage(
-                        "error",
-                        "The website connection is not ready. Please refresh the page and try again."
-                    );
-
-                    return;
-
-                }
-
-
-                submitButton.disabled =
-                    true;
-
-                submitButton.textContent =
-                    "Submitting...";
-
-
-                hideMessage();
-
-
-                try {
-
-                    const formData =
-                        new FormData(form);
-
-
-                    const getValue =
-                        function (name) {
-
-                            return (
-                                formData.get(name) ||
-                                ""
-                            ).toString().trim();
-
-                        };
-
-
-                    const service =
-                        getValue("service");
-
-
-                    /* STREETWEAR DETAILS */
-
-                    const streetwearItems = {
-
-                        jerseys:
-                            getValue("jerseys"),
-
-                        hoodies:
-                            getValue("hoodies"),
-
-                        joggers:
-                            getValue("joggers"),
-
-                        tshirts:
-                            getValue("tshirts"),
-
-                        poloShirts:
-                            getValue("poloShirts"),
-
-                        sweatshirts:
-                            getValue("sweatshirts"),
-
-                        sweatpants:
-                            getValue("sweatpants"),
-
-                        ladiesTankTops:
-                            getValue("ladiesTankTops"),
-
-                        mensTankTops:
-                            getValue("mensTankTops"),
-
-                        varsityJackets:
-                            getValue("varsityJackets"),
-
-                        cargoPants:
-                            getValue("cargoPants"),
-
-                        cargoSkirts:
-                            getValue("cargoSkirts"),
-
-                        joggerShorts:
-                            getValue("joggerShorts"),
-
-                        hoodiesJoggersSet:
-                            getValue("hoodiesJoggersSet"),
-
-                        tshirtsShortsSet:
-                            getValue("tshirtsShortsSet"),
-
-                        sweatshirtsShortsSet:
-                            getValue("sweatshirtsShortsSet"),
-
-                        other:
-                            getValue("streetwearOther")
-
-                    };
-
-
-                    /* EMBELLISHMENT */
-
-                    const embellishments =
-                        formData.getAll(
-                            "embellishment[]"
-                        );
-
-
-                    const embellishmentDetails = {
-
-                        selected:
-                            embellishments,
-
-                        other:
-                            getValue(
-                                "embellishmentOther"
-                            )
-
-                    };
-
-
-                    /* COMPLETE REQUEST DETAILS */
-
-                    const requestDetails = {
-
-                        streetwear:
-                            streetwearItems,
-
-                        embellishment:
-                            embellishmentDetails,
-
-                        additionalDetails:
-                            getValue(
-                                "additionalDetails"
-                            ),
-
-                        agreement:
-                            getValue(
-                                "agreement"
-                            ),
-
-                        submittedFrom:
-                            window.location.href
-
-                    };
-
-
-                    /*
-                     * Insert into the existing
-                     * quote_requests table.
-                     *
-                     * We deliberately send only
-                     * the core columns that belong
-                     * to the request itself.
-                     */
-
-                    const requestPayload = {
-
-                        full_name:
-                            getValue("fullName"),
-
-                        phone:
-                            getValue("phone"),
-
-                        whatsapp:
-                            getValue("whatsapp"),
-
-                        location:
-                            getValue("location"),
-
-                        email:
-                            getValue("email"),
-
-                        service:
-                            service,
-
-                        journey:
-                            JSON.stringify(
-                                requestDetails
-                            )
-
-                    };
-
-
-                    const result =
-                        await window.aprilsSupabase
-                            .from(
-                                "quote_requests"
-                            )
-                            .insert(
-                                [requestPayload]
-                            );
-
-
-                    if (result.error) {
-
-                        console.error(
-                            "Supabase quote error:",
-                            result.error
-                        );
-
-                        throw result.error;
-
-                    }
-
-
-                    showMessage(
-                        "success",
-                        "Thank you. Your order / quote request has been submitted successfully. Aprils Signature will review your request and contact you."
-                    );
-
-
-                    form.reset();
-
-
-                    if (streetwearSection) {
-
-                        streetwearSection.style.display =
-                            "none";
-
-                    }
-
-
-                    if (embellishmentSection) {
-
-                        embellishmentSection.style.display =
-                            "none";
-
-                    }
-
-
-                    window.scrollTo({
-                        top: 0,
-                        behavior: "smooth"
-                    });
-
-
-                } catch (error) {
-
-                    console.error(
-                        error
-                    );
-
-
-                    showMessage(
-                        "error",
-                        "Your request could not be submitted right now. Please try again. If the problem continues, contact Aprils Signature on WhatsApp."
-                    );
-
-                } finally {
-
-                    submitButton.disabled =
-                        false;
-
-                    submitButton.textContent =
-                        "Submit Order / Request a Quote";
-
-                }
-
-            }
-        );
-
-
-        function showMessage(
-            type,
-            text
-        ) {
-
-            message.className =
-                "form-message " +
-                type;
-
-            message.textContent =
-                text;
-
-        }
-
-
-        function hideMessage() {
-
-            message.className =
-                "form-message";
-
-            message.textContent =
-                "";
-
-        }
-
-    }
-
-
-    if (
-        document.readyState ===
-        "loading"
-    ) {
-
-        document.addEventListener(
-            "DOMContentLoaded",
-            startQuoteForm
-        );
-
-    } else {
-
-        startQuoteForm();
-
-    }
-
-})();
-
-</script>
-
-
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-
-<script
-    src="js/script.js"
-    defer
-></script>
+<script src="js/form-fixes.js" defer></script> <script src="js/script.js" defer></script>
 
 </body>
 
-<script src="js/form-fixes.js"></script>    
+    
 </html>
