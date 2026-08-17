@@ -1350,13 +1350,56 @@ async function loadPublicFAQs() {
     `;
 }
 
+async function loadPublicWebsiteContent() {
+    const supabase = await waitForSupabase();
+    if (!supabase) return;
+    const result = await supabase.from("site_content").select("content_key,content_value");
+    if (result.error) return;
+    const rows = result.data || [];
+    const content = new Map(rows.map(row => [String(row.content_key || "").trim().toLowerCase(), String(row.content_value || "")]));
+    const setText = (selector, key) => {
+        const value = content.get(key.toLowerCase());
+        const el = document.querySelector(selector);
+        if (value !== undefined && el) el.textContent = value;
+    };
+    setText(".home-page .hero h1", "Homepage Hero Heading");
+    setText(".home-page .hero .hero-text", "Homepage Tagline");
+    setText(".home-page .cta-section h2", "Homepage CTA");
+    setText(".home-page .cta-section p", "Homepage CTA Description");
+    setText(".about-page .about-section h2 + p", "About Page Introduction");
+    setText(".about-page .glimpse-section p", "About Page Shop Introduction");
+    const aboutWhat = content.get("about page what we do");
+    const whatHeading = [...document.querySelectorAll(".about-page h2")].find(el => el.textContent.trim() === "What We Do");
+    if (aboutWhat && whatHeading) {
+        let intro = whatHeading.nextElementSibling;
+        if (!intro || intro.tagName !== "P") {
+            intro = document.createElement("p");
+            intro.className = "admin-content-intro";
+            whatHeading.insertAdjacentElement("afterend", intro);
+        }
+        intro.textContent = aboutWhat;
+    }
+    const aboutWhy = content.get("about page why choose us");
+    const whyHeading = [...document.querySelectorAll(".about-page h2")].find(el => el.textContent.trim() === "Why Choose Aprils Signature?");
+    if (aboutWhy && whyHeading) {
+        let intro = whyHeading.nextElementSibling;
+        if (!intro || intro.tagName !== "P") {
+            intro = document.createElement("p");
+            intro.className = "admin-content-intro";
+            whyHeading.insertAdjacentElement("afterend", intro);
+        }
+        intro.textContent = aboutWhy;
+    }
+}
+
 async function setupPublicDatabaseContent() {
     await Promise.all([
         loadPublicGallery(),
         loadPublicServices(),
         loadPublicTraining(),
         loadPublicTestimonials(),
-        loadPublicFAQs()
+        loadPublicFAQs(),
+        loadPublicWebsiteContent()
     ]);
     setupMediaInteractions();
 }
