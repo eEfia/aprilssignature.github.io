@@ -186,7 +186,7 @@ main {
    ========================================================= */
 
 .hero {
-    min-height: 570px;
+    min-height: 500px;
 
     display: flex;
     align-items: center;
@@ -454,9 +454,23 @@ button.button:hover {
     cursor: pointer;
 }
 
-.gallery-item:hover img {
+ .gallery-item:hover img {
     transform: scale(1.03);
 }
+@keyframes aprilsGalleryMotion {
+    0%,100% { transform:translateY(0) scale(1); }
+    50% { transform:translateY(-3px) scale(1.012); }
+}
+.gallery-item img,.gallery-item video {
+    animation:aprilsGalleryMotion 5s ease-in-out infinite;
+    will-change:transform;
+}
+.gallery-item:hover img,.gallery-item:hover video {
+    animation-play-state:paused;
+    transform:scale(1.03);
+}
+.location-image img { transition:transform .3s ease; }
+.location-image:hover img { transform:scale(1.02); }
 
 .gallery-item h3 {
     padding: 18px;
@@ -1364,7 +1378,7 @@ input[type="radio"] {
 */
 
 .location-image {
-    width: min(100%, 760px);
+    width: min(100%, 1100px);
     height: 300px;
     margin: 25px auto 0;
     overflow: hidden;
@@ -1999,70 +2013,4 @@ select:focus {
 
 .admin-website-link:hover {
     color: #c9a227;
-}
-
-
-/* =========================================================
-   FINAL REQUESTED VISUAL CORRECTIONS
-   - Hero content box reduced by about 30%
-   - Gallery/home media animated without changing layout size
-   - About Photo 5 slightly wider and clickable
-========================================================= */
-
-.hero {
-    min-height: 400px;
-}
-
-.hero-content {
-    max-width: 800px;
-    padding: 45px 0;
-}
-
-.gallery-image,
-.featured-video {
-    overflow: hidden;
-}
-
-.gallery-image img,
-.featured-video video {
-    transform-origin: center;
-    animation: aprilsMediaMotion 7s ease-in-out infinite alternate;
-    will-change: transform;
-}
-
-.gallery-image img:hover,
-.featured-video video:hover {
-    animation-play-state: paused;
-    transform: scale(1.04);
-}
-
-@keyframes aprilsMediaMotion {
-    from {
-        transform: scale(1);
-    }
-    to {
-        transform: scale(1.035);
-    }
-}
-
-.location-image {
-    width: min(100%, 800px);
-}
-
-.location-image a.photo5-link {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.location-image img {
-    width: 100%;
-    height: 100%;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .gallery-image img,
-    .featured-video video {
-        animation: none;
-    }
 }
