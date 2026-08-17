@@ -42,6 +42,14 @@ function escapeHTML(value) {
         .replace(/'/g, "&#039;");
 }
 
+function resolveAdminMediaUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^(https?:|data:|blob:|\/)/i.test(raw)) return raw;
+    if (/^(images|videos)\//i.test(raw)) return "../" + raw;
+    return raw;
+}
+
 function message(text, type = "success") {
     const box = document.getElementById("globalStatus");
     if (!box) return;
@@ -303,7 +311,7 @@ async function loadGallery() {
             <tbody>
                 ${rows.map(row => `
                     <tr>
-                        <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(row.image_url)}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(row.image_url)}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
+                        <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.category)}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
@@ -1340,6 +1348,67 @@ async function seedInitialPublicContent() {
             }
         }
     } catch (e) { console.warn("FAQ initial import unavailable:", e); }
+
+    // Seed the editable admin sections from the current live website content.
+    const INITIAL_CONTENT = [
+        ["Homepage Hero Heading", "Custom & Made-to-Order Fashion Brand"],
+        ["Homepage Tagline", "Elegance In Every Stitch"],
+        ["About Page Introduction", "Aprils Signature is a Custom & Made-to-Order Fashion Brand specialising in Streetwear, Ladies Wear, and Kids Wear."],
+        ["About Page What We Do", "Streetwear, Ladies Wear, Kids Wear, Embellishment Services and Practical Fashion Training."],
+        ["About Page Why Choose Us", "Custom & Made-to-Order Fashion; Premium Quality; Reliable Turnaround Time; Nationwide Delivery; Practical Fashion Training."],
+        ["About Page Shop Introduction", "A Glimpse Inside Aprils Signature — Visit our shop in Winneba, where creativity, quality craftsmanship, and personalised fashion services come together."],
+        ["Homepage CTA", "Ready to bring your ideas to life?"],
+        ["Homepage CTA Description", "Whether you're ordering a custom outfit, looking for professional embellishment services, or enrolling in a training programme, Aprils Signature is here to help."]
+    ];
+    try {
+        const existing = await db.from("site_content").select("id,content_key");
+        if (!existing.error) {
+            const keys = new Set((existing.data || []).map(r => String(r.content_key || "").toLowerCase()));
+            const missing = INITIAL_CONTENT.filter(([k]) => !keys.has(k.toLowerCase())).map(([content_key, content_value]) => ({content_key, content_value}));
+            if (missing.length) await db.from("site_content").insert(missing);
+        }
+    } catch (e) { console.warn("Website content initial import unavailable:", e); }
+
+    const INITIAL_POLICIES = [
+        ["1. Payment Policy", "payment_policy", "A minimum of 75% of the total cost must be paid before production begins.\n\nFor orders being picked up or collected, the remaining balance must be paid before or at the time of collection.\n\nFor delivery orders, the remaining balance must be paid in full before the order is dispatched.\n\nFor any form of fashion training\nFull payment must be made before start of class or section."],
+        ["2. Refund Policy", "refund_policy", "At Aprils Signature, every order is custom-made or made-to-order with care and attention to detail. For this reason, we encourage customers to review all order details carefully before confirming their orders.\n\nThe 75% deposit paid before production begins is non-refundable once production has started.\n\nIf a customer chooses to cancel an order before production begins, any refund will be considered on a case-by-case basis, depending on any costs already incurred.\n\nRefunds will not be issued for changes of mind after production has commenced.\n\nIf an item is found to have a genuine workmanship defect, customers should contact us within 48 hours of receiving the item so we can assess the issue and provide an appropriate solution, which may include alterations, repairs, or another suitable remedy where applicable.\n\nRefunds do not apply to issues arising from incorrect measurements or information provided by the customer.\n\nCustomer satisfaction is important to us. We encourage all customers to communicate any concerns as soon as possible so that we can work together to find a fair and satisfactory solution.\n\nFor any form of training\nPayments made are not refundable or transferrable as such, prospective trainees must do their due diligence and be certain of taking the class before any payment is made."],
+        ["3. Delivery & Collection Policy", "delivery_collection_policy", "At Aprils Signature, every item is custom-made or made-to-order. Completion and delivery times vary depending on the design, order complexity, and current workload.\n\nCustomers will be informed of the estimated completion date after their order has been confirmed.\n\nCustomers who choose pickup/collection will be notified when their order is ready.\n\nFor delivery orders, dispatch will be arranged after the order has been completed and the outstanding balance has been paid in full.\n\nDelivery charges, where applicable, will be communicated before dispatch.\n\nWhile we make every effort to meet agreed timelines, unforeseen circumstances may occasionally cause delays. In such cases, customers will be informed promptly.\n\nWe also encourage customers to provide accurate delivery information to ensure a smooth delivery process."],
+        ["4. Privacy Policy", "privacy_policy", "At Aprils Signature, we value your privacy and are committed to protecting your personal information.\n\nAny information you provide through our website, including contact forms, quote requests, training applications, and order enquiries, is used solely to provide our services and communicate with you regarding your request.\n\nThe information we may collect includes: Name; Phone number; Email address; Delivery or pickup details; Measurements; Uploaded photos or mock-ups; Any other information you choose to provide.\n\nYour personal information will not be sold, rented, or shared with third parties except where necessary to provide our services or where required by law.\n\nWe take reasonable steps to keep your information secure and use it only for legitimate business purposes.\n\nIf you have any questions about how your personal information is used, please contact us and we will be happy to assist you.\n\nBy using our website and submitting your information, you agree to the terms of this Privacy Policy."]
+    ];
+    try {
+        const existing = await db.from("policies").select("id,policy_key");
+        if (!existing.error) {
+            const keys = new Set((existing.data || []).map(r => String(r.policy_key || "").toLowerCase()));
+            const missing = INITIAL_POLICIES.filter(([,k]) => !keys.has(k.toLowerCase())).map(([title, policy_key, content]) => ({title, policy_key, content}));
+            if (missing.length) await db.from("policies").insert(missing);
+        }
+    } catch (e) { console.warn("Policy initial import unavailable:", e); }
+
+    const INITIAL_SOCIALS = [
+        ["social_tiktok", "https://www.tiktok.com/@aprilssignature"],
+        ["social_instagram", "https://www.instagram.com/aprilssignature_/"],
+        ["social_facebook", "https://www.facebook.com/share/1BwqEnbUkU/"],
+        ["social_whatsapp", "https://wa.me/233592983027"]
+    ];
+    try {
+        const existing = await db.from("settings").select("id,setting_key");
+        if (!existing.error) {
+            const keys = new Set((existing.data || []).map(r => String(r.setting_key || "").toLowerCase()));
+            const missing = INITIAL_SOCIALS.filter(([k]) => !keys.has(k.toLowerCase())).map(([setting_key, setting_value]) => ({setting_key, setting_value}));
+            if (missing.length) await db.from("settings").insert(missing);
+        }
+    } catch (e) { console.warn("Social links initial import unavailable:", e); }
+
+    try {
+        const existing = await db.from("contact_settings").select("id").limit(1).maybeSingle();
+        if (!existing.error && !existing.data) {
+            await db.from("contact_settings").insert({
+                business_name: "Aprils Signature", phone: "+233 59 298 3027", whatsapp: "+233 59 298 3027", email: "info@aprilssignature.com",
+                address: "CE-003-0009 AL174 Windy Avenue\nOpposite Former Perez Chapel International\nWinneba, Central Region, Ghana.",
+                opening_hours: "Monday – Friday: 8:00 AM – 5:30 PM\nSaturday: Closed\nSunday: Closed"
+            });
+        }
+    } catch (e) { console.warn("Contact information initial import unavailable:", e); }
 }
 
 /* =========================================================
