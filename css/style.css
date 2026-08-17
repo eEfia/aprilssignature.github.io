@@ -2037,12 +2037,9 @@ select:focus {
 }
 
 @keyframes aprilsMediaMotion {
-    from {
-        transform: scale(1);
-    }
-    to {
-        transform: scale(1.045) translate3d(0.6%, -0.4%, 0);
-    }
+    0% { transform: scale(1) translate3d(0, 0, 0); }
+    50% { transform: scale(1.028) translate3d(0.35%, -0.2%, 0); }
+    100% { transform: scale(1.045) translate3d(0.6%, -0.4%, 0); }
 }
 
 .location-image {
@@ -2056,8 +2053,11 @@ select:focus {
 }
 
 .location-image img {
-    width: 100%;
-    height: 100%;
+    width: 270px;
+    height: 300px;
+    object-fit: fill;
+    display: block;
+    margin: 0 auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
