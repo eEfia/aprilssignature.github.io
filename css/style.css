@@ -2053,7 +2053,7 @@ select:focus {
 }
 
 .location-image img {
-    width: 270px;
+    width: 540px;
     height: 300px;
     object-fit: fill;
     display: block;
