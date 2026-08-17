@@ -119,6 +119,7 @@ function setupLogin() {
             box.textContent = "Login successful.";
             box.className = "status success";
             document.getElementById("loginScreen").style.display = "none";
+            await seedInitialPublicContent();
             await loadDashboard();
         } catch (error) {
             console.error(error);
@@ -1205,6 +1206,25 @@ function setupContactForm() {
     });
 }
 
+function setupAddNewButtons() {
+    document.getElementById("faqNew")?.addEventListener("click", () => {
+        const form = document.getElementById("faqForm");
+        form?.reset(); document.getElementById("faqId").value = ""; document.getElementById("faqActive").checked = true; form?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+    document.getElementById("policyNew")?.addEventListener("click", () => {
+        const form = document.getElementById("policyForm");
+        form?.reset(); document.getElementById("policyId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+    document.getElementById("contentNew")?.addEventListener("click", () => {
+        const form = document.getElementById("contentForm");
+        form?.reset(); document.getElementById("contentId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+    document.getElementById("socialNew")?.addEventListener("click", () => {
+        const form = document.getElementById("socialForm");
+        form?.reset(); document.getElementById("socialId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+}
+
 async function loadSettings() {
     const rows = await getRows("settings");
     const list = document.getElementById("settingsList");
@@ -1436,6 +1456,7 @@ async function startAdmin() {
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
+    setupAddNewButtons();
 
     await checkSession();
 }
