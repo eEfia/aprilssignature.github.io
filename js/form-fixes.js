@@ -10,13 +10,25 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
+        return window.aprilsSupabase || window.AprilsSupabase || null;
+    }
 
-        return (
-            window.aprilsSupabase ||
-            window.AprilsSupabase ||
-            null
-        );
-
+    function waitForSupabase(timeout = 15000) {
+        const ready = getSupabase();
+        if (ready) return Promise.resolve(ready);
+        return new Promise(resolve => {
+            let done = false;
+            const finish = value => {
+                if (done) return;
+                done = true;
+                window.removeEventListener("aprilsSupabaseReady", onReady);
+                clearTimeout(timer);
+                resolve(value || getSupabase());
+            };
+            const onReady = () => finish(getSupabase());
+            const timer = setTimeout(() => finish(getSupabase()), timeout);
+            window.addEventListener("aprilsSupabaseReady", onReady, { once: true });
+        });
     }
 
 
@@ -74,7 +86,7 @@ PUBLIC FORM FIXES
 
 
                 const supabase =
-                    getSupabase();
+                    await waitForSupabase();
 
 
                 if (!supabase) {
@@ -178,9 +190,11 @@ PUBLIC FORM FIXES
                         services.join(", "),
 
                     journey:
-                        JSON.stringify(
-                            details
-                        )
+                        JSON.stringify({
+                            ...details,
+                            streetwearSize: String(data.get("streetwearSize") || "").trim(),
+                            embellishmentSize: String(data.get("embellishmentSize") || "").trim()
+                        })
 
                 };
 
@@ -215,25 +229,20 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    const result =
+                    let result =
                         await supabase
-                            .from(
-                                "quote_requests"
-                            )
-                            .insert([
-                                payload
-                            ]);
+                            .from("quote_requests")
+                            .insert([payload]);
 
+                    if (result.error && /journey|column/i.test(result.error.message || "")) {
+                        const fallbackPayload = { ...payload };
+                        delete fallbackPayload.journey;
+                        result = await supabase.from("quote_requests").insert([fallbackPayload]);
+                    }
 
                     if (result.error) {
-
-                        console.error(
-                            "QUOTE ERROR:",
-                            result.error
-                        );
-
+                        console.error("QUOTE ERROR:", result.error);
                         throw result.error;
-
                     }
 
 
@@ -319,7 +328,7 @@ PUBLIC FORM FIXES
 
 
                 const supabase =
-                    getSupabase();
+                    await waitForSupabase();
 
 
                 if (!supabase) {
