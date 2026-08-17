@@ -468,7 +468,11 @@ Dashboard Overview
 </button>
 
 
-
+<button
+data-section="content"
+>
+Website Content
+</button>
 
 
 <button
@@ -527,13 +531,25 @@ FAQs
 </button>
 
 
+<button
+data-section="policies"
+>
+Policies &amp; Terms
+</button>
 
 
+<button
+data-section="contact"
+>
+Contact Information
+</button>
 
 
-
-
-
+<button
+data-section="settings"
+>
+Website Settings
+</button>
 
 
 </aside>
@@ -719,7 +735,76 @@ your website.
 WEBSITE CONTENT
 ===================================================== -->
 
+<section
+id="content"
+class="section"
+>
 
+<h2>
+Website Content
+</h2>
+
+<p class="intro">
+Add and edit general website content.
+</p>
+
+
+<div class="form-card">
+
+<form id="contentForm">
+
+<div class="form-grid">
+
+<div class="form-group">
+
+<label>
+Content Name
+</label>
+
+<input
+id="contentKey"
+required
+placeholder="Example: Homepage Introduction"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Website Text
+</label>
+
+<textarea
+id="contentValue"
+required
+placeholder="Enter the website content."
+></textarea>
+
+</div>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Content
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="contentList"
+class="table-wrap"
+></div>
+
+</section>
 
 
 
@@ -819,7 +904,7 @@ type="checkbox"
 id="galleryFeatured"
 >
 
-Featured Collection
+Show in Featured Collection
 
 </label>
 
@@ -1380,7 +1465,105 @@ class="table-wrap"
 POLICIES
 ===================================================== -->
 
+<section
+id="policies"
+class="section"
+>
 
+<h2>
+Policies &amp; Terms
+</h2>
+
+<p class="intro">
+Manage payment, refund, delivery, collection,
+privacy and other policies.
+</p>
+
+
+<div class="form-card">
+
+<form id="policyForm">
+
+<input
+type="hidden"
+id="policyId"
+>
+
+
+<div class="form-grid">
+
+<div class="form-group">
+
+<label>
+Policy Name
+</label>
+
+<input
+id="policyTitle"
+required
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Policy Key
+</label>
+
+<input
+id="policyKey"
+required
+placeholder="payment_policy"
+>
+
+</div>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Policy Content
+</label>
+
+<textarea
+id="policyContent"
+required
+></textarea>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Policy
+</button>
+
+
+<button
+type="button"
+class="secondary"
+id="policyCancel"
+>
+Cancel
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="policyList"
+class="table-wrap"
+></div>
+
+</section>
 
 
 
@@ -1388,7 +1571,134 @@ POLICIES
 CONTACT
 ===================================================== -->
 
+<section
+id="contact"
+class="section"
+>
 
+<h2>
+Contact Information
+</h2>
+
+<p class="intro">
+Manage business contact information.
+</p>
+
+
+<div class="form-card">
+
+<form id="contactForm">
+
+<input
+type="hidden"
+id="contactId"
+>
+
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Business Name
+</label>
+
+<input
+id="contactBusiness"
+value="Aprils Signature"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Phone
+</label>
+
+<input
+id="contactPhone"
+value="+233 59 298 3027"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+WhatsApp
+</label>
+
+<input
+id="contactWhatsapp"
+value="+233 59 298 3027"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Email
+</label>
+
+<input
+id="contactEmail"
+value="info@aprilssignature.com"
+>
+
+</div>
+
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Address
+</label>
+
+<textarea
+id="contactAddress"
+>CE-003-0009 AL174 Windy Avenue
+Opposite Former Perez Chapel International
+Winneba, Central Region, Ghana.</textarea>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Opening Hours
+</label>
+
+<textarea
+id="contactHours"
+>Monday – Friday: 8:00 AM – 5:30 PM
+Saturday: Closed
+Sunday: Closed</textarea>
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Contact Information
+</button>
+
+</form>
+
+</div>
+
+</section>
 
 
 
@@ -1396,7 +1706,77 @@ CONTACT
 SETTINGS
 ===================================================== -->
 
+<section
+id="settings"
+class="section"
+>
 
+<h2>
+Website Settings
+</h2>
+
+<p class="intro">
+Manage basic website settings.
+</p>
+
+
+<div class="form-card">
+
+<form id="settingsForm">
+
+<div class="form-grid">
+
+
+<div class="form-group">
+
+<label>
+Setting Name
+</label>
+
+<input
+id="settingKey"
+required
+placeholder="site_title"
+>
+
+</div>
+
+
+<div class="form-group">
+
+<label>
+Setting Value
+</label>
+
+<input
+id="settingValue"
+required
+>
+
+</div>
+
+
+</div>
+
+
+<button
+class="primary"
+type="submit"
+>
+Save Setting
+</button>
+
+</form>
+
+</div>
+
+
+<div
+id="settingsList"
+class="table-wrap"
+></div>
+
+</section>
 
 
 </main>
@@ -1406,8 +1786,2322 @@ SETTINGS
 
 
 <script src="../js/supabase-config.js"></script>
+
 <script src="../js/supabase-client.js"></script>
-<script src="admin.js" defer></script>
-<script src="Admin-fixes.js" defer></script>
+
+
+<script>
+
+(function(){
+
+"use strict";
+
+
+let db = null;
+
+
+/* =========================================================
+   WAIT FOR SUPABASE
+========================================================= */
+
+function waitForSupabase(){
+
+return new Promise(function(resolve){
+
+let tries = 0;
+
+const timer = setInterval(function(){
+
+tries++;
+
+if(window.aprilsSupabase){
+
+clearInterval(timer);
+
+resolve(
+window.aprilsSupabase
+);
+
+return;
+
+}
+
+if(window.AprilsSupabase){
+
+clearInterval(timer);
+
+resolve(
+window.AprilsSupabase
+);
+
+return;
+
+}
+
+if(tries >= 100){
+
+clearInterval(timer);
+
+resolve(null);
+
+}
+
+},100);
+
+});
+
+}
+
+
+/* =========================================================
+   MESSAGE
+========================================================= */
+
+function message(text,type){
+
+const box =
+document.getElementById(
+"globalStatus"
+);
+
+box.textContent = text;
+
+box.className =
+"status " +
+(type || "success");
+
+setTimeout(function(){
+
+box.className = "status";
+
+},5000);
+
+}
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function escapeHTML(value){
+
+return String(value ?? "")
+.replace(/&/g,"&amp;")
+.replace(/</g,"&lt;")
+.replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;")
+.replace(/'/g,"&#039;");
+
+}
+
+
+/* =========================================================
+   LOGIN
+========================================================= */
+
+async function checkSession(){
+
+if(!db) return;
+
+const result =
+await db.auth.getSession();
+
+if(result.data.session){
+
+document.getElementById(
+"loginScreen"
+).style.display="none";
+
+await loadDashboard();
+
+}else{
+
+document.getElementById(
+"loginScreen"
+).style.display="flex";
+
+}
+
+}
+
+
+document.getElementById(
+"loginForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const email =
+document.getElementById(
+"loginEmail"
+).value.trim();
+
+const password =
+document.getElementById(
+"loginPassword"
+).value;
+
+const box =
+document.getElementById(
+"loginMessage"
+);
+
+box.className="status";
+
+try{
+
+const result =
+await db.auth.signInWithPassword({
+
+email:email,
+
+password:password
+
+});
+
+if(result.error){
+
+throw result.error;
+
+}
+
+box.textContent=
+"Login successful.";
+
+box.className=
+"status success";
+
+document.getElementById(
+"loginScreen"
+).style.display="none";
+
+await loadDashboard();
+
+}catch(error){
+
+console.error(error);
+
+box.textContent=
+"Login failed. Check your email and password.";
+
+box.className=
+"status error";
+
+}
+
+});
+
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
+document.getElementById(
+"logoutButton"
+).addEventListener(
+"click",
+async function(){
+
+await db.auth.signOut();
+
+location.reload();
+
+});
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+document.querySelectorAll(
+".sidebar button"
+).forEach(function(button){
+
+button.addEventListener(
+"click",
+async function(){
+
+document.querySelectorAll(
+".sidebar button"
+).forEach(function(b){
+
+b.classList.remove("active");
+
+});
+
+button.classList.add("active");
+
+
+document.querySelectorAll(
+".section"
+).forEach(function(section){
+
+section.classList.remove("active");
+
+});
+
+
+const id =
+button.dataset.section;
+
+document.getElementById(
+id
+).classList.add("active");
+
+
+await loadSection(id);
+
+});
+
+});
+
+
+/* =========================================================
+   GENERIC FETCH
+========================================================= */
+
+async function getRows(table){
+let result=await db.from(table).select("*").order("created_at",{ascending:false});
+if(result.error && /created_at/i.test(result.error.message||"")) result=await db.from(table).select("*");
+if(result.error) throw result.error;
+return result.data||[];
+}
+
+
+async function countRows(table){
+
+const result =
+await db
+.from(table)
+.select("*",{count:"exact",head:true});
+
+if(result.error){
+
+return 0;
+
+}
+
+return result.count || 0;
+
+}
+
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
+
+async function loadDashboard(){
+
+try{
+
+document.getElementById(
+"galleryCount"
+).textContent =
+await countRows(
+"gallery_items"
+);
+
+
+document.getElementById(
+"trainingCount"
+).textContent =
+await countRows(
+"training_programs"
+);
+
+
+document.getElementById(
+"testimonialCount"
+).textContent =
+await countRows(
+"testimonials"
+);
+
+
+document.getElementById(
+"faqCount"
+).textContent =
+await countRows(
+"faqs"
+);
+
+
+document.getElementById(
+"registrationCount"
+).textContent =
+await countRows(
+"training_registrations"
+);
+
+
+document.getElementById(
+"quoteCount"
+).textContent =
+await countRows(
+"quote_requests"
+);
+
+}catch(error){
+
+console.error(error);
+
+}
+
+}
+
+
+/* =========================================================
+   LOAD SECTION
+========================================================= */
+
+async function loadSection(id){
+
+try{
+
+if(id==="dashboard"){
+
+await loadDashboard();
+
+}
+
+if(id==="gallery"){
+
+await loadGallery();
+
+}
+
+if(id==="training"){
+
+await loadTraining();
+
+}
+
+if(id==="registrations"){
+
+await loadRegistrations();
+
+}
+
+if(id==="orders"){
+
+await loadQuotes();
+
+}
+
+if(id==="enquiries"){
+
+await loadEnquiries();
+
+}
+
+if(id==="testimonials"){
+
+await loadTestimonials();
+
+}
+
+if(id==="faq"){
+
+await loadFAQs();
+
+}
+
+if(id==="policies"){
+
+await loadPolicies();
+
+}
+
+if(id==="content"){
+
+await loadContent();
+
+}
+
+if(id==="settings"){
+
+await loadSettings();
+
+}
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Could not load this section. Check your Supabase tables and policies.",
+"error"
+);
+
+}
+
+}
+
+
+/* =========================================================
+   GALLERY
+========================================================= */
+
+async function loadGallery(){
+
+const rows =
+await getRows(
+"gallery_items"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No gallery items yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>" +
+"<th>Title</th>" +
+"<th>Category</th>" +
+"<th>Featured</th>" +
+"<th>Active</th>" +
+"<th>Actions</th>" +
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html +=
+"<tr>" +
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.category)+
+"</td>"+
+
+"<td>"+
+(row.featured ? "Yes":"No")+
+"</td>"+
+
+"<td>"+
+(row.active ? "Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editGallery('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'gallery_items\','+
+row.id+
+',loadGallery)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"galleryList"
+).innerHTML=html;
+
+}
+
+
+window.editGallery=function(row){
+
+document.getElementById(
+"galleryId"
+).value=row.id;
+
+document.getElementById(
+"galleryTitle"
+).value=row.title||"";
+
+document.getElementById(
+"galleryCategory"
+).value=row.category||"";
+
+document.getElementById(
+"galleryImage"
+).value=row.image_url||"";
+
+document.getElementById(
+"galleryDescription"
+).value=row.description||"";
+
+document.getElementById(
+"galleryFeatured"
+).checked=!!row.featured;
+
+document.getElementById(
+"galleryActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"galleryForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"galleryId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"galleryTitle"
+).value.trim(),
+
+category:
+document.getElementById(
+"galleryCategory"
+).value.trim(),
+
+image_url:
+document.getElementById(
+"galleryImage"
+).value.trim(),
+
+description:
+document.getElementById(
+"galleryDescription"
+).value.trim(),
+
+featured:
+document.getElementById(
+"galleryFeatured"
+).checked,
+
+active:
+document.getElementById(
+"galleryActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("gallery_items")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("gallery_items")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Gallery item saved.",
+"success"
+);
+
+document.getElementById(
+"galleryForm"
+).reset();
+
+document.getElementById(
+"galleryId"
+).value="";
+
+await loadGallery();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Gallery item could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"galleryCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"galleryForm"
+).reset();
+
+document.getElementById(
+"galleryId"
+).value="";
+
+});
+
+
+/* =========================================================
+   TRAINING
+========================================================= */
+
+async function loadTraining(){
+
+const rows =
+await getRows(
+"training_programs"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No training programmes yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Programme</th>"+
+"<th>Duration</th>"+
+"<th>Price</th>"+
+"<th>Category</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html +=
+"<tr>"+
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.duration)+
+"</td>"+
+
+"<td>GHC "+
+Number(row.price||0).toFixed(2)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.category)+
+"</td>"+
+
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editTraining('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'training_programs\','+
+row.id+
+',loadTraining)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"trainingList"
+).innerHTML=html;
+
+}
+
+
+window.editTraining=function(row){
+
+document.getElementById(
+"trainingId"
+).value=row.id;
+
+document.getElementById(
+"trainingTitle"
+).value=row.title||"";
+
+document.getElementById(
+"trainingDuration"
+).value=row.duration||"";
+
+document.getElementById(
+"trainingPrice"
+).value=row.price||"";
+
+document.getElementById(
+"trainingCategory"
+).value=row.category||"";
+
+document.getElementById(
+"trainingDescription"
+).value=row.description||"";
+
+document.getElementById(
+"trainingActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"trainingForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"trainingId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"trainingTitle"
+).value.trim(),
+
+duration:
+document.getElementById(
+"trainingDuration"
+).value.trim(),
+
+price:
+parseFloat(
+document.getElementById(
+"trainingPrice"
+).value
+)||0,
+
+category:
+document.getElementById(
+"trainingCategory"
+).value.trim(),
+
+description:
+document.getElementById(
+"trainingDescription"
+).value.trim(),
+
+active:
+document.getElementById(
+"trainingActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("training_programs")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("training_programs")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Training programme saved.",
+"success"
+);
+
+document.getElementById(
+"trainingForm"
+).reset();
+
+document.getElementById(
+"trainingId"
+).value="";
+
+await loadTraining();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Training programme could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"trainingCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"trainingForm"
+).reset();
+
+document.getElementById(
+"trainingId"
+).value="";
+
+});
+
+
+/* =========================================================
+   REGISTRATIONS
+========================================================= */
+
+async function loadRegistrations(){
+
+const rows =
+await getRows(
+"training_registrations"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No training registrations received.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Location</th>"+
+"<th>Course</th>"+
+"<th>Email</th>"+
+"<th>Message</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.full_name
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.phone
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.whatsapp
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.location
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.course
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.email
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.message
+)+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"registrationList"
+).innerHTML=html;
+
+}
+
+
+/* =========================================================
+   QUOTE REQUESTS
+========================================================= */
+
+async function loadQuotes(){
+
+const rows =
+await getRows(
+"quote_requests"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No quote requests received.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Location</th>"+
+"<th>Service</th>"+
+"<th>Details</th>"+
+"<th>Date</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+const date =
+row.created_at
+?
+new Date(
+row.created_at
+).toLocaleString()
+:
+"";
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.full_name
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.phone
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.whatsapp
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.location
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.service
+)+
+"</td>"+
+
+"<td style='max-width:350px;white-space:pre-wrap'>"+
+escapeHTML(
+row.request_details ||
+row.details ||
+row.message ||
+""
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+date
+)+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"quoteList"
+).innerHTML=html;
+
+}
+
+
+/* =========================================================
+   ENQUIRIES
+========================================================= */
+
+async function loadEnquiries(){
+
+const rows =
+await getRows(
+"enquiries"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No customer enquiries received.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Name</th>"+
+"<th>Phone</th>"+
+"<th>WhatsApp</th>"+
+"<th>Email</th>"+
+"<th>Subject</th>"+
+"<th>Message</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(row.full_name)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.phone)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.whatsapp)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.email)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.subject)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.message)+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"enquiryList"
+).innerHTML=html;
+
+}
+
+
+/* =========================================================
+   TESTIMONIALS
+========================================================= */
+
+async function loadTestimonials(){
+
+const rows =
+await getRows(
+"testimonials"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No testimonials yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Customer</th>"+
+"<th>Testimonial</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.customer_name
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.testimonial
+)+
+"</td>"+
+
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editTestimonial('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'testimonials\','+
+row.id+
+',loadTestimonials)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"testimonialList"
+).innerHTML=html;
+
+}
+
+
+window.editTestimonial=function(row){
+
+document.getElementById(
+"testimonialId"
+).value=row.id;
+
+document.getElementById(
+"testimonialName"
+).value=row.customer_name||"";
+
+document.getElementById(
+"testimonialText"
+).value=row.testimonial||"";
+
+document.getElementById(
+"testimonialActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"testimonialForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"testimonialId"
+).value;
+
+const data={
+
+customer_name:
+document.getElementById(
+"testimonialName"
+).value.trim(),
+
+testimonial:
+document.getElementById(
+"testimonialText"
+).value.trim(),
+
+active:
+document.getElementById(
+"testimonialActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("testimonials")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("testimonials")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Testimonial saved.",
+"success"
+);
+
+document.getElementById(
+"testimonialForm"
+).reset();
+
+document.getElementById(
+"testimonialId"
+).value="";
+
+await loadTestimonials();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Testimonial could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"testimonialCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"testimonialForm"
+).reset();
+
+document.getElementById(
+"testimonialId"
+).value="";
+
+});
+
+
+/* =========================================================
+   FAQ
+========================================================= */
+
+async function loadFAQs(){
+
+const rows =
+await getRows(
+"faqs"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No FAQs yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Question</th>"+
+"<th>Answer</th>"+
+"<th>Active</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.question
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.answer
+)+
+"</td>"+
+
+"<td>"+
+(row.active?"Yes":"No")+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editFAQ('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'faqs\','+
+row.id+
+',loadFAQs)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"faqList"
+).innerHTML=html;
+
+}
+
+
+window.editFAQ=function(row){
+
+document.getElementById(
+"faqId"
+).value=row.id;
+
+document.getElementById(
+"faqQuestion"
+).value=row.question||"";
+
+document.getElementById(
+"faqAnswer"
+).value=row.answer||"";
+
+document.getElementById(
+"faqActive"
+).checked=!!row.active;
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+
+document.getElementById(
+"faqForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"faqId"
+).value;
+
+const data={
+
+question:
+document.getElementById(
+"faqQuestion"
+).value.trim(),
+
+answer:
+document.getElementById(
+"faqAnswer"
+).value.trim(),
+
+active:
+document.getElementById(
+"faqActive"
+).checked,
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("faqs")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("faqs")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"FAQ saved.",
+"success"
+);
+
+document.getElementById(
+"faqForm"
+).reset();
+
+document.getElementById(
+"faqId"
+).value="";
+
+await loadFAQs();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"FAQ could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"faqCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"faqForm"
+).reset();
+
+document.getElementById(
+"faqId"
+).value="";
+
+});
+
+
+/* =========================================================
+   POLICIES
+========================================================= */
+
+async function loadPolicies(){
+
+const rows =
+await getRows(
+"policies"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No policies yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Policy</th>"+
+"<th>Key</th>"+
+"<th>Content</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(row.title)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.policy_key)+
+"</td>"+
+
+"<td>"+
+escapeHTML(row.content)+
+"</td>"+
+
+"<td>"+
+
+'<button class="secondary" onclick=\'editPolicy('+
+JSON.stringify(row).replace(/'/g,"&#39;")+
+")'>Edit</button> "+
+
+'<button class="danger" onclick="deleteRow(\'policies\','+
+row.id+
+',loadPolicies)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"policyList"
+).innerHTML=html;
+
+}
+
+
+window.editPolicy=function(row){
+
+document.getElementById(
+"policyId"
+).value=row.id;
+
+document.getElementById(
+"policyTitle"
+).value=row.title||"";
+
+document.getElementById(
+"policyKey"
+).value=row.policy_key||"";
+
+document.getElementById(
+"policyContent"
+).value=row.content||"";
+
+window.scrollTo({top:0,behavior:"smooth"});
+
+};
+
+   <script src="../js/supabase-config.js"></script>
+<script src="../js/supabase-client.js"></script>
+<script src="admin.js"></script>
+<script src="admin-fixes.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   
+
+
+document.getElementById(
+"policyForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const id =
+document.getElementById(
+"policyId"
+).value;
+
+const data={
+
+title:
+document.getElementById(
+"policyTitle"
+).value.trim(),
+
+policy_key:
+document.getElementById(
+"policyKey"
+).value.trim(),
+
+content:
+document.getElementById(
+"policyContent"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+let result;
+
+if(id){
+
+result=
+await db
+.from("policies")
+.update(data)
+.eq("id",id);
+
+}else{
+
+result=
+await db
+.from("policies")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Policy saved.",
+"success"
+);
+
+document.getElementById(
+"policyForm"
+).reset();
+
+document.getElementById(
+"policyId"
+).value="";
+
+await loadPolicies();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Policy could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+document.getElementById(
+"policyCancel"
+).addEventListener(
+"click",
+function(){
+
+document.getElementById(
+"policyForm"
+).reset();
+
+document.getElementById(
+"policyId"
+).value="";
+
+});
+
+
+/* =========================================================
+   CONTENT
+========================================================= */
+
+async function loadContent(){
+
+const rows =
+await getRows(
+"site_content"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No website content has been added yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Key</th>"+
+"<th>Content</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.content_key
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.content_value
+)+
+"</td>"+
+
+"<td>"+
+
+'<button class="danger" onclick="deleteRow(\'site_content\','+
+row.id+
+',loadContent)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"contentList"
+).innerHTML=html;
+
+}
+
+
+document.getElementById(
+"contentForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const data={
+
+content_key:
+document.getElementById(
+"contentKey"
+).value.trim(),
+
+content_value:
+document.getElementById(
+"contentValue"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+const result =
+await db
+.from("site_content")
+.upsert(
+data,
+{
+onConflict:"content_key"
+}
+);
+
+if(result.error)
+throw result.error;
+
+message(
+"Website content saved.",
+"success"
+);
+
+document.getElementById(
+"contentForm"
+).reset();
+
+await loadContent();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Website content could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+async function loadSettings(){
+
+const rows =
+await getRows(
+"site_settings"
+);
+
+let html="";
+
+if(!rows.length){
+
+html=
+'<div class="empty">No settings yet.</div>';
+
+}else{
+
+html=
+"<table><thead><tr>"+
+"<th>Setting</th>"+
+"<th>Value</th>"+
+"<th>Actions</th>"+
+"</tr></thead><tbody>";
+
+rows.forEach(function(row){
+
+html+=
+"<tr>"+
+
+"<td>"+
+escapeHTML(
+row.setting_key
+)+
+"</td>"+
+
+"<td>"+
+escapeHTML(
+row.setting_value
+)+
+"</td>"+
+
+"<td>"+
+
+'<button class="danger" onclick="deleteRow(\'site_settings\','+
+row.id+
+',loadSettings)">Delete</button>'+
+
+"</td>"+
+
+"</tr>";
+
+});
+
+html+="</tbody></table>";
+
+}
+
+document.getElementById(
+"settingsList"
+).innerHTML=html;
+
+}
+
+
+document.getElementById(
+"settingsForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const data={
+
+setting_key:
+document.getElementById(
+"settingKey"
+).value.trim(),
+
+setting_value:
+document.getElementById(
+"settingValue"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+const result =
+await db
+.from("site_settings")
+.upsert(
+data,
+{
+onConflict:"setting_key"
+}
+);
+
+if(result.error)
+throw result.error;
+
+message(
+"Website setting saved.",
+"success"
+);
+
+document.getElementById(
+"settingsForm"
+).reset();
+
+await loadSettings();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Setting could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+/* =========================================================
+   CONTACT
+========================================================= */
+async function loadContact(){
+try{
+const result=await db.from("contact_settings").select("*").limit(1).maybeSingle();
+if(result.error)throw result.error;
+if(result.data){
+const r=result.data;
+document.getElementById("contactId").value=r.id||"";
+document.getElementById("contactBusiness").value=r.business_name||"";
+document.getElementById("contactPhone").value=r.phone||"";
+document.getElementById("contactWhatsapp").value=r.whatsapp||"";
+document.getElementById("contactEmail").value=r.email||"";
+document.getElementById("contactAddress").value=r.address||"";
+document.getElementById("contactHours").value=r.opening_hours||"";
+}
+}catch(e){console.error("CONTACT LOAD ERROR:",e);}
+}
+
+
+
+document.getElementById(
+"contactForm"
+).addEventListener(
+"submit",
+async function(e){
+
+e.preventDefault();
+
+const data={
+
+business_name:
+document.getElementById(
+"contactBusiness"
+).value.trim(),
+
+phone:
+document.getElementById(
+"contactPhone"
+).value.trim(),
+
+whatsapp:
+document.getElementById(
+"contactWhatsapp"
+).value.trim(),
+
+email:
+document.getElementById(
+"contactEmail"
+).value.trim(),
+
+address:
+document.getElementById(
+"contactAddress"
+).value.trim(),
+
+opening_hours:
+document.getElementById(
+"contactHours"
+).value.trim(),
+
+updated_at:
+new Date().toISOString()
+
+};
+
+try{
+
+const existing =
+await db
+.from("contact_settings")
+.select("id")
+.limit(1)
+.maybeSingle();
+
+let result;
+
+if(existing.data){
+
+result =
+await db
+.from("contact_settings")
+.update(data)
+.eq("id",existing.data.id);
+
+}else{
+
+result =
+await db
+.from("contact_settings")
+.insert(data);
+
+}
+
+if(result.error)
+throw result.error;
+
+message(
+"Contact information saved.",
+"success"
+);
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Contact information could not be saved.",
+"error"
+);
+
+}
+
+});
+
+
+/* =========================================================
+   DELETE
+========================================================= */
+
+window.deleteRow=
+async function(
+table,
+id,
+reload
+){
+
+if(
+!confirm(
+"Are you sure you want to delete this item?"
+)
+){
+
+return;
+
+}
+
+try{
+
+const result =
+await db
+.from(table)
+.delete()
+.eq("id",id);
+
+if(result.error)
+throw result.error;
+
+message(
+"Item deleted.",
+"success"
+);
+
+await reload();
+
+await loadDashboard();
+
+}catch(error){
+
+console.error(error);
+
+message(
+"Item could not be deleted.",
+"error"
+);
+
+}
+
+};
+
+
+/* =========================================================
+   START
+========================================================= */
+
+(async function(){
+
+db =
+await waitForSupabase();
+
+if(!db){
+
+document.getElementById(
+"loginMessage"
+).textContent =
+"Supabase could not be connected.";
+
+document.getElementById(
+"loginMessage"
+).className =
+"status error";
+
+return;
+
+}
+
+await checkSession();
+
+})();
+
+})();
+
+</script>
+
+
 </body>
+
 </html>
