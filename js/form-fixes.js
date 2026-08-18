@@ -131,7 +131,7 @@ PUBLIC FORM FIXES
                 const services =
                     Array.from(
                         form.querySelectorAll(
-                            'input[name="services[]"]:checked'
+                            'input[name="services[]"]:checked, input[name="service"]:checked'
                         )
                     ).map(function (input) {
 
@@ -153,27 +153,6 @@ PUBLIC FORM FIXES
                 }
 
 
-                const details = {
-
-                    selectedServices:
-                        services,
-
-                    additionalDetails:
-                        String(
-                            data.get(
-                                "additionalDetails"
-                            ) || ""
-                        ).trim(),
-
-                    submittedFrom:
-                        window.location.href,
-
-                    uploads:
-                        uploadedFiles
-
-                };
-
-
                 let uploadedFiles = [];
                 if (form.querySelector('input[type="file"]')) {
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
@@ -182,6 +161,14 @@ PUBLIC FORM FIXES
                         throw new Error("The image upload could not be completed. Please try again.");
                     }
                 }
+
+                const details = {
+                    selectedServices: services,
+                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
+                    submittedFrom: window.location.href,
+                    uploads: uploadedFiles,
+                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim()
+                };
 
                 const payload = {
 
@@ -226,8 +213,7 @@ PUBLIC FORM FIXES
                     journey:
                         JSON.stringify({
                             ...details,
-                            streetwearSize: String(data.get("streetwearSize") || "").trim(),
-                            embellishmentSize: String(data.get("embellishmentSize") || "").trim()
+                            sizeMeasurements: String(data.get("sizeMeasurements") || "").trim()
                         })
 
                 };

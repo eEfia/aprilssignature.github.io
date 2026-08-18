@@ -1202,7 +1202,14 @@ async function loadPublicGallery() {
         return;
     }
 
-    const activeRows = rows.filter(row => row.image_url);
+    const activeRows = [];
+    const seenMedia = new Set();
+    rows.forEach(row => {
+        const key = String(row.image_url || "").trim().toLowerCase();
+        if (!key || seenMedia.has(key)) return;
+        seenMedia.add(key);
+        activeRows.push(row);
+    });
     if (!activeRows.length) return;
 
     const main = document.querySelector("main");
@@ -1301,7 +1308,8 @@ async function loadPublicServices() {
 async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
-    const rows = await loadPublicRows("training_programs");
+    const rows = (await loadPublicRows("training_programs"))
+        .filter(row => !/kids\s+holiday\s+class/i.test(String(row.title || "")));
     if (!rows.length) return;
 
     const grid = document.querySelector(".training-section .training-grid");
@@ -1408,6 +1416,30 @@ async function loadPublicManagedContent() {
 
     try {
         const settings = await loadPublicRows("settings");
+        const settingsMap = {};
+        settings.forEach(row => {
+            settingsMap[String(row.setting_key || "").toLowerCase()] = String(row.setting_value || "");
+        });
+
+        if (settingsMap.site_title) {
+            document.querySelectorAll(".brand-name").forEach(el => el.textContent = settingsMap.site_title);
+            document.title = settingsMap.site_title + (settingsMap.site_tagline ? " | " + settingsMap.site_tagline : "");
+        }
+        if (settingsMap.site_tagline) {
+            document.querySelectorAll(".brand-tagline").forEach(el => el.textContent = settingsMap.site_tagline);
+        }
+        if (settingsMap.google_review_url) {
+            document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
+                if ((link.textContent || "").toLowerCase().includes("review")) link.href = settingsMap.google_review_url;
+            });
+        }
+        if (settingsMap.google_maps_url) {
+            document.querySelectorAll('.footer-social a').forEach(link => {
+                const img = link.querySelector("img");
+                if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = settingsMap.google_maps_url;
+            });
+        }
+
         const socials = settings.filter(row => String(row.setting_key || "").toLowerCase().startsWith("social_"));
         if (socials.length) {
             const map = {};
@@ -1422,6 +1454,18 @@ async function loadPublicManagedContent() {
                     link.rel = "noopener noreferrer";
                 }
             });
+
+            if (map.review) {
+                document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
+                    if ((link.textContent || "").toLowerCase().includes("review")) link.href = map.review;
+                });
+            }
+            if (map.maps) {
+                document.querySelectorAll('.footer-social a').forEach(link => {
+                    const img = link.querySelector("img");
+                    if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = map.maps;
+                });
+            }
         }
     } catch (error) {
         console.warn("Public social links could not be loaded:", error);
