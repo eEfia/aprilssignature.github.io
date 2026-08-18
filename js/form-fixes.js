@@ -50,6 +50,27 @@ PUBLIC FORM FIXES
     }
 
 
+
+    async function uploadQuoteFiles(supabase, form) {
+        const inputs = [
+            { selector: 'input[name="mockups[]"]', label: "mockup" },
+            { selector: 'input[name="inspiration[]"]', label: "inspiration" }
+        ];
+        const uploads = [];
+        for (const item of inputs) {
+            const files = Array.from(form.querySelector(item.selector)?.files || []);
+            for (const file of files) {
+                const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                const path = `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}-${safe}`;
+                const result = await supabase.storage.from("quote-uploads").upload(path, file, { upsert: false, contentType: file.type });
+                if (result.error) throw result.error;
+                const publicResult = supabase.storage.from("quote-uploads").getPublicUrl(path);
+                uploads.push({ type: item.label, name: file.name, url: publicResult.data.publicUrl });
+            }
+        }
+        return uploads;
+    }
+
     /* =====================================================
        QUOTE FORM
        ===================================================== */
@@ -62,6 +83,7 @@ PUBLIC FORM FIXES
             );
 
         if (!form) return;
+        form.dataset.formFixesBound = "1";
 
 
         form.addEventListener(
@@ -144,10 +166,22 @@ PUBLIC FORM FIXES
                         ).trim(),
 
                     submittedFrom:
-                        window.location.href
+                        window.location.href,
+
+                    uploads:
+                        uploadedFiles
 
                 };
 
+
+                let uploadedFiles = [];
+                if (form.querySelector('input[type="file"]')) {
+                    try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
+                    catch (uploadError) {
+                        console.error("QUOTE UPLOAD ERROR:", uploadError);
+                        throw new Error("The image upload could not be completed. Please try again.");
+                    }
+                }
 
                 const payload = {
 
@@ -304,6 +338,7 @@ PUBLIC FORM FIXES
             );
 
         if (!form) return;
+        form.dataset.formFixesBound = "1";
 
 
         form.addEventListener(
@@ -433,25 +468,20 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    const result =
+                    let result =
                         await supabase
-                            .from(
-                                "training_registrations"
-                            )
-                            .insert([
-                                payload
-                            ]);
+                            .from("training_registrations")
+                            .insert([payload]);
 
+                    if (result.error && /message|column/i.test(result.error.message || "")) {
+                        const fallbackPayload = { ...payload };
+                        delete fallbackPayload.message;
+                        result = await supabase.from("training_registrations").insert([fallbackPayload]);
+                    }
 
                     if (result.error) {
-
-                        console.error(
-                            "TRAINING ERROR:",
-                            result.error
-                        );
-
+                        console.error("TRAINING ERROR:", result.error);
                         throw result.error;
-
                     }
 
 
