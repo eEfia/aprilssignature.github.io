@@ -119,7 +119,6 @@ function setupLogin() {
             box.textContent = "Login successful.";
             box.className = "status success";
             document.getElementById("loginScreen").style.display = "none";
-            await seedInitialPublicContent();
             await loadDashboard();
         } catch (error) {
             console.error(error);
@@ -684,14 +683,13 @@ async function loadTraining() {
         ${rows.length ? `
         <table>
             <thead><tr>
-                <th>Programme/Class</th><th>Duration</th><th>Price</th><th>Category</th><th>Active</th><th>Actions</th>
+                <th>Programme/Class</th><th>Duration</th><th>Category</th><th>Active</th><th>Actions</th>
             </tr></thead>
             <tbody>
                 ${rows.map(row => `
                     <tr>
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.duration)}</td>
-                        <td>GHC ${Number(row.price || 0).toFixed(2)}</td>
                         <td>${escapeHTML(row.category)}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
@@ -734,7 +732,6 @@ function editTraining(row) {
     document.getElementById("trainingId").value = row.id;
     document.getElementById("trainingTitle").value = row.title || "";
     document.getElementById("trainingDuration").value = row.duration || "";
-    document.getElementById("trainingPrice").value = row.price || "";
     makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, row.category || "", "+ Add New Category");
     document.getElementById("trainingDescription").value = row.description || "";
     document.getElementById("trainingActive").checked = row.active !== false;
@@ -767,7 +764,6 @@ function setupTrainingForm() {
         const payload = {
             title: document.getElementById("trainingTitle").value.trim(),
             duration: document.getElementById("trainingDuration").value.trim(),
-            price: Number(document.getElementById("trainingPrice").value || 0),
             category: document.getElementById("trainingCategory").value.trim(),
             description: document.getElementById("trainingDescription").value.trim(),
             active: document.getElementById("trainingActive").checked,
@@ -807,21 +803,27 @@ async function loadRegistrations() {
 
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Course</th><th>Email</th><th>Message</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => `<tr>
             <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
             <td>${escapeHTML(row.full_name)}</td>
             <td>${escapeHTML(row.phone)}</td>
-            <td>${escapeHTML(row.whatsapp)}</td>
-            <td>${escapeHTML(row.location)}</td>
             <td>${escapeHTML(row.course)}</td>
-            <td>${escapeHTML(row.email)}</td>
-            <td>${escapeHTML(row.message)}</td>
+            <td>${escapeHTML(row.location)}</td>
+            <td><button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button></td>
         </tr>`).join("")}
         </tbody></table>
     ` : `<div class="empty">No training registrations received.</div>`;
+
+    list.querySelectorAll("[data-view-registration]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
+            if (row) showSubmissionDetails("Training Registration Details", row, "");
+        };
+    });
 }
+
 
 async function loadQuotes() {
     const rows = await getRows("quote_requests");
@@ -830,11 +832,16 @@ async function loadQuotes() {
 
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Request Details</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Details</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => {
             let details = row.journey || row.request_details || row.details || row.message || "";
-            if (typeof details === "object") details = JSON.stringify(details, null, 2);
+            let uploads = [];
+            try {
+                const parsed = typeof details === "string" ? JSON.parse(details) : details;
+                if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
+            } catch (_) {}
+            const preview = typeof details === "object" ? JSON.stringify(details) : String(details);
             return `<tr>
                 <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
                 <td>${escapeHTML(row.full_name)}</td>
@@ -842,12 +849,28 @@ async function loadQuotes() {
                 <td>${escapeHTML(row.whatsapp)}</td>
                 <td>${escapeHTML(row.location)}</td>
                 <td>${escapeHTML(row.service)}</td>
-                <td><pre style="white-space:pre-wrap;max-width:400px;font-family:inherit">${escapeHTML(details)}</pre></td>
+                <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
+                <td><button type="button" class="secondary" data-view-quote="${row.id}">View Full Details</button></td>
             </tr>`;
         }).join("")}
         </tbody></table>
     ` : `<div class="empty">No quote requests received.</div>`;
+
+    list.querySelectorAll("[data-view-quote]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.viewQuote));
+            if (!row) return;
+            let details = row.journey || row.request_details || row.details || row.message || "";
+            let uploads = [];
+            try {
+                const parsed = typeof details === "string" ? JSON.parse(details) : details;
+                if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
+            } catch (_) {}
+            showSubmissionDetails("Customer Order / Quote Details", row, typeof details === "object" ? JSON.stringify(details, null, 2) : details, uploads);
+        };
+    });
 }
+
 
 async function loadEnquiries() {
     const rows = await getRows("enquiries");
@@ -1206,25 +1229,6 @@ function setupContactForm() {
     });
 }
 
-function setupAddNewButtons() {
-    document.getElementById("faqNew")?.addEventListener("click", () => {
-        const form = document.getElementById("faqForm");
-        form?.reset(); document.getElementById("faqId").value = ""; document.getElementById("faqActive").checked = true; form?.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-    document.getElementById("policyNew")?.addEventListener("click", () => {
-        const form = document.getElementById("policyForm");
-        form?.reset(); document.getElementById("policyId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-    document.getElementById("contentNew")?.addEventListener("click", () => {
-        const form = document.getElementById("contentForm");
-        form?.reset(); document.getElementById("contentId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-    document.getElementById("socialNew")?.addEventListener("click", () => {
-        const form = document.getElementById("socialForm");
-        form?.reset(); document.getElementById("socialId").value = ""; form?.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-}
-
 async function loadSettings() {
     const rows = await getRows("settings");
     const list = document.getElementById("settingsList");
@@ -1456,7 +1460,6 @@ async function startAdmin() {
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
-    setupAddNewButtons();
 
     await checkSession();
 }
