@@ -245,7 +245,7 @@ function setupTrainingForm() {
     const form =
         document.getElementById("trainingForm");
 
-    if (!form) {
+    if (!form || form.dataset.formFixesBound === "1") {
         return;
     }
 
@@ -1156,7 +1156,7 @@ function openMediaViewer(source, type, alt) {
     if (type === "video") {
         content.innerHTML = `<video controls autoplay muted loop playsinline><source src="${source}" type="video/mp4"></video>`;
     } else {
-        content.innerHTML = `<img src="${source}" alt="${alt || ""}">`;
+        content.innerHTML = `<img class="${String(alt || "").toLowerCase().includes("photo 5") || String(alt || "").toLowerCase().includes("glimpse inside") ? "gallery-photo5-wide" : ""}" src="${source}" alt="${alt || ""}">`;
     }
 
     viewer.classList.add("active");
@@ -1312,7 +1312,7 @@ async function loadPublicTraining() {
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
-            ${row.price ? `<p><strong>GHC ${Number(row.price).toFixed(2)}</strong></p>` : ""}
+            
         </article>
     `).join("");
 }
@@ -1350,45 +1350,105 @@ async function loadPublicFAQs() {
     `;
 }
 
-async function loadPublicWebsiteContent() {
-    const supabase = await waitForSupabase();
-    if (!supabase) return;
-    const result = await supabase.from("site_content").select("content_key,content_value");
-    if (result.error) return;
-    const rows = result.data || [];
-    const content = new Map(rows.map(row => [String(row.content_key || "").trim().toLowerCase(), String(row.content_value || "")]));
-    const setText = (selector, key) => {
-        const value = content.get(key.toLowerCase());
-        const el = document.querySelector(selector);
-        if (value !== undefined && el) el.textContent = value;
-    };
-    setText(".home-page .hero h1", "Homepage Hero Heading");
-    setText(".home-page .hero .hero-text", "Homepage Tagline");
-    setText(".home-page .cta-section h2", "Homepage CTA");
-    setText(".home-page .cta-section p", "Homepage CTA Description");
-    setText(".about-page .about-section h2 + p", "About Page Introduction");
-    setText(".about-page .glimpse-section p", "About Page Shop Introduction");
-    const aboutWhat = content.get("about page what we do");
-    const whatHeading = [...document.querySelectorAll(".about-page h2")].find(el => el.textContent.trim() === "What We Do");
-    if (aboutWhat && whatHeading) {
-        let intro = whatHeading.nextElementSibling;
-        if (!intro || intro.tagName !== "P") {
-            intro = document.createElement("p");
-            intro.className = "admin-content-intro";
-            whatHeading.insertAdjacentElement("afterend", intro);
+
+async function loadPublicManagedContent() {
+    try {
+        const contentRows = await loadPublicRows("site_content");
+        const content = {};
+        contentRows.forEach(row => {
+            content[String(row.content_key || "").trim().toLowerCase()] = String(row.content_value || "");
+        });
+
+        const setText = (selector, value) => {
+            if (value === undefined) return;
+            const el = document.querySelector(selector);
+            if (el) el.textContent = value;
+        };
+
+        setText(".home-page .hero h1", content["homepage hero heading"]);
+        setText(".home-page .hero-text", content["homepage tagline"]);
+        setText(".home-page .cta-section h2", content["homepage cta"]);
+        setText(".home-page .cta-section p", content["homepage cta description"]);
+
+        if (document.body.classList.contains("about-page")) {
+            setText(".about-section p:first-of-type", content["about page introduction"]);
         }
-        intro.textContent = aboutWhat;
+    } catch (error) {
+        console.warn("Public website content could not be loaded:", error);
     }
-    const aboutWhy = content.get("about page why choose us");
-    const whyHeading = [...document.querySelectorAll(".about-page h2")].find(el => el.textContent.trim() === "Why Choose Aprils Signature?");
-    if (aboutWhy && whyHeading) {
-        let intro = whyHeading.nextElementSibling;
-        if (!intro || intro.tagName !== "P") {
-            intro = document.createElement("p");
-            intro.className = "admin-content-intro";
-            whyHeading.insertAdjacentElement("afterend", intro);
+
+    try {
+        const contact = await loadPublicRows("contact_settings");
+        const row = contact[0];
+        if (row) {
+            document.querySelectorAll(".footer-column").forEach(column => {
+                const text = (column.textContent || "").toLowerCase();
+                if (text.includes("contact")) {
+                    const phone = column.querySelector('a[href^="tel:"]');
+                    const whatsapp = column.querySelector('a[href*="wa.me"]');
+                    const email = column.querySelector('a[href^="mailto:"]');
+                    if (phone && row.phone) { phone.textContent = row.phone; phone.href = "tel:" + row.phone.replace(/\s+/g, ""); }
+                    if (whatsapp && row.whatsapp) { whatsapp.textContent = row.whatsapp; whatsapp.href = "https://wa.me/" + row.whatsapp.replace(/\D/g, ""); }
+                    if (email && row.email) { email.textContent = row.email; email.href = "mailto:" + row.email; }
+                    const address = column.querySelector("p:last-of-type");
+                    if (address && row.address) {
+                        const strong = address.querySelector("strong");
+                        address.innerHTML = strong ? strong.outerHTML + "<br>" + escapeHTML(row.address).replace(/\n/g, "<br>") : escapeHTML(row.address).replace(/\n/g, "<br>");
+                    }
+                }
+                if (text.includes("opening hours") && row.opening_hours) {
+                    const p = Array.from(column.querySelectorAll("p")).find(x => (x.textContent || "").toLowerCase().includes("monday"));
+                    if (p) p.innerHTML = escapeHTML(row.opening_hours).replace(/\n/g, "<br>");
+                }
+            });
         }
-        intro.textContent = aboutWhy;
+    } catch (error) {
+        console.warn("Public contact settings could not be loaded:", error);
+    }
+
+    try {
+        const settings = await loadPublicRows("settings");
+        const socials = settings.filter(row => String(row.setting_key || "").toLowerCase().startsWith("social_"));
+        if (socials.length) {
+            const map = {};
+            socials.forEach(row => map[String(row.setting_key).replace(/^social_/i, "").toLowerCase()] = row.setting_value || "");
+            document.querySelectorAll(".footer-social a").forEach(link => {
+                const img = link.querySelector("img");
+                const platform = String(img?.alt || link.textContent || "").trim().toLowerCase().replace(/\s+/g, "");
+                const url = map[platform];
+                if (url) {
+                    link.href = url;
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+                }
+            });
+        }
+    } catch (error) {
+        console.warn("Public social links could not be loaded:", error);
+    }
+
+    try {
+        if (document.body.classList.contains("policies-page")) {
+            const policies = await loadPublicRows("policies");
+            if (policies.length) {
+                const main = document.querySelector("main");
+                const intro = main?.querySelector(".page-intro");
+                const old = main?.querySelectorAll(".policy-section");
+                if (main && intro && old?.length) {
+                    old.forEach(section => section.remove());
+                    const frag = document.createDocumentFragment();
+                    policies.forEach(row => {
+                        const section = document.createElement("section");
+                        section.className = "policy-section";
+                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
+                        frag.appendChild(section);
+                    });
+                    intro.after(frag);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn("Public policies could not be loaded:", error);
     }
 }
 
@@ -1399,7 +1459,7 @@ async function setupPublicDatabaseContent() {
         loadPublicTraining(),
         loadPublicTestimonials(),
         loadPublicFAQs(),
-        loadPublicWebsiteContent()
+        loadPublicManagedContent()
     ]);
     setupMediaInteractions();
 }
