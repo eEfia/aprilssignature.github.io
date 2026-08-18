@@ -6,6 +6,7 @@
 ========================================================= */
 
 let db = null;
+let trainingPriceMap = {};
 
 const DEFAULT_GALLERY_COLLECTIONS = [
     "Streetwear Collection",
@@ -48,6 +49,149 @@ function resolveAdminMediaUrl(value) {
     if (/^(https?:|data:|blob:|\/)/i.test(raw)) return raw;
     if (/^(images|videos)\//i.test(raw)) return "../" + raw;
     return raw;
+}
+
+
+async function getPriceMap(prefix) {
+    const map = {};
+    try {
+        const result = await db.from("settings")
+            .select("setting_key,setting_value")
+            .like("setting_key", `${prefix}%`);
+        if (!result.error) {
+            (result.data || []).forEach(row => {
+                const key = String(row.setting_key || "");
+                map[key] = String(row.setting_value ?? "");
+            });
+        }
+    } catch (error) {
+        console.warn("Price settings could not be loaded:", error);
+    }
+    return map;
+}
+
+function priceFor(map, prefix, id) {
+    return map[`${prefix}${id}`] ?? "";
+}
+
+async function savePrice(prefix, id, value) {
+    if (!id) return;
+    const key = `${prefix}${id}`;
+    const clean = String(value ?? "").trim();
+
+    const existing = await db.from("settings")
+        .select("id")
+        .eq("setting_key", key)
+        .maybeSingle();
+
+    if (existing.error && !/no rows|0 rows/i.test(existing.error.message || "")) {
+        throw existing.error;
+    }
+
+    const result = existing.data?.id
+        ? await db.from("settings")
+            .update({ setting_value: clean, updated_at: new Date().toISOString() })
+            .eq("id", existing.data.id)
+        : await db.from("settings")
+            .insert({ setting_key: key, setting_value: clean });
+
+    if (result.error) throw result.error;
+}
+
+function safeSubmissionUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+        const parsed = new URL(raw, window.location.href);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.href;
+    } catch (_) {}
+    return "";
+}
+
+function formatSubmissionValue(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    if (typeof value === "object") return JSON.stringify(value, null, 2);
+    return String(value);
+}
+
+function showSubmissionDetails(title, row, extraDetails = "", uploads = []) {
+    let modal = document.getElementById("submissionDetailsModal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "submissionDetailsModal";
+        modal.innerHTML = `
+            <div class="submission-modal-backdrop" data-close-submission></div>
+            <div class="submission-modal" role="dialog" aria-modal="true" aria-labelledby="submissionDetailsTitle">
+                <button type="button" class="submission-modal-close" data-close-submission aria-label="Close">×</button>
+                <h2 id="submissionDetailsTitle"></h2>
+                <div id="submissionDetailsBody"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.querySelectorAll("[data-close-submission]").forEach(button => {
+            button.addEventListener("click", () => modal.classList.remove("active"));
+        });
+    }
+
+    const titleEl = modal.querySelector("#submissionDetailsTitle");
+    const bodyEl = modal.querySelector("#submissionDetailsBody");
+    if (!titleEl || !bodyEl) return;
+
+    titleEl.textContent = title;
+
+    let parsedDetails = extraDetails;
+    if (typeof parsedDetails === "string") {
+        try { parsedDetails = JSON.parse(parsedDetails); } catch (_) {}
+    }
+
+    const excluded = new Set(["id", "created_at", "updated_at", "journey", "request_details", "details", "message"]);
+    const fields = Object.entries(row || {})
+        .filter(([key, value]) => !excluded.has(key) && value !== null && value !== "")
+        .map(([key, value]) => `
+            <div class="submission-detail-row">
+                <strong>${escapeHTML(key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()))}</strong>
+                <span>${escapeHTML(formatSubmissionValue(value))}</span>
+            </div>
+        `).join("");
+
+    let detailsHtml = "";
+    if (parsedDetails && typeof parsedDetails === "object") {
+        const detailEntries = Object.entries(parsedDetails)
+            .filter(([key, value]) => key !== "uploads" && value !== null && value !== "")
+            .map(([key, value]) => `
+                <div class="submission-detail-row">
+                    <strong>${escapeHTML(key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()))}</strong>
+                    <span>${escapeHTML(formatSubmissionValue(value))}</span>
+                </div>
+            `).join("");
+        if (detailEntries) {
+            detailsHtml = `<h3>Additional Request Details</h3><div class="submission-details-grid">${detailEntries}</div>`;
+            if (Array.isArray(parsedDetails.uploads)) uploads = parsedDetails.uploads;
+        }
+    } else if (String(parsedDetails || "").trim()) {
+        detailsHtml = `<h3>Additional Details</h3><pre class="submission-pre">${escapeHTML(String(parsedDetails))}</pre>`;
+    }
+
+    const uploadItems = Array.isArray(uploads) ? uploads : [];
+    const uploadHtml = uploadItems.length
+        ? `<h3>Uploaded Images / Files</h3><div class="submission-uploads">${uploadItems.map(item => {
+            const url = safeSubmissionUrl(item?.url || item?.publicUrl || item);
+            const name = item?.name || item?.type || "Uploaded file";
+            if (!url) return "";
+            const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(url);
+            return `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="submission-upload">
+                ${isImage ? `<img src="${escapeHTML(url)}" alt="${escapeHTML(name)}">` : ""}
+                <span>${escapeHTML(name)}${item?.type ? ` — ${escapeHTML(item.type)}` : ""}</span>
+            </a>`;
+        }).join("")}</div>`
+        : `<h3>Uploaded Images / Files</h3><p class="small">No images or files were attached to this submission.</p>`;
+
+    bodyEl.innerHTML = `
+        <div class="submission-details-grid">${fields || `<p class="small">No standard details were recorded.</p>`}</div>
+        ${detailsHtml}
+        ${uploadHtml}
+    `;
+    modal.classList.add("active");
 }
 
 function message(text, type = "success") {
@@ -289,7 +433,29 @@ async function loadGallery() {
     const list = document.getElementById("galleryList");
     if (!list) return;
 
-    const rows = await getRows("gallery_items");
+    let rows = await getRows("gallery_items");
+
+    // Keep one public record per media URL. This also prevents old seeded duplicates
+    // from appearing on the public Gallery after an item has been renamed.
+    const seenGalleryMedia = new Set();
+    const duplicateIds = [];
+    rows = rows.filter(row => {
+        const key = String(row.image_url || "").trim().toLowerCase();
+        if (!key) return true;
+        if (seenGalleryMedia.has(key)) {
+            duplicateIds.push(row.id);
+            return false;
+        }
+        seenGalleryMedia.add(key);
+        return true;
+    });
+    if (duplicateIds.length) {
+        try {
+            await db.from("gallery_items").delete().in("id", duplicateIds);
+        } catch (error) {
+            console.warn("Duplicate gallery cleanup could not be completed:", error);
+        }
+    }
 
     list.innerHTML = `
         <div class="admin-actions">
@@ -537,6 +703,10 @@ async function loadServices() {
                         <label>Category</label>
                         <input type="text" id="adminServiceCategory" placeholder="Category">
                     </div>
+                    <div class="form-group">
+                        <label>Price (GHS)</label>
+                        <input type="number" id="adminServicePrice" min="0" step="0.01" placeholder="Enter price">
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -556,20 +726,21 @@ async function loadServices() {
         <div id="adminServicesList" class="table-wrap"></div>
     `;
 
-    renderServices(rows);
+    const priceMap = await getPriceMap("service_price_");
+    await renderServices(rows, priceMap);
     setupServiceForm();
 
     makeCategorySelect("adminServiceCategory", await getServiceCategories(), "", "+ Add New Category");
 }
 
-function renderServices(rows) {
+async function renderServices(rows, priceMap = {}) {
     const list = document.getElementById("adminServicesList");
     if (!list) return;
 
     list.innerHTML = rows.length ? `
         <table>
             <thead><tr>
-                <th>Service</th><th>Category</th><th>Description</th><th>Active</th><th>Actions</th>
+                <th>Service</th><th>Category</th><th>Description</th><th>Price (GHS)</th><th>Active</th><th>Actions</th>
             </tr></thead>
             <tbody>
                 ${rows.map(row => `
@@ -577,6 +748,7 @@ function renderServices(rows) {
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.category)}</td>
                         <td>${escapeHTML(row.description)}</td>
+                        <td>${escapeHTML(priceFor(priceMap, "service_price_", row.id)) || "—"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
                             <button type="button" class="secondary" data-edit-service="${row.id}">Edit</button>
@@ -597,6 +769,7 @@ function renderServices(rows) {
             document.getElementById("adminServiceTitle").value = row.title || "";
             makeCategorySelect("adminServiceCategory", [...new Set([...DEFAULT_SERVICE_CATEGORIES, ...(rows.map(r => r.category).filter(Boolean))])], row.category || "", "+ Add New Category");
             document.getElementById("adminServiceDescription").value = row.description || "";
+            document.getElementById("adminServicePrice").value = priceFor(priceMap, "service_price_", row.id);
             document.getElementById("adminServiceActive").checked = row.active !== false;
             document.getElementById("services").scrollIntoView({ behavior: "smooth", block: "start" });
         };
@@ -644,9 +817,16 @@ function setupServiceForm() {
         try {
             const result = id
                 ? await db.from("admin_services").update(payload).eq("id", id)
-                : await db.from("admin_services").insert(payload);
+                : await db.from("admin_services").insert(payload).select("id").single();
 
             if (result.error) throw result.error;
+
+            let savedId = id || result.data?.id || result.data?.[0]?.id;
+            if (!savedId) {
+                const lookup = await db.from("admin_services").select("id").eq("title", payload.title).order("updated_at", { ascending: false }).limit(1);
+                savedId = lookup.data?.[0]?.id || "";
+            }
+            await savePrice("service_price_", savedId, document.getElementById("adminServicePrice").value);
 
             form.reset();
             document.getElementById("adminServiceId").value = "";
@@ -675,6 +855,8 @@ async function loadTraining() {
     if (!list) return;
 
     const rows = await getRows("training_programs");
+    const priceMap = await getPriceMap("training_price_");
+    trainingPriceMap = priceMap;
 
     list.innerHTML = `
         <div class="admin-actions">
@@ -683,7 +865,7 @@ async function loadTraining() {
         ${rows.length ? `
         <table>
             <thead><tr>
-                <th>Programme/Class</th><th>Duration</th><th>Category</th><th>Active</th><th>Actions</th>
+                <th>Programme/Class</th><th>Duration</th><th>Category</th><th>Price (GHS)</th><th>Active</th><th>Actions</th>
             </tr></thead>
             <tbody>
                 ${rows.map(row => `
@@ -691,6 +873,7 @@ async function loadTraining() {
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.duration)}</td>
                         <td>${escapeHTML(row.category)}</td>
+                        <td>${escapeHTML(priceFor(priceMap, "training_price_", row.id)) || "—"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
                             <button type="button" class="secondary" data-edit-training="${row.id}">Edit</button>
@@ -734,6 +917,7 @@ function editTraining(row) {
     document.getElementById("trainingDuration").value = row.duration || "";
     makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, row.category || "", "+ Add New Category");
     document.getElementById("trainingDescription").value = row.description || "";
+    document.getElementById("trainingPrice").value = priceFor(trainingPriceMap, "training_price_", row.id);
     document.getElementById("trainingActive").checked = row.active !== false;
     document.getElementById("trainingForm").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -773,9 +957,16 @@ function setupTrainingForm() {
         try {
             const result = id
                 ? await db.from("training_programs").update(payload).eq("id", id)
-                : await db.from("training_programs").insert(payload);
+                : await db.from("training_programs").insert(payload).select("id").single();
 
             if (result.error) throw result.error;
+
+            let savedId = id || result.data?.id || result.data?.[0]?.id;
+            if (!savedId) {
+                const lookup = await db.from("training_programs").select("id").eq("title", payload.title).order("updated_at", { ascending: false }).limit(1);
+                savedId = lookup.data?.[0]?.id || "";
+            }
+            await savePrice("training_price_", savedId, document.getElementById("trainingPrice").value);
 
             form.reset();
             document.getElementById("trainingId").value = "";
@@ -1260,6 +1451,64 @@ async function loadSettings() {
     });
 }
 
+async function loadSiteSettings() {
+    try {
+        const rows = await getRows("settings");
+        const map = {};
+        rows.forEach(row => { map[String(row.setting_key || "").toLowerCase()] = String(row.setting_value || ""); });
+        const fields = {
+            site_title: "siteTitleSetting",
+            site_tagline: "siteTaglineSetting",
+            google_review_url: "googleReviewSetting",
+            google_maps_url: "googleMapsSetting"
+        };
+        Object.entries(fields).forEach(([key, id]) => {
+            const input = document.getElementById(id);
+            if (input) input.value = map[key] || "";
+        });
+    } catch (error) {
+        console.warn("Website settings could not be loaded:", error);
+    }
+}
+
+function setupSiteSettingsForm() {
+    const form = document.getElementById("siteSettingsForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const values = {
+            site_title: document.getElementById("siteTitleSetting")?.value.trim() || "",
+            site_tagline: document.getElementById("siteTaglineSetting")?.value.trim() || "",
+            google_review_url: document.getElementById("googleReviewSetting")?.value.trim() || "",
+            google_maps_url: document.getElementById("googleMapsSetting")?.value.trim() || ""
+        };
+
+        try {
+            for (const [key, value] of Object.entries(values)) {
+                await saveSettingByKey(key, value);
+            }
+            message("Website settings saved.", "success");
+            await loadSettings();
+        } catch (error) {
+            console.error(error);
+            message("Website settings could not be saved: " + error.message, "error");
+        }
+    });
+}
+
+async function saveSettingByKey(key, value) {
+    const existing = await db.from("settings").select("id").eq("setting_key", key).maybeSingle();
+    if (existing.error && !/no rows|0 rows/i.test(existing.error.message || "")) throw existing.error;
+
+    const result = existing.data?.id
+        ? await db.from("settings").update({ setting_value: value, updated_at: new Date().toISOString() }).eq("id", existing.data.id)
+        : await db.from("settings").insert({ setting_key: key, setting_value: value });
+
+    if (result.error) throw result.error;
+}
+
 function setupSettingsForm() {
     const form = document.getElementById("settingsForm");
     if (!form || form.dataset.bound) return;
@@ -1334,9 +1583,11 @@ async function seedInitialPublicContent() {
     try {
         const gallery = await db.from("gallery_items").select("id,title,image_url");
         if (!gallery.error) {
-            const existing = new Set((gallery.data || []).map(r => `${r.title || ""}\u0000${r.image_url || ""}`));
+            // A media URL identifies the same public gallery item even when its title is edited.
+            // This prevents the old title from being re-seeded and creating duplicates.
+            const existing = new Set((gallery.data || []).map(r => String(r.image_url || "").trim().toLowerCase()).filter(Boolean));
             const missing = INITIAL_GALLERY_ITEMS
-                .filter(([title, , image_url]) => !existing.has(`${title}\u0000${image_url}`))
+                .filter(([, , image_url]) => !existing.has(String(image_url).trim().toLowerCase()))
                 .map(([title, category, image_url]) => ({ title, category, image_url, featured: category === "Featured Collection", active: true }));
             if (missing.length) {
                 const result = await db.from("gallery_items").insert(missing);
@@ -1460,8 +1711,10 @@ async function startAdmin() {
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
+    setupSiteSettingsForm();
 
     await checkSession();
+    await loadSiteSettings();
 }
 
 if (document.readyState === "loading") {

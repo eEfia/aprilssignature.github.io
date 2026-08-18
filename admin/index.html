@@ -340,6 +340,118 @@ font-size:12px;
 color:#777;
 }
 
+
+
+.submission-modal-backdrop{
+position:fixed;
+inset:0;
+background:rgba(0,0,0,.55);
+z-index:1998;
+}
+.submission-modal{
+position:fixed;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+width:min(900px,94vw);
+max-height:88vh;
+overflow:auto;
+background:#fff;
+border-radius:10px;
+padding:28px;
+z-index:1999;
+box-shadow:0 10px 40px rgba(0,0,0,.25);
+display:none;
+}
+#submissionDetailsModal.active .submission-modal{
+display:block;
+}
+.submission-modal-close{
+position:absolute;
+right:14px;
+top:10px;
+border:0;
+background:transparent;
+font-size:30px;
+line-height:1;
+cursor:pointer;
+color:#333;
+}
+.submission-modal h2{
+color:#008c95;
+margin:0 40px 20px 0;
+}
+.submission-modal h3{
+margin:24px 0 10px;
+color:#008c95;
+}
+.submission-details-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:10px;
+}
+.submission-detail-row{
+border:1px solid #d8e4e5;
+background:#f8fbfb;
+padding:11px;
+border-radius:5px;
+}
+.submission-detail-row strong{
+display:block;
+color:#555;
+font-size:12px;
+margin-bottom:5px;
+}
+.submission-detail-row span{
+white-space:pre-wrap;
+word-break:break-word;
+}
+.submission-pre{
+white-space:pre-wrap;
+background:#f8fbfb;
+border:1px solid #d8e4e5;
+padding:14px;
+border-radius:5px;
+overflow:auto;
+}
+.submission-uploads{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+gap:12px;
+}
+.submission-upload{
+display:block;
+border:1px solid #d8e4e5;
+background:#f8fbfb;
+padding:8px;
+border-radius:6px;
+text-decoration:none;
+color:#222;
+}
+.submission-upload img{
+display:block;
+width:100%;
+height:130px;
+object-fit:cover;
+border-radius:4px;
+margin-bottom:7px;
+}
+.table-wrap table th,
+.table-wrap table td{
+border:1px solid #d8e4e5;
+}
+.table-wrap table tbody tr:nth-child(even){
+background:#f8fbfb;
+}
+@media(max-width:768px){
+.submission-details-grid{
+grid-template-columns:1fr;
+}
+.submission-modal{
+padding:22px 16px;
+}
+}
+
 @media(max-width:768px){
 
 .dashboard{
@@ -983,6 +1095,22 @@ id="trainingCategory"
 
 </div>
 
+<div class="form-group">
+
+<label>
+Price (GHS)
+</label>
+
+<input
+type="number"
+id="trainingPrice"
+min="0"
+step="0.01"
+placeholder="Enter price"
+>
+
+</div>
+
 
 </div>
 
@@ -1352,8 +1480,22 @@ WEBSITE SETTINGS
 ===================================================== -->
 <section id="settings" class="section">
 <h2>Website Settings</h2>
-<p class="intro">Manage basic website settings. These are optional and do not require computer-style content keys.</p>
+<p class="intro">Manage the main website identity and important links. Social-media links remain under Social Links, while contact details remain under Contact Information.</p>
+
 <div class="form-card">
+<form id="siteSettingsForm">
+<div class="form-grid">
+<div class="form-group"><label>Website Title</label><input id="siteTitleSetting" placeholder="Aprils Signature"></div>
+<div class="form-group"><label>Website Tagline</label><input id="siteTaglineSetting" placeholder="Elegance In Every Stitch"></div>
+<div class="form-group"><label>Google Review Link</label><input id="googleReviewSetting" placeholder="https://..."></div>
+<div class="form-group"><label>Google Maps / Location Link</label><input id="googleMapsSetting" placeholder="https://..."></div>
+</div>
+<button class="primary" type="submit">Save Website Settings</button>
+</form>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:12px;">Advanced Settings</h3>
 <form id="settingsForm">
 <div class="form-grid">
 <div class="form-group"><label>Setting Name</label><input id="settingKey" required placeholder="site_title"></div>
