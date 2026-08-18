@@ -195,8 +195,7 @@ min-width:700px;
 th,
 td{
 padding:12px;
-border-bottom:2px solid #d7d7d7;
-border-right:1px solid #d7d7d7;
+border-bottom:1px solid #eee;
 text-align:left;
 vertical-align:top;
 font-size:13px;
@@ -205,7 +204,6 @@ font-size:13px;
 th{
 background:#008c95;
 color:white;
-border-right:1px solid rgba(255,255,255,.35);
 }
 
 .form-card{
@@ -976,21 +974,6 @@ id="trainingDuration"
 <div class="form-group">
 
 <label>
-Price (GHC)
-</label>
-
-<input
-type="number"
-step="0.01"
-id="trainingPrice"
->
-
-</div>
-
-
-<div class="form-group">
-
-<label>
 Category
 </label>
 
@@ -1300,7 +1283,13 @@ Save FAQ
 </button>
 
 
-<button type="button" class="secondary" id="faqNew">+ Add New FAQ</button><button type="button" class="secondary" id="faqCancel">Cancel</button>
+<button
+type="button"
+class="secondary"
+id="faqCancel"
+>
+Cancel
+</button>
 
 </form>
 
@@ -1320,12 +1309,12 @@ class="table-wrap"
 <!-- =====================================================
 WEBSITE CONTENT
 ===================================================== -->
-<section id="content" class="section"><h2>Website Content</h2><p class="intro">Edit website wording without changing the HTML files. Technical keys stay behind the scenes.</p><div class="form-card"><form id="contentForm"><input type="hidden" id="contentId"><div class="form-group"><label>Content Name</label><input id="contentKey" required placeholder="Example: Homepage Hero Heading"></div><div class="form-group"><label>Content</label><textarea id="contentValue" required></textarea></div><button class="primary" type="submit">Save Website Content</button><button type="button" class="secondary" id="contentNew">+ Add New Website Content</button><button type="button" class="secondary" id="contentCancel">Cancel</button></form></div><div id="contentList" class="table-wrap"></div></section>
+<section id="content" class="section"><h2>Website Content</h2><p class="intro">Edit website wording without changing the HTML files. Technical keys stay behind the scenes.</p><div class="form-card"><form id="contentForm"><input type="hidden" id="contentId"><div class="form-group"><label>Content Name</label><input id="contentKey" required placeholder="Example: Homepage Hero Heading"></div><div class="form-group"><label>Content</label><textarea id="contentValue" required></textarea></div><button class="primary" type="submit">Save Website Content</button><button type="button" class="secondary" id="contentCancel">Cancel</button></form></div><div id="contentList" class="table-wrap"></div></section>
 
 <!-- =====================================================
 POLICIES & TERMS
 ===================================================== -->
-<section id="policies" class="section"><h2>Policies &amp; Terms</h2><p class="intro">Add and manage customer-facing policies and terms.</p><div class="form-card"><form id="policyForm"><input type="hidden" id="policyId"><div class="form-grid"><div class="form-group"><label>Policy Name</label><input id="policyTitle" required placeholder="Payment Policy"></div><div class="form-group"><label>Reference Name</label><input id="policyKey" placeholder="payment_policy"></div></div><div class="form-group"><label>Policy / Terms</label><textarea id="policyContent" required></textarea></div><button class="primary" type="submit">Save Policy</button><button type="button" class="secondary" id="policyNew">+ Add New Policy</button><button type="button" class="secondary" id="policyCancel">Cancel</button></form></div><div id="policyList" class="table-wrap"></div></section>
+<section id="policies" class="section"><h2>Policies &amp; Terms</h2><p class="intro">Add and manage customer-facing policies and terms.</p><div class="form-card"><form id="policyForm"><input type="hidden" id="policyId"><div class="form-grid"><div class="form-group"><label>Policy Name</label><input id="policyTitle" required placeholder="Payment Policy"></div><div class="form-group"><label>Reference Name</label><input id="policyKey" placeholder="payment_policy"></div></div><div class="form-group"><label>Policy / Terms</label><textarea id="policyContent" required></textarea></div><button class="primary" type="submit">Save Policy</button><button type="button" class="secondary" id="policyCancel">Cancel</button></form></div><div id="policyList" class="table-wrap"></div></section>
 
 <!-- =====================================================
 CONTACT INFORMATION
@@ -1356,7 +1345,7 @@ Sunday: Closed</textarea></div>
 <!-- =====================================================
 SOCIAL LINKS
 ===================================================== -->
-<section id="social" class="section"><h2>Social Links</h2><p class="intro">Manage the social-media links used across the website.</p><div class="form-card"><form id="socialForm"><input type="hidden" id="socialId"><div class="form-grid"><div class="form-group"><label>Platform</label><select id="socialPlatform" required><option>TikTok</option><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Other</option></select></div><div class="form-group"><label>Link / Number</label><input id="socialUrl" required placeholder="https://... or WhatsApp number"></div></div><button class="primary" type="submit">Save Social Link</button><button type="button" class="secondary" id="socialNew">+ Add New Social Link</button><button type="button" class="secondary" id="socialCancel">Cancel</button></form></div><div id="socialList" class="table-wrap"></div></section>
+<section id="social" class="section"><h2>Social Links</h2><p class="intro">Manage the social-media links used across the website.</p><div class="form-card"><form id="socialForm"><input type="hidden" id="socialId"><div class="form-grid"><div class="form-group"><label>Platform</label><select id="socialPlatform" required><option>TikTok</option><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Other</option></select></div><div class="form-group"><label>Link / Number</label><input id="socialUrl" required placeholder="https://... or WhatsApp number"></div></div><button class="primary" type="submit">Save Social Link</button><button type="button" class="secondary" id="socialCancel">Cancel</button></form></div><div id="socialList" class="table-wrap"></div></section>
 
 <!-- =====================================================
 WEBSITE SETTINGS
@@ -1388,3 +1377,15 @@ WEBSITE SETTINGS
 <script src="Admin-fixes.js" defer></script>
 </body>
 </html>
+
+<style>
+.submission-modal{position:fixed;inset:5vh 5vw;background:#fff;z-index:10001;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding:26px;overflow:auto;display:none}
+.submission-modal.open{display:block}
+.submission-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000}
+.submission-modal-close{position:absolute;right:16px;top:12px;border:0;background:#b00020;color:#fff;border-radius:50%;width:38px;height:38px;font-size:24px;cursor:pointer}
+.submission-modal-body{margin-top:20px;line-height:1.55}
+.submission-uploads{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px}
+.submission-uploads a{display:block;width:180px;text-decoration:none;color:#222}
+.submission-uploads img{width:180px;height:180px;object-fit:contain;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;display:block;margin-bottom:6px}
+@media(max-width:700px){.submission-modal{inset:2vh 2vw;padding:18px}.submission-uploads a,.submission-uploads img{width:140px}.submission-uploads img{height:140px}}
+</style>
