@@ -286,7 +286,7 @@ button.button {
     cursor: pointer;
 
     transition:
-        transform 0.2s ease,
+        transform 4s ease,
         background 0.2s ease,
         box-shadow 0.2s ease;
 }
@@ -455,7 +455,7 @@ button.button:hover {
 }
 
 .gallery-item:hover img {
-    transform: scale(1.03);
+    transform: scale(1.06);
 }
 
 .gallery-item h3 {
@@ -1738,7 +1738,8 @@ select:focus {
         padding-top: 10px;
     }
 
-    .main-navigation.is-open {
+    .main-navigation.is-open,
+    .main-navigation.open {
         display: flex;
     }
 
@@ -2053,7 +2054,7 @@ select:focus {
 }
 
 .location-image img {
-    width: 540px;
+    width: 270px;
     height: 300px;
     object-fit: fill;
     display: block;
@@ -2065,4 +2066,39 @@ select:focus {
     .featured-video video {
         animation: none;
     }
+}
+
+
+/* =========================================================
+   FINAL CORRECTIONS — HOME / GALLERY / PHOTO 5
+========================================================= */
+
+.home-page .hero {
+    min-height: 510px;
+}
+
+.home-page .hero-content {
+    padding: 50px 0;
+}
+
+.home-page .welcome-section,
+.home-page .featured-section {
+    padding-top: 48px;
+    padding-bottom: 48px;
+}
+
+.home-page .welcome-section {
+    padding-bottom: 38px;
+}
+
+.home-page .featured-section {
+    padding-top: 38px;
+}
+
+#galleryViewerContent img.gallery-photo5-wide {
+    width: 90vw;
+    max-width: 90vw;
+    max-height: 90vh;
+    height: auto;
+    object-fit: contain;
 }
