@@ -2024,15 +2024,13 @@ select:focus {
     overflow: hidden;
 }
 
-.gallery-image img,
-.featured-video video {
+.gallery-image img {
     transform-origin: center;
     animation: aprilsMediaMotion 6s ease-in-out infinite alternate;
     will-change: transform;
 }
 
-.gallery-image img:hover,
-.featured-video video:hover {
+.gallery-image img:hover {
     animation-play-state: paused;
     transform: scale(1.04);
 }
@@ -2054,16 +2052,16 @@ select:focus {
 }
 
 .location-image img {
-    width: 270px;
-    height: 300px;
+    width: 540px;
+    height: auto;
+    max-width: 100%;
     object-fit: fill;
     display: block;
     margin: 0 auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .gallery-image img,
-    .featured-video video {
+    .gallery-image img {
         animation: none;
     }
 }
@@ -2103,128 +2101,50 @@ select:focus {
     object-fit: contain;
 }
 
-/* =========================================================
-   FINAL CONSOLIDATED CORRECTIONS — AUGUST 2026
-========================================================= */
 
-/* Keep the mobile menu active and usable on phones/tablets. */
-@media (max-width: 900px) {
-    .menu-toggle { display: block; margin-left: auto; }
-    .main-navigation {
-        display: none;
-        width: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 2px;
-        padding-top: 10px;
-    }
-    .main-navigation.open,
-    .main-navigation.is-open { display: flex; }
-    .main-navigation a { width: 100%; }
-}
-
-/* More visible boundaries for cards, sections, forms and content boxes. */
-.service-card,
-.training-card,
-.gallery-item,
-.contact-item,
+/* FINAL REQUESTED VISUAL CLARITY */
+.section-heading,
+.about-section .container,
+.services-preview .service-card,
 .why-card,
 .testimonial-placeholder,
-.glimpse-section .container,
-.policy-section .container,
-.faq-section details,
-.quote-form,
-.form-section,
-.policy-box,
-.size-measurements-section,
-.services-preview .container,
-.featured-section .container,
-.welcome-section .container {
-    border: 1px solid #c9d1d1;
-    box-shadow: 0 4px 14px rgba(0,0,0,.055);
+.service-section .container,
+.gallery-item,
+.featured-card,
+.contact-item,
+.form-card,
+.table-wrap,
+.card,
+.faq-section .faq-item,
+.policy-section .container {
+    border: 1px solid rgba(15,119,117,.28);
 }
 
-.service-card,
-.training-card,
-.gallery-item,
+.section-heading,
+.about-section .container,
+.service-section .container,
 .contact-item,
+.faq-section .faq-item,
+.policy-section .container {
+    padding: 18px;
+    border-radius: 10px;
+}
+
+.services-preview .service-card,
 .why-card,
 .testimonial-placeholder,
-.form-section,
-.policy-box,
-.size-measurements-section {
-    border-radius: var(--radius);
+.gallery-item,
+.featured-card {
+    box-shadow: 0 4px 14px rgba(0,0,0,.06);
 }
 
-.faq-section details {
-    border-radius: 7px;
-    margin-bottom: 12px;
-}
+.form-card, .table-wrap { border: 1px solid #c9a24a; }
 
-/* Stronger table grid lines on every admin/public data table. */
-table, th, td {
-    border: 1px solid #c5cdce !important;
-}
-
-/* Home hero: reduce the current teal block by roughly one third vertically. */
 .home-page .hero { min-height: 340px; }
-.home-page .hero-content { padding: 38px 0; }
+.home-page .hero-content { padding: 32px 0; }
+.home-page .welcome-section { padding-top: 28px; padding-bottom: 28px; }
+.home-page .featured-section { padding-top: 28px; }
 
-/* Tighten the requested vertical gaps while retaining a premium amount of breathing room. */
-.home-page .welcome-section { padding-top: 30px; padding-bottom: 28px; }
-.home-page .featured-section { padding-top: 28px; padding-bottom: 36px; }
-
-/* Photo 5: wide presentation, without changing the lightbox behavior. */
-.location-image {
-    width: min(100%, 1100px);
-    margin-left: auto;
-    margin-right: auto;
-}
-.location-image img {
-    width: 100% !important;
-    max-width: 1000px !important;
-    height: auto !important;
-    max-height: none !important;
-    object-fit: contain !important;
-    margin: 0 auto;
-}
-
-/* Subtle in-place movement for gallery images only. Videos are intentionally untouched. */
-.gallery-image img {
-    transform-origin: center;
-    animation: aprilsGalleryImageMotion 6.5s ease-in-out infinite alternate;
-    will-change: transform;
-}
-.gallery-image img:hover {
-    animation-play-state: paused;
-}
-@keyframes aprilsGalleryImageMotion {
-    0% { transform: scale(1) translate3d(0, 0, 0); }
-    50% { transform: scale(1.018) translate3d(.18%, -.1%, 0); }
-    100% { transform: scale(1.03) translate3d(.35%, -.18%, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-    .gallery-image img { animation: none; }
-}
-
-/* Do not animate or restyle the approved gallery/home video presentation. */
-.gallery-image video,
-.featured-video video {
-    animation: none !important;
-    transform: none !important;
-}
-
-/* Requested spacing before the fashion-training paragraphs in policy sections. */
-.policy-training-note {
-    margin-top: 30px !important;
-    padding-top: 18px;
-    border-top: 1px solid var(--gold-light);
-}
-
-.empty-public {
-    padding: 24px;
-    border: 1px solid #c9d1d1;
-    border-radius: 8px;
-    background: var(--light-bg);
-}
-
+.submission-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0; }
+.submission-field { border:1px solid #ddd; border-radius:6px; padding:10px; background:#fafafa; }
+.submission-modal hr { margin:20px 0; border:0; border-top:1px solid #ddd; }
