@@ -335,121 +335,32 @@ text-align:center;
 color:#777;
 }
 
+/* Strong, visible table and box boundaries across the admin dashboard. */
+.table-wrap{border:1px solid #c8c8c8;}
+table{border:1px solid #bfc4c5;}
+th,td{border:1px solid #c8c8c8;}
+.form-card,.card,.notice{border:1px solid #d0d0d0;}
+
+.submission-modal{position:fixed;inset:4vh 5vw;background:#fff;z-index:10001;border:2px solid #008c95;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding:26px;overflow:auto;display:none;}
+.submission-modal.open{display:block;}
+.submission-modal-close{position:absolute;right:14px;top:12px;border:0;background:#b00020;color:#fff;border-radius:50%;width:38px;height:38px;font-size:24px;cursor:pointer;}
+.submission-modal-body{margin-top:20px;}
+.submission-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid #c8c8c8;}
+.submission-field{padding:12px;border:1px solid #d4d4d4;display:flex;flex-direction:column;gap:5px;min-width:0;}
+.submission-field strong{text-transform:capitalize;color:#008c95;}
+.submission-field span{white-space:pre-wrap;overflow-wrap:anywhere;}
+.submission-detail-text{margin-top:20px;padding:16px;border:1px solid #c8c8c8;background:#f8f8f8;}
+.submission-detail-text pre{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;margin:10px 0 0;}
+.submission-uploads-wrap{margin-top:20px;padding:16px;border:1px solid #c8c8c8;}
+.submission-uploads{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px;}
+.submission-uploads a{display:block;width:180px;text-decoration:none;color:#222;}
+.submission-uploads img{width:180px;height:180px;object-fit:contain;background:#f5f5f5;border:1px solid #bbb;border-radius:6px;display:block;margin-bottom:6px;}
+.submission-file{height:100px;border:1px solid #bbb;display:flex;align-items:center;justify-content:center;background:#f5f5f5;margin-bottom:6px;}
+@media(max-width:700px){.submission-modal{inset:2vh 2vw;padding:18px}.submission-fields{grid-template-columns:1fr}.submission-uploads a,.submission-uploads img{width:140px}.submission-uploads img{height:140px}}
+
 .small{
 font-size:12px;
 color:#777;
-}
-
-
-
-.submission-modal-backdrop{
-position:fixed;
-inset:0;
-background:rgba(0,0,0,.55);
-z-index:1998;
-}
-.submission-modal{
-position:fixed;
-top:50%;
-left:50%;
-transform:translate(-50%,-50%);
-width:min(900px,94vw);
-max-height:88vh;
-overflow:auto;
-background:#fff;
-border-radius:10px;
-padding:28px;
-z-index:1999;
-box-shadow:0 10px 40px rgba(0,0,0,.25);
-display:none;
-}
-#submissionDetailsModal.active .submission-modal{
-display:block;
-}
-.submission-modal-close{
-position:absolute;
-right:14px;
-top:10px;
-border:0;
-background:transparent;
-font-size:30px;
-line-height:1;
-cursor:pointer;
-color:#333;
-}
-.submission-modal h2{
-color:#008c95;
-margin:0 40px 20px 0;
-}
-.submission-modal h3{
-margin:24px 0 10px;
-color:#008c95;
-}
-.submission-details-grid{
-display:grid;
-grid-template-columns:repeat(2,minmax(0,1fr));
-gap:10px;
-}
-.submission-detail-row{
-border:1px solid #d8e4e5;
-background:#f8fbfb;
-padding:11px;
-border-radius:5px;
-}
-.submission-detail-row strong{
-display:block;
-color:#555;
-font-size:12px;
-margin-bottom:5px;
-}
-.submission-detail-row span{
-white-space:pre-wrap;
-word-break:break-word;
-}
-.submission-pre{
-white-space:pre-wrap;
-background:#f8fbfb;
-border:1px solid #d8e4e5;
-padding:14px;
-border-radius:5px;
-overflow:auto;
-}
-.submission-uploads{
-display:grid;
-grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-gap:12px;
-}
-.submission-upload{
-display:block;
-border:1px solid #d8e4e5;
-background:#f8fbfb;
-padding:8px;
-border-radius:6px;
-text-decoration:none;
-color:#222;
-}
-.submission-upload img{
-display:block;
-width:100%;
-height:130px;
-object-fit:cover;
-border-radius:4px;
-margin-bottom:7px;
-}
-.table-wrap table th,
-.table-wrap table td{
-border:1px solid #d8e4e5;
-}
-.table-wrap table tbody tr:nth-child(even){
-background:#f8fbfb;
-}
-@media(max-width:768px){
-.submission-details-grid{
-grid-template-columns:1fr;
-}
-.submission-modal{
-padding:22px 16px;
-}
 }
 
 @media(max-width:768px){
@@ -1003,6 +914,10 @@ Add, edit and remove the services displayed on the public website.
 <label>Category</label>
 <input type="text" id="adminServiceCategory" placeholder="Select a category">
 </div>
+<div class="form-group">
+<label>Price</label>
+<input type="number" id="adminServicePrice" min="0" step="0.01" placeholder="Enter price">
+</div>
 </div>
 
 <div class="form-group">
@@ -1084,31 +999,13 @@ id="trainingDuration"
 
 
 <div class="form-group">
-
-<label>
-Category
-</label>
-
-<input
-id="trainingCategory"
->
-
+<label>Category</label>
+<input id="trainingCategory">
 </div>
 
 <div class="form-group">
-
-<label>
-Price (GHS)
-</label>
-
-<input
-type="number"
-id="trainingPrice"
-min="0"
-step="0.01"
-placeholder="Enter price"
->
-
+<label>Price</label>
+<input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Enter price">
 </div>
 
 
@@ -1480,22 +1377,8 @@ WEBSITE SETTINGS
 ===================================================== -->
 <section id="settings" class="section">
 <h2>Website Settings</h2>
-<p class="intro">Manage the main website identity and important links. Social-media links remain under Social Links, while contact details remain under Contact Information.</p>
-
+<p class="intro">Manage the general website configuration here. Social links and business contact details are managed in their dedicated sections.</p>
 <div class="form-card">
-<form id="siteSettingsForm">
-<div class="form-grid">
-<div class="form-group"><label>Website Title</label><input id="siteTitleSetting" placeholder="Aprils Signature"></div>
-<div class="form-group"><label>Website Tagline</label><input id="siteTaglineSetting" placeholder="Elegance In Every Stitch"></div>
-<div class="form-group"><label>Google Review Link</label><input id="googleReviewSetting" placeholder="https://..."></div>
-<div class="form-group"><label>Google Maps / Location Link</label><input id="googleMapsSetting" placeholder="https://..."></div>
-</div>
-<button class="primary" type="submit">Save Website Settings</button>
-</form>
-</div>
-
-<div class="form-card">
-<h3 style="color:#008c95;margin-bottom:12px;">Advanced Settings</h3>
 <form id="settingsForm">
 <div class="form-grid">
 <div class="form-group"><label>Setting Name</label><input id="settingKey" required placeholder="site_title"></div>
