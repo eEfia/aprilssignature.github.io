@@ -640,6 +640,34 @@ function setupQuoteForm() {
 
         serviceContainer.appendChild(note);
 
+        /*
+           Each selected service gets its own size/measurement box
+           directly below Service Selection. Different services can
+           therefore carry different sizes in one request.
+        */
+        const sizeContainer = document.createElement("div");
+        sizeContainer.id = "serviceSizeContainer";
+        sizeContainer.className = "service-size-container";
+        sizeContainer.innerHTML = `
+            <div class="form-group service-size-field" data-size-service="Streetwear" style="display:none">
+                <label for="streetwearSize">Streetwear — Size (UK) / Measurements</label>
+                <input type="text" id="streetwearSize" name="streetwearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+            </div>
+            <div class="form-group service-size-field" data-size-service="Ladies Wear" style="display:none">
+                <label for="ladiesWearSize">Ladies Wear — Size (UK) / Measurements</label>
+                <input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+            </div>
+            <div class="form-group service-size-field" data-size-service="Kids Wear" style="display:none">
+                <label for="kidsWearSize">Kids Wear — Size (UK) / Measurements</label>
+                <input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+            </div>
+            <div class="form-group service-size-field" data-size-service="Embellishment Services" style="display:none">
+                <label for="embellishmentSize">Embellishment Services — Size (UK) / Measurements</label>
+                <input type="text" id="embellishmentSize" name="embellishmentSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+            </div>
+        `;
+        serviceSection?.appendChild(sizeContainer);
+
     }
 
 
@@ -734,6 +762,16 @@ function setupQuoteForm() {
 
         });
 
+
+        form.querySelectorAll(".service-size-field").forEach(function (box) {
+            const serviceName = box.getAttribute("data-size-service");
+            const visible = selected.includes(serviceName);
+            box.style.display = visible ? "block" : "none";
+            if (!visible) {
+                const input = box.querySelector("input");
+                if (input) input.value = "";
+            }
+        });
 
         form.querySelectorAll(
             "[data-service-detail]"

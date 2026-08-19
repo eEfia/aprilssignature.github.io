@@ -153,27 +153,6 @@ PUBLIC FORM FIXES
                 }
 
 
-                const details = {
-
-                    selectedServices:
-                        services,
-
-                    additionalDetails:
-                        String(
-                            data.get(
-                                "additionalDetails"
-                            ) || ""
-                        ).trim(),
-
-                    submittedFrom:
-                        window.location.href,
-
-                    uploads:
-                        uploadedFiles
-
-                };
-
-
                 let uploadedFiles = [];
                 if (form.querySelector('input[type="file"]')) {
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
@@ -182,6 +161,36 @@ PUBLIC FORM FIXES
                         throw new Error("The image upload could not be completed. Please try again.");
                     }
                 }
+
+                const details = {
+                    selectedServices: services,
+                    streetwear: {},
+                    streetwearOther: String(data.get("streetwearOther") || "").trim(),
+                    ladiesWear: String(data.get("ladiesWearDetails") || "").trim(),
+                    kidsWear: String(data.get("kidsWearDetails") || "").trim(),
+                    training: String(data.get("trainingDetails") || "").trim(),
+                    embellishment: data.getAll("embellishment[]").filter(Boolean),
+                    embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
+                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
+                    streetwearSize: String(data.get("streetwearSize") || "").trim(),
+                    ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
+                    kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
+                    embellishmentSize: String(data.get("embellishmentSize") || "").trim(),
+                    uploads: uploadedFiles,
+                    mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
+                    inspiration: Array.from(document.getElementById("inspiration")?.files || []).map(file => file.name),
+                    submittedFrom: window.location.href
+                };
+
+                [
+                    "jerseys", "hoodies", "joggers", "tshirts", "poloShirts",
+                    "sweatshirts", "sweatpants", "ladiesTankTops", "mensTankTops",
+                    "varsityJackets", "cargoPants", "cargoSkirts", "joggerShorts",
+                    "hoodiesJoggersSet", "tshirtsShortsSet", "sweatshirtsShortsSet"
+                ].forEach(function(name) {
+                    const raw = String(data.get(name) || "").trim();
+                    if (raw !== "" && Number(raw) > 0) details.streetwear[name] = raw;
+                });
 
                 const payload = {
 
@@ -224,11 +233,7 @@ PUBLIC FORM FIXES
                         services.join(", "),
 
                     journey:
-                        JSON.stringify({
-                            ...details,
-                            streetwearSize: String(data.get("streetwearSize") || "").trim(),
-                            embellishmentSize: String(data.get("embellishmentSize") || "").trim()
-                        })
+                        JSON.stringify(details)
 
                 };
 
