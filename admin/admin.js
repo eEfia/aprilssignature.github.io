@@ -506,38 +506,6 @@ async function getTrainingCategories() {
 }
 
 /* =========================================================
-   PRICE STORAGE
-   Prices are kept in the existing settings table so no database
-   schema change is required. Each price is tied to the admin item.
-========================================================= */
-async function getPriceMap(prefix) {
-    const result = await db.from("settings").select("id,setting_key,setting_value");
-    if (result.error) return {};
-    const map = {};
-    (result.data || []).forEach(row => {
-        if (String(row.setting_key || "").startsWith(prefix)) {
-            const key = String(row.setting_key).slice(prefix.length);
-            map[key] = row.setting_value ?? "";
-        }
-    });
-    return map;
-}
-
-async function saveItemPrice(prefix, id, value) {
-    const key = prefix + String(id);
-    const existing = await db.from("settings").select("id").eq("setting_key", key).maybeSingle();
-    const payload = { setting_key: key, setting_value: String(value ?? "").trim(), updated_at: new Date().toISOString() };
-    const result = existing.data?.id
-        ? await db.from("settings").update({ setting_value: payload.setting_value, updated_at: payload.updated_at }).eq("id", existing.data.id)
-        : await db.from("settings").insert(payload);
-    if (result.error) throw result.error;
-}
-
-async function deleteItemPrice(prefix, id) {
-    await db.from("settings").delete().eq("setting_key", prefix + String(id));
-}
-
-/* =========================================================
    SERVICES
 ========================================================= */
 
@@ -569,15 +537,16 @@ async function loadServices() {
                         <label>Category</label>
                         <input type="text" id="adminServiceCategory" placeholder="Category">
                     </div>
-                    <div class="form-group">
-                        <label>Price</label>
-                        <input type="number" id="adminServicePrice" min="0" step="0.01" placeholder="Enter price">
-                    </div>
                 </div>
 
                 <div class="form-group">
                     <label>Description</label>
                     <textarea id="adminServiceDescription" rows="5" placeholder="Describe this service"></textarea>
+
+                <div class="form-group">
+                    <label>Price (GHS)</label>
+                    <input type="number" id="adminServicePrice" min="0" step="0.01" placeholder="e.g. 900.00">
+                </div>
                 </div>
 
                 <label class="checkbox">
@@ -592,21 +561,20 @@ async function loadServices() {
         <div id="adminServicesList" class="table-wrap"></div>
     `;
 
-    const prices = await getPriceMap("price_service_");
-    renderServices(rows, prices);
+    renderServices(rows);
     setupServiceForm();
 
     makeCategorySelect("adminServiceCategory", await getServiceCategories(), "", "+ Add New Category");
 }
 
-function renderServices(rows, prices = {}) {
+function renderServices(rows) {
     const list = document.getElementById("adminServicesList");
     if (!list) return;
 
     list.innerHTML = rows.length ? `
         <table>
             <thead><tr>
-                <th>Service</th><th>Category</th><th>Description</th><th>Price</th><th>Active</th><th>Actions</th>
+                <th>Service</th><th>Category</th><th>Description</th><th>Price (GHS)</th><th>Active</th><th>Actions</th>
             </tr></thead>
             <tbody>
                 ${rows.map(row => `
@@ -614,7 +582,7 @@ function renderServices(rows, prices = {}) {
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.category)}</td>
                         <td>${escapeHTML(row.description)}</td>
-                        <td>${escapeHTML(prices[String(row.id)] || "Not set")}</td>
+                        <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
                             <button type="button" class="secondary" data-edit-service="${row.id}">Edit</button>
@@ -635,7 +603,7 @@ function renderServices(rows, prices = {}) {
             document.getElementById("adminServiceTitle").value = row.title || "";
             makeCategorySelect("adminServiceCategory", [...new Set([...DEFAULT_SERVICE_CATEGORIES, ...(rows.map(r => r.category).filter(Boolean))])], row.category || "", "+ Add New Category");
             document.getElementById("adminServiceDescription").value = row.description || "";
-            document.getElementById("adminServicePrice").value = prices[String(row.id)] || "";
+            document.getElementById("adminServicePrice").value = row.price ?? "";
             document.getElementById("adminServiceActive").checked = row.active !== false;
             document.getElementById("services").scrollIntoView({ behavior: "smooth", block: "start" });
         };
@@ -652,7 +620,6 @@ function renderServices(rows, prices = {}) {
                 return;
             }
 
-            await deleteItemPrice("price_service_", row.id);
             message("Service deleted.", "success");
             await loadServices();
         };
@@ -668,11 +635,11 @@ function setupServiceForm() {
         event.preventDefault();
 
         const id = document.getElementById("adminServiceId").value.trim();
-        const price = document.getElementById("adminServicePrice").value.trim();
         const payload = {
             title: document.getElementById("adminServiceTitle").value.trim(),
             category: document.getElementById("adminServiceCategory").value.trim(),
             description: document.getElementById("adminServiceDescription").value.trim(),
+            price: document.getElementById("adminServicePrice").value === "" ? null : Number(document.getElementById("adminServicePrice").value),
             active: document.getElementById("adminServiceActive").checked,
             updated_at: new Date().toISOString()
         };
@@ -685,13 +652,10 @@ function setupServiceForm() {
         try {
             const result = id
                 ? await db.from("admin_services").update(payload).eq("id", id)
-                : await db.from("admin_services").insert(payload).select("id").single();
+                : await db.from("admin_services").insert(payload);
 
             if (result.error) throw result.error;
 
-            const savedId = id || result.data?.[0]?.id;
-            if (savedId && price !== "") await saveItemPrice("price_service_", savedId, price);
-            else if (savedId) await deleteItemPrice("price_service_", savedId);
             form.reset();
             document.getElementById("adminServiceId").value = "";
             document.getElementById("adminServiceActive").checked = true;
@@ -718,8 +682,7 @@ async function loadTraining() {
     const list = document.getElementById("trainingList");
     if (!list) return;
 
-    const rows = (await getRows("training_programs")).filter(row => String(row.title || "").trim().toLowerCase() !== "kids holiday class");
-    const prices = await getPriceMap("price_training_");
+    const rows = await getRows("training_programs");
 
     list.innerHTML = `
         <div class="admin-actions">
@@ -728,15 +691,15 @@ async function loadTraining() {
         ${rows.length ? `
         <table>
             <thead><tr>
-                <th>Programme/Class</th><th>Duration</th><th>Category</th><th>Price</th><th>Active</th><th>Actions</th>
+                <th>Programme/Class</th><th>Duration</th><th>Price (GHS)</th><th>Category</th><th>Active</th><th>Actions</th>
             </tr></thead>
             <tbody>
                 ${rows.map(row => `
                     <tr>
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.duration)}</td>
+                        <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${escapeHTML(row.category)}</td>
-                        <td>${escapeHTML(prices[String(row.id)] || "Not set")}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
                             <button type="button" class="secondary" data-edit-training="${row.id}">Edit</button>
@@ -770,7 +733,6 @@ function newTraining() {
     form.reset();
     document.getElementById("trainingId").value = "";
     document.getElementById("trainingActive").checked = true;
-    document.getElementById("trainingPrice").value = "";
     makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, "", "+ Add New Category");
     form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -779,9 +741,9 @@ function editTraining(row) {
     document.getElementById("trainingId").value = row.id;
     document.getElementById("trainingTitle").value = row.title || "";
     document.getElementById("trainingDuration").value = row.duration || "";
+    document.getElementById("trainingPrice").value = row.price ?? "";
     makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, row.category || "", "+ Add New Category");
     document.getElementById("trainingDescription").value = row.description || "";
-    getPriceMap("price_training_").then(prices => { document.getElementById("trainingPrice").value = prices[String(row.id)] || ""; });
     document.getElementById("trainingActive").checked = row.active !== false;
     document.getElementById("trainingForm").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -795,7 +757,6 @@ async function deleteTraining(id) {
         return;
     }
 
-    await deleteItemPrice("price_training_", id);
     message("Training programme deleted.", "success");
     await loadTraining();
     await loadDashboard();
@@ -810,10 +771,10 @@ function setupTrainingForm() {
         event.preventDefault();
 
         const id = document.getElementById("trainingId").value.trim();
-        const price = document.getElementById("trainingPrice").value.trim();
         const payload = {
             title: document.getElementById("trainingTitle").value.trim(),
             duration: document.getElementById("trainingDuration").value.trim(),
+            price: document.getElementById("trainingPrice").value === "" ? null : Number(document.getElementById("trainingPrice").value),
             category: document.getElementById("trainingCategory").value.trim(),
             description: document.getElementById("trainingDescription").value.trim(),
             active: document.getElementById("trainingActive").checked,
@@ -823,13 +784,10 @@ function setupTrainingForm() {
         try {
             const result = id
                 ? await db.from("training_programs").update(payload).eq("id", id)
-                : await db.from("training_programs").insert(payload).select("id").single();
+                : await db.from("training_programs").insert(payload);
 
             if (result.error) throw result.error;
 
-            const savedId = id || result.data?.id;
-            if (savedId && price !== "") await saveItemPrice("price_training_", savedId, price);
-            else if (savedId) await deleteItemPrice("price_training_", savedId);
             form.reset();
             document.getElementById("trainingId").value = "";
             document.getElementById("trainingActive").checked = true;
@@ -845,40 +803,41 @@ function setupTrainingForm() {
     document.getElementById("trainingCancel")?.addEventListener("click", newTraining);
 }
 
+
 function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     let modal = document.getElementById("submissionDetailsModal");
+    let backdrop = document.getElementById("submissionDetailsBackdrop");
     if (!modal) {
+        backdrop = document.createElement("div");
+        backdrop.id = "submissionDetailsBackdrop";
+        backdrop.className = "submission-modal-backdrop";
+        backdrop.addEventListener("click", closeSubmissionDetails);
+        document.body.appendChild(backdrop);
         modal = document.createElement("div");
         modal.id = "submissionDetailsModal";
         modal.className = "submission-modal";
+        modal.innerHTML = '<button type="button" class="submission-modal-close" aria-label="Close">&times;</button><div class="submission-modal-body"></div>';
+        modal.querySelector(".submission-modal-close").addEventListener("click", closeSubmissionDetails);
         document.body.appendChild(modal);
     }
-
-    const excluded = new Set(["id", "created_at", "updated_at"]);
-    const entries = Object.entries(row || {}).filter(([key, value]) => !excluded.has(key) && value !== null && value !== "");
-    const detailBlock = detailsText ? `<div class="submission-detail-text"><h3>Additional Details</h3><pre>${escapeHTML(detailsText)}</pre></div>` : "";
-    const uploadBlock = (uploads || []).length ? `
-        <div class="submission-uploads-wrap"><h3>Attached Images / Files</h3><div class="submission-uploads">
-            ${(uploads || []).map(file => {
-                const url = String(file.url || "");
-                const name = escapeHTML(file.name || "Attached file");
-                const isImage = /\.(jpe?g|png|gif|webp|bmp|svg)(\?|$)/i.test(url);
-                return `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${isImage ? `<img src="${escapeHTML(url)}" alt="${name}">` : `<div class="submission-file">Open file</div>`}<span>${name}</span></a>`;
-            }).join("")}
-        </div></div>` : `<div class="submission-uploads-wrap"><h3>Attached Images / Files</h3><p>No files were attached to this submission.</p></div>`;
-
-    modal.innerHTML = `
-        <button type="button" class="submission-modal-close" aria-label="Close">×</button>
-        <h2>${escapeHTML(title)}</h2>
-        <div class="submission-modal-body">
-            <div class="submission-fields">
-                ${entries.map(([key, value]) => `<div class="submission-field"><strong>${escapeHTML(key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()))}</strong><span>${escapeHTML(typeof value === "object" ? JSON.stringify(value, null, 2) : String(value))}</span></div>`).join("")}
-            </div>
-            ${detailBlock}
-            ${uploadBlock}
-        </div>`;
+    const body = modal.querySelector(".submission-modal-body");
+    const excluded = new Set(["journey","request_details","details","message","uploads"]);
+    const fields = Object.entries(row || {}).filter(([key]) => !excluded.has(key) && key !== "id").map(([key,value]) => {
+        let text = value;
+        if (key === "created_at" && value) text = new Date(value).toLocaleString();
+        return `<div class="submission-field"><strong>${escapeHTML(key.replace(/_/g," "))}</strong><div>${escapeHTML(text ?? "—")}</div></div>`;
+    }).join("");
+    let parsed = null;
+    try { parsed = typeof detailsText === "string" ? JSON.parse(detailsText) : detailsText; } catch (_) {}
+    let details = parsed && typeof parsed === "object" ? Object.entries(parsed).filter(([k])=>k!=="uploads").map(([k,v])=>`<div class="submission-field"><strong>${escapeHTML(k.replace(/([A-Z])/g," $1").replace(/_/g," "))}</strong><div>${escapeHTML(typeof v === "object" ? JSON.stringify(v) : v)}</div></div>`).join("") : (detailsText ? `<div class="submission-field"><strong>Additional details</strong><div>${escapeHTML(detailsText)}</div></div>` : "");
+    const uploadHtml = (uploads || []).length ? `<h3>Attached Images</h3><div class="submission-uploads">${uploads.map(u=>`<a href="${escapeHTML(u.url || u.path || u)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHTML(u.url || u.path || u)}" alt="Customer upload"><span>Open image</span></a>`).join("")}</div>` : "<p><strong>Attached Images:</strong> None</p>";
+    body.innerHTML = `<h2>${escapeHTML(title)}</h2><div class="submission-fields">${fields}</div>${details}<hr>${uploadHtml}`;
+    backdrop.style.display = "block";
     modal.classList.add("open");
-    modal.querySelector(".submission-modal-close").onclick = () => modal.classList.remove("open");
+}
+function closeSubmissionDetails(){
+    document.getElementById("submissionDetailsModal")?.classList.remove("open");
+    const b=document.getElementById("submissionDetailsBackdrop"); if(b) b.style.display="none";
 }
 
 /* =========================================================
@@ -1319,10 +1278,7 @@ function setupContactForm() {
 }
 
 async function loadSettings() {
-    const rows = (await getRows("settings")).filter(row => {
-        const key = String(row.setting_key || "").toLowerCase();
-        return !key.startsWith("social_") && !key.startsWith("price_service_") && !key.startsWith("price_training_");
-    });
+    const rows = await getRows("settings");
     const list = document.getElementById("settingsList");
     if (!list) return;
 
@@ -1388,8 +1344,7 @@ function setupSettingsForm() {
 const INITIAL_GALLERY_ITEMS = [
     ["Hoodie Set","Streetwear Collection","images/photo (6).jpeg"],
     ["Hoodie","Streetwear Collection","images/photo (7).jpeg"],
-    ["T-Shirts","Streetwear Collection","images/photo (8).jpeg"],
-    ["T-Shirts","Streetwear Collection","images/photo (9).jpeg"],
+    ["T-Shirt & Shorts","Streetwear Collection","images/photo (8).jpeg"],
     ["Tank Top & Joggers","Streetwear Collection","images/photo (10).jpeg"],
     ["Jersey","Streetwear Collection","images/photo (11).jpeg"],
     ["Rhinestone Kaftan","Rhinestone Embellishment","images/photo (12).jpeg"],
@@ -1423,27 +1378,6 @@ const INITIAL_FAQS = [
 ];
 
 async function seedInitialPublicContent() {
-    // Remove the specifically retired training item so it cannot return to the public page.
-    try {
-        await db.from("training_programs").delete().ilike("title", "Kids Holiday Class");
-    } catch (e) { console.warn("Retired training cleanup skipped:", e); }
-
-    // Remove duplicate media records by exact file URL. One gallery/media file should appear once.
-    try {
-        const media = await db.from("gallery_items").select("id,image_url,updated_at,created_at");
-        if (!media.error) {
-            const seen = new Set();
-            const duplicates = [];
-            (media.data || []).slice().sort((a,b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))).forEach(row => {
-                const key = String(row.image_url || "").trim();
-                if (!key) return;
-                if (seen.has(key)) duplicates.push(row.id);
-                else seen.add(key);
-            });
-            if (duplicates.length) await db.from("gallery_items").delete().in("id", duplicates);
-        }
-    } catch (e) { console.warn("Gallery duplicate cleanup skipped:", e); }
-
     try {
         const gallery = await db.from("gallery_items").select("id,title,image_url");
         if (!gallery.error) {
@@ -1520,23 +1454,6 @@ async function seedInitialPublicContent() {
             if (missing.length) await db.from("policies").insert(missing);
         }
     } catch (e) { console.warn("Policy initial import unavailable:", e); }
-
-    const INITIAL_SETTINGS = [
-        ["site_title", "Aprils Signature | Elegance in Every Stitch"],
-        ["site_tagline", "Elegance In Every Stitch"],
-        ["site_description", "Aprils Signature is a Custom & Made-to-Order Fashion Brand specialising in Streetwear, Ladies Wear, and Kids Wear."],
-        ["currency", "GHS"],
-        ["payment_deposit_percentage", "75"],
-        ["google_review_url", "https://g.page/r/CcD7hxB7NK7pEAE/review"]
-    ];
-    try {
-        const existing = await db.from("settings").select("id,setting_key");
-        if (!existing.error) {
-            const keys = new Set((existing.data || []).map(r => String(r.setting_key || "").toLowerCase()));
-            const missing = INITIAL_SETTINGS.filter(([k]) => !keys.has(k.toLowerCase())).map(([setting_key, setting_value]) => ({setting_key, setting_value}));
-            if (missing.length) await db.from("settings").insert(missing);
-        }
-    } catch (e) { console.warn("Website settings initial import unavailable:", e); }
 
     const INITIAL_SOCIALS = [
         ["social_tiktok", "https://www.tiktok.com/@aprilssignature"],
