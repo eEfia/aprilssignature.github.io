@@ -5,7 +5,7 @@
 APRILS SIGNATURE
 PUBLIC FORM FIXES
 =========================================================
-*/no
+*/
 
 (function () {
 
@@ -128,16 +128,8 @@ PUBLIC FORM FIXES
                     new FormData(form);
 
 
-                const services =
-                    Array.from(
-                        form.querySelectorAll(
-                            'input[name="services[]"]:checked, input[name="service"]:checked'
-                        )
-                    ).map(function (input) {
-
-                        return input.value;
-
-                    });
+                const services = Array.from(form.querySelectorAll('input[name="services[]"]:checked, input[name="service"]:checked'))
+                    .map(input => input.value);
 
 
                 if (!services.length) {
@@ -155,20 +147,25 @@ PUBLIC FORM FIXES
 
                 let uploadedFiles = [];
                 if (form.querySelector('input[type="file"]')) {
-                    try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
-                    catch (uploadError) {
+                    try {
+                        uploadedFiles = await uploadQuoteFiles(supabase, form);
+                    } catch (uploadError) {
                         console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        throw new Error("The image upload could not be completed. Please try again.");
+                        message(output, "The image upload could not be completed. Please try again.", false);
+                        return;
                     }
                 }
 
                 const details = {
+
                     selectedServices: services,
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
+                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim(),
                     submittedFrom: window.location.href,
-                    uploads: uploadedFiles,
-                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim()
+                    uploads: uploadedFiles
+
                 };
+
 
                 const payload = {
 
@@ -213,7 +210,8 @@ PUBLIC FORM FIXES
                     journey:
                         JSON.stringify({
                             ...details,
-                            sizeMeasurements: String(data.get("sizeMeasurements") || "").trim()
+                            streetwearSize: String(data.get("streetwearSize") || "").trim(),
+                            embellishmentSize: String(data.get("embellishmentSize") || "").trim()
                         })
 
                 };
@@ -367,6 +365,17 @@ PUBLIC FORM FIXES
 
                 const data =
                     new FormData(form);
+
+
+                const details = {
+
+                    selectedServices: services,
+                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
+                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim(),
+                    submittedFrom: window.location.href,
+                    uploads: uploadedFiles
+
+                };
 
 
                 const payload = {

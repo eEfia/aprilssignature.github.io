@@ -1,7 +1,7 @@
 (function () {
 
 "use strict";
-fer
+
 
 /* =========================================================
    APRILS SIGNATURE - MAIN JAVASCRIPT
@@ -786,14 +786,9 @@ function setupQuoteForm() {
     }
 
 
-    serviceInputs.forEach(function (input) {
-
-        input.addEventListener(
-            "change",
-            updateServiceSections
-        );
-
-    });
+    if (serviceContainer) {
+        serviceContainer.addEventListener("change", updateServiceSections);
+    }
 
 
     /*
@@ -1197,20 +1192,15 @@ async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
 
     const rows = await loadPublicRows("gallery_items");
-    if (!rows.length) {
-        setupMediaInteractions();
-        return;
-    }
-
     const activeRows = [];
     const seenMedia = new Set();
-    rows.forEach(row => {
-        const key = String(row.image_url || "").trim().toLowerCase();
-        if (!key || seenMedia.has(key)) return;
-        seenMedia.add(key);
-        activeRows.push(row);
+    rows.slice().sort((a,b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))).filter(row => row.image_url).forEach(row => {
+        const key = String(row.image_url).trim();
+        if (!seenMedia.has(key)) {
+            seenMedia.add(key);
+            activeRows.push(row);
+        }
     });
-    if (!activeRows.length) return;
 
     const main = document.querySelector("main");
     if (!main) return;
@@ -1275,12 +1265,10 @@ async function loadPublicServices() {
     if (!document.body.classList.contains("services-page")) return;
 
     const rows = await loadPublicRows("admin_services");
-    if (!rows.length) return;
 
     const sections = document.querySelectorAll(".service-section");
-    if (!sections.length) return;
-
     sections.forEach(section => section.remove());
+    if (!rows.length) return;
 
     const main = document.querySelector("main");
     const intro = main?.querySelector(".page-intro");
@@ -1309,19 +1297,32 @@ async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
     const rows = (await loadPublicRows("training_programs"))
-        .filter(row => !/kids\s+holiday\s+class/i.test(String(row.title || "")));
-    if (!rows.length) return;
+        .filter(row => String(row.title || "").trim().toLowerCase() !== "kids holiday class");
 
     const grid = document.querySelector(".training-section .training-grid");
     if (!grid) return;
 
-    grid.innerHTML = rows.map(row => `
+    grid.innerHTML = rows.length ? rows.map(row => `
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
             
         </article>
+    `).join("") : `<p class="empty-public">No training programmes are currently available.</p>`;
+}
+
+async function loadQuoteServiceOptions() {
+    if (!document.body.classList.contains("quote-page")) return;
+    const container = document.querySelector(".service-options");
+    if (!container) return;
+    const rows = await loadPublicRows("admin_services");
+    if (!rows.length) return;
+    container.innerHTML = rows.map((row, index) => `
+        <label class="check-option">
+            <input type="checkbox" name="services[]" value="${escapeHTML(row.title || "")}'>
+            ${escapeHTML(row.title || "")}
+        </label>
     `).join("");
 }
 
@@ -1345,7 +1346,12 @@ async function loadPublicFAQs() {
 
     const rows = await loadPublicRows("faqs");
     const section = document.querySelector(".faq-section .container");
-    if (!section || !rows.length) return;
+    if (!section) return;
+
+    if (!rows.length) {
+        section.innerHTML = `<h2>Frequently Asked Questions</h2><p class="empty-public">No FAQs are currently available.</p>`;
+        return;
+    }
 
     section.innerHTML = `
         <h2>Frequently Asked Questions</h2>
@@ -1416,30 +1422,6 @@ async function loadPublicManagedContent() {
 
     try {
         const settings = await loadPublicRows("settings");
-        const settingsMap = {};
-        settings.forEach(row => {
-            settingsMap[String(row.setting_key || "").toLowerCase()] = String(row.setting_value || "");
-        });
-
-        if (settingsMap.site_title) {
-            document.querySelectorAll(".brand-name").forEach(el => el.textContent = settingsMap.site_title);
-            document.title = settingsMap.site_title + (settingsMap.site_tagline ? " | " + settingsMap.site_tagline : "");
-        }
-        if (settingsMap.site_tagline) {
-            document.querySelectorAll(".brand-tagline").forEach(el => el.textContent = settingsMap.site_tagline);
-        }
-        if (settingsMap.google_review_url) {
-            document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
-                if ((link.textContent || "").toLowerCase().includes("review")) link.href = settingsMap.google_review_url;
-            });
-        }
-        if (settingsMap.google_maps_url) {
-            document.querySelectorAll('.footer-social a').forEach(link => {
-                const img = link.querySelector("img");
-                if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = settingsMap.google_maps_url;
-            });
-        }
-
         const socials = settings.filter(row => String(row.setting_key || "").toLowerCase().startsWith("social_"));
         if (socials.length) {
             const map = {};
@@ -1454,18 +1436,6 @@ async function loadPublicManagedContent() {
                     link.rel = "noopener noreferrer";
                 }
             });
-
-            if (map.review) {
-                document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
-                    if ((link.textContent || "").toLowerCase().includes("review")) link.href = map.review;
-                });
-            }
-            if (map.maps) {
-                document.querySelectorAll('.footer-social a').forEach(link => {
-                    const img = link.querySelector("img");
-                    if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = map.maps;
-                });
-            }
         }
     } catch (error) {
         console.warn("Public social links could not be loaded:", error);
@@ -1484,7 +1454,17 @@ async function loadPublicManagedContent() {
                     policies.forEach(row => {
                         const section = document.createElement("section");
                         section.className = "policy-section";
-                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
+                        const paragraphs = String(row.content || "").split(/\n\n+/);
+                        const body = paragraphs.map(text => {
+                            const clean = text.trim();
+                            if (/^for any form of (fashion )?training/i.test(clean)) {
+                                const parts = clean.split(/\n/);
+                                const heading = parts.shift() || "For any form of training";
+                                return `<div class="policy-training-note"><h3>${escapeHTML(heading)}</h3><p>${escapeHTML(parts.join("\n"))}</p></div>`;
+                            }
+                            return `<p>${escapeHTML(clean).replace(/\n/g, "<br>")}</p>`;
+                        }).join("");
+                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2>${body}</div>`;
                         frag.appendChild(section);
                     });
                     intro.after(frag);
@@ -1501,6 +1481,7 @@ async function setupPublicDatabaseContent() {
         loadPublicGallery(),
         loadPublicServices(),
         loadPublicTraining(),
+        loadQuoteServiceOptions(),
         loadPublicTestimonials(),
         loadPublicFAQs(),
         loadPublicManagedContent()
