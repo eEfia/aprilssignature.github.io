@@ -969,12 +969,21 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
         }
     }
 
-    const fields = rows.map(item => `
-        <div class="submission-field">
-            <strong>${escapeHTML(item.label)}</strong>
-            <div>${escapeHTML(item.value)}</div>
+    const fields = rows.length ? `
+        <div class="submission-table-wrap">
+            <table class="submission-details-table">
+                <thead><tr><th>Field</th><th>Details</th></tr></thead>
+                <tbody>
+                    ${rows.map(item => `
+                        <tr>
+                            <th>${escapeHTML(item.label)}</th>
+                            <td>${escapeHTML(item.value)}</td>
+                        </tr>
+                    `).join("")}
+                </tbody>
+            </table>
         </div>
-    `).join("");
+    ` : '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>';
 
     const uploadHtml = (uploads || []).length
         ? `<h3 class="submission-subheading">Attached Images</h3><div class="submission-uploads">${uploads.map(u => {
