@@ -303,6 +303,7 @@ async function loadGallery() {
                     <th>Image</th>
                     <th>Title</th>
                     <th>Collection</th>
+                    <th>Price (GHS)</th>
                     <th>Featured</th>
                     <th>Active</th>
                     <th>Actions</th>
@@ -314,6 +315,7 @@ async function loadGallery() {
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
                         <td>${escapeHTML(row.title)}</td>
                         <td>${escapeHTML(row.category)}</td>
+                        <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
@@ -377,6 +379,7 @@ function editGallery(row) {
     renderGalleryCategorySelect(row.category || "");
     document.getElementById("galleryImage").value = row.image_url || "";
     document.getElementById("galleryDescription").value = row.description || "";
+    document.getElementById("galleryPrice").value = row.price ?? "";
     document.getElementById("galleryFeatured").checked = !!row.featured;
     document.getElementById("galleryActive").checked = row.active !== false;
     document.getElementById("galleryForm").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -409,6 +412,7 @@ function setupGalleryForm() {
             category: document.getElementById("galleryCategory").value.trim(),
             image_url: document.getElementById("galleryImage").value.trim(),
             description: document.getElementById("galleryDescription").value.trim(),
+            price: document.getElementById("galleryPrice").value === "" ? null : Number(document.getElementById("galleryPrice").value),
             featured: document.getElementById("galleryFeatured").checked,
             active: document.getElementById("galleryActive").checked,
             updated_at: new Date().toISOString()
@@ -804,15 +808,131 @@ function setupTrainingForm() {
 }
 
 
+function formatDetailLabel(key) {
+    return String(key || "")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, c => c.toUpperCase())
+        .replace(/\bGHS\b/i, "GHS");
+}
+
+function parseSubmissionDetails(value) {
+    if (!value) return {};
+    if (typeof value === "object") return value;
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : { additionalDetails: String(value) };
+    } catch (_) {
+        return { additionalDetails: String(value) };
+    }
+}
+
+function humanizeProductName(name) {
+    const labels = {
+        jerseys: "Jerseys",
+        hoodies: "Hoodies",
+        joggers: "Joggers",
+        tshirts: "T-shirts",
+        poloShirts: "Polo Shirts",
+        sweatshirts: "Sweatshirts",
+        sweatpants: "Sweatpants",
+        ladiesTankTops: "Ladies Tank Tops",
+        mensTankTops: "Men's Tank Tops",
+        varsityJackets: "Varsity Jackets",
+        cargoPants: "Cargo Pants",
+        cargoSkirts: "Cargo Skirts",
+        joggerShorts: "Jogger Shorts",
+        hoodiesJoggersSet: "Hoodies & Joggers Set",
+        tshirtsShortsSet: "T-shirts & Shorts Set",
+        sweatshirtsShortsSet: "Sweatshirts & Shorts Set"
+    };
+    return labels[name] || formatDetailLabel(name);
+}
+
+function buildQuoteDetailRows(row, details) {
+    const rows = [];
+
+    const add = (label, value) => {
+        if (value === undefined || value === null || String(value).trim() === "") return;
+        rows.push({ label, value: String(value) });
+    };
+
+    add("Full Name", row.full_name);
+    add("Phone", row.phone);
+    add("WhatsApp", row.whatsapp);
+    add("Email", row.email);
+    add("Location", row.location);
+    add("Service", row.service);
+    if (row.created_at) add("Submitted", new Date(row.created_at).toLocaleString());
+
+    const selected = Array.isArray(details.selectedServices)
+        ? details.selectedServices
+        : String(row.service || "").split(",").map(v => v.trim()).filter(Boolean);
+
+    add("Selected Services", selected.join(", "));
+
+    if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
+        const items = Object.entries(details.streetwear)
+            .filter(([, quantity]) => {
+                const n = Number(quantity);
+                return String(quantity).trim() !== "" && !Number.isNaN(n) ? n > 0 : String(quantity).trim() !== "";
+            })
+            .map(([name, quantity]) => `${humanizeProductName(name)}: ${quantity}`);
+
+        if (items.length) add("Streetwear Items & Quantities", items.join(" • "));
+    }
+
+    if (selected.includes("Streetwear")) {
+        add("Streetwear Size / Measurements", details.streetwearSize);
+        add("Streetwear Other Request", details.streetwearOther);
+    }
+
+    if (selected.includes("Ladies Wear")) {
+        add("Ladies Wear Request", details.ladiesWear);
+        add("Ladies Wear Size / Measurements", details.ladiesWearSize);
+    }
+
+    if (selected.includes("Kids Wear")) {
+        add("Kids Wear Request", details.kidsWear);
+        add("Kids Wear Size / Measurements", details.kidsWearSize);
+    }
+
+    if (selected.includes("Embellishment Services")) {
+        const embellishments = Array.isArray(details.embellishment)
+            ? details.embellishment.filter(Boolean)
+            : [];
+        add("Embellishment Services", embellishments.join(", "));
+        add("Embellishment Request", details.embellishmentOther);
+        add("Embellishment Size / Measurements", details.embellishmentSize);
+    }
+
+    if (selected.includes("Practical Fashion Training")) {
+        add("Training Request", details.training);
+    }
+
+    add("Additional Request Details", details.additionalDetails);
+
+    const attachmentNames = []
+        .concat(Array.isArray(details.mockups) ? details.mockups : [])
+        .concat(Array.isArray(details.inspiration) ? details.inspiration : [])
+        .filter(Boolean);
+
+    if (attachmentNames.length) add("Uploaded File Names", attachmentNames.join(", "));
+
+    return rows;
+}
+
 function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     let modal = document.getElementById("submissionDetailsModal");
     let backdrop = document.getElementById("submissionDetailsBackdrop");
+
     if (!modal) {
         backdrop = document.createElement("div");
         backdrop.id = "submissionDetailsBackdrop";
         backdrop.className = "submission-modal-backdrop";
         backdrop.addEventListener("click", closeSubmissionDetails);
         document.body.appendChild(backdrop);
+
         modal = document.createElement("div");
         modal.id = "submissionDetailsModal";
         modal.className = "submission-modal";
@@ -820,18 +940,55 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
         modal.querySelector(".submission-modal-close").addEventListener("click", closeSubmissionDetails);
         document.body.appendChild(modal);
     }
+
     const body = modal.querySelector(".submission-modal-body");
-    const excluded = new Set(["journey","request_details","details","message","uploads"]);
-    const fields = Object.entries(row || {}).filter(([key]) => !excluded.has(key) && key !== "id").map(([key,value]) => {
-        let text = value;
-        if (key === "created_at" && value) text = new Date(value).toLocaleString();
-        return `<div class="submission-field"><strong>${escapeHTML(key.replace(/_/g," "))}</strong><div>${escapeHTML(text ?? "—")}</div></div>`;
-    }).join("");
-    let parsed = null;
-    try { parsed = typeof detailsText === "string" ? JSON.parse(detailsText) : detailsText; } catch (_) {}
-    let details = parsed && typeof parsed === "object" ? Object.entries(parsed).filter(([k])=>k!=="uploads").map(([k,v])=>`<div class="submission-field"><strong>${escapeHTML(k.replace(/([A-Z])/g," $1").replace(/_/g," "))}</strong><div>${escapeHTML(typeof v === "object" ? JSON.stringify(v) : v)}</div></div>`).join("") : (detailsText ? `<div class="submission-field"><strong>Additional details</strong><div>${escapeHTML(detailsText)}</div></div>` : "");
-    const uploadHtml = (uploads || []).length ? `<h3>Attached Images</h3><div class="submission-uploads">${uploads.map(u=>`<a href="${escapeHTML(u.url || u.path || u)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHTML(u.url || u.path || u)}" alt="Customer upload"><span>Open image</span></a>`).join("")}</div>` : "<p><strong>Attached Images:</strong> None</p>";
-    body.innerHTML = `<h2>${escapeHTML(title)}</h2><div class="submission-fields">${fields}</div>${details}<hr>${uploadHtml}`;
+    const details = parseSubmissionDetails(detailsText);
+    const isQuote = /quote|order/i.test(title);
+    let rows;
+
+    if (isQuote) {
+        rows = buildQuoteDetailRows(row || {}, details);
+    } else {
+        rows = Object.entries(row || {})
+            .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
+            .map(([key, value]) => ({
+                label: formatDetailLabel(key),
+                value: key === "created_at" && value ? new Date(value).toLocaleString() : (value ?? "—")
+            }));
+
+        if (detailsText) {
+            Object.entries(details)
+                .filter(([key]) => key !== "uploads")
+                .forEach(([key, value]) => {
+                    if (value === undefined || value === null || String(value).trim() === "") return;
+                    rows.push({
+                        label: formatDetailLabel(key),
+                        value: typeof value === "object" ? JSON.stringify(value) : String(value)
+                    });
+                });
+        }
+    }
+
+    const fields = rows.map(item => `
+        <div class="submission-field">
+            <strong>${escapeHTML(item.label)}</strong>
+            <div>${escapeHTML(item.value)}</div>
+        </div>
+    `).join("");
+
+    const uploadHtml = (uploads || []).length
+        ? `<h3 class="submission-subheading">Attached Images</h3><div class="submission-uploads">${uploads.map(u => {
+            const url = u?.url || u?.path || u;
+            return `<a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer"><img src="${escapeHTML(url)}" alt="Customer upload"><span>Open image</span></a>`;
+        }).join("")}</div>`
+        : (isQuote ? `<p class="submission-no-uploads"><strong>Attached Images:</strong> None</p>` : "");
+
+    body.innerHTML = `
+        <h2>${escapeHTML(title)}</h2>
+        <div class="submission-fields">${fields || '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>'}</div>
+        ${uploadHtml}
+    `;
+
     backdrop.style.display = "block";
     modal.classList.add("open");
 }
@@ -873,6 +1030,54 @@ async function loadRegistrations() {
 }
 
 
+function summarizeQuoteDetails(row) {
+    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
+    const details = parseSubmissionDetails(detailsText);
+    const selected = Array.isArray(details.selectedServices)
+        ? details.selectedServices
+        : String(row?.service || "").split(",").map(v => v.trim()).filter(Boolean);
+
+    const parts = [];
+    if (selected.length) parts.push(selected.join(", "));
+
+    if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
+        const items = Object.entries(details.streetwear)
+            .filter(([, q]) => {
+                const n = Number(q);
+                return String(q).trim() !== "" && (!Number.isNaN(n) ? n > 0 : true);
+            })
+            .map(([name, q]) => `${humanizeProductName(name)}: ${q}`);
+        if (items.length) parts.push(items.join(" • "));
+        if (details.streetwearSize) parts.push(`Size: ${details.streetwearSize}`);
+    }
+
+    if (selected.includes("Ladies Wear")) {
+        if (details.ladiesWear) parts.push(`Ladies Wear: ${details.ladiesWear}`);
+        if (details.ladiesWearSize) parts.push(`Size: ${details.ladiesWearSize}`);
+    }
+
+    if (selected.includes("Kids Wear")) {
+        if (details.kidsWear) parts.push(`Kids Wear: ${details.kidsWear}`);
+        if (details.kidsWearSize) parts.push(`Size: ${details.kidsWearSize}`);
+    }
+
+    if (selected.includes("Embellishment Services")) {
+        if (Array.isArray(details.embellishment) && details.embellishment.length) {
+            parts.push(details.embellishment.join(", "));
+        }
+        if (details.embellishmentOther) parts.push(details.embellishmentOther);
+        if (details.embellishmentSize) parts.push(`Size: ${details.embellishmentSize}`);
+    }
+
+    if (selected.includes("Practical Fashion Training") && details.training) {
+        parts.push(details.training);
+    }
+
+    if (details.additionalDetails) parts.push(details.additionalDetails);
+
+    return parts.join(" | ");
+}
+
 async function loadQuotes() {
     const rows = await getRows("quote_requests");
     const list = document.getElementById("quoteList");
@@ -886,10 +1091,10 @@ async function loadQuotes() {
             let details = row.journey || row.request_details || row.details || row.message || "";
             let uploads = [];
             try {
-                const parsed = typeof details === "string" ? JSON.parse(details) : details;
+                const parsed = parseSubmissionDetails(details);
                 if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
             } catch (_) {}
-            const preview = typeof details === "object" ? JSON.stringify(details) : String(details);
+            const preview = summarizeQuoteDetails(row);
             return `<tr>
                 <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
                 <td>${escapeHTML(row.full_name)}</td>
@@ -911,10 +1116,10 @@ async function loadQuotes() {
             let details = row.journey || row.request_details || row.details || row.message || "";
             let uploads = [];
             try {
-                const parsed = typeof details === "string" ? JSON.parse(details) : details;
+                const parsed = parseSubmissionDetails(details);
                 if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
             } catch (_) {}
-            showSubmissionDetails("Customer Order / Quote Details", row, typeof details === "object" ? JSON.stringify(details, null, 2) : details, uploads);
+            showSubmissionDetails("Customer Order / Quote Details", row, details, uploads);
         };
     });
 }
