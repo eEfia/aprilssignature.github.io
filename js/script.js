@@ -78,6 +78,15 @@ function waitForSupabase() {
    MOBILE MENU
 ========================================================= */
 
+
+function normalizeEmailLinks() {
+    document.querySelectorAll('a[href*="mail.google.com"]').forEach(link => {
+        link.href = "mailto:info@aprilssignature.com";
+        link.removeAttribute("target");
+        link.removeAttribute("rel");
+    });
+}
+
 function setupMobileMenu() {
 
     const button =
@@ -640,34 +649,30 @@ function setupQuoteForm() {
 
         serviceContainer.appendChild(note);
 
-        /*
-           Each selected service gets its own size/measurement box
-           directly below Service Selection. Different services can
-           therefore carry different sizes in one request.
-        */
+        /* The size/measurement fields belong immediately below Service Selection. */
+        const serviceSection = serviceContainer.closest(".form-section");
         const sizeContainer = document.createElement("div");
         sizeContainer.id = "serviceSizeContainer";
         sizeContainer.className = "service-size-container";
         sizeContainer.innerHTML = `
             <div class="form-group service-size-field" data-size-service="Streetwear" style="display:none">
-                <label for="streetwearSize">Streetwear — Size (UK) / Measurements</label>
-                <input type="text" id="streetwearSize" name="streetwearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+                <label for="streetwearSize">Size (UK) / Measurement — Streetwear</label>
+                <input type="text" id="streetwearSize" name="streetwearSize" placeholder="e.g. Size 12, or provide your measurements">
             </div>
             <div class="form-group service-size-field" data-size-service="Ladies Wear" style="display:none">
-                <label for="ladiesWearSize">Ladies Wear — Size (UK) / Measurements</label>
-                <input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+                <label for="ladiesWearSize">Size (UK) / Measurement — Ladies Wear</label>
+                <input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12, or provide your measurements">
             </div>
             <div class="form-group service-size-field" data-size-service="Kids Wear" style="display:none">
-                <label for="kidsWearSize">Kids Wear — Size (UK) / Measurements</label>
-                <input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+                <label for="kidsWearSize">Size (UK) / Measurement — Kids Wear</label>
+                <input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12, or provide your measurements">
             </div>
             <div class="form-group service-size-field" data-size-service="Embellishment Services" style="display:none">
-                <label for="embellishmentSize">Embellishment Services — Size (UK) / Measurements</label>
-                <input type="text" id="embellishmentSize" name="embellishmentSize" placeholder="e.g. Size 12 (UK), or provide your measurements">
+                <label for="embellishmentSize">Size (UK) / Measurement — Embellishment Services</label>
+                <input type="text" id="embellishmentSize" name="embellishmentSize" placeholder="e.g. Size 12, or provide your measurements">
             </div>
         `;
         serviceSection?.appendChild(sizeContainer);
-
     }
 
 
@@ -676,11 +681,6 @@ function setupQuoteForm() {
        that currently do not have their own
        detailed selection section.
     */
-
-    const serviceSection =
-        serviceContainer?.closest(
-            ".form-section"
-        );
 
 
     if (serviceSection) {
@@ -1156,13 +1156,12 @@ async function loadPublicRows(table) {
     if (!supabase) return [];
     const result = await supabase
         .from(table)
-        .select("*")
-        .eq("active", true);
+        .select("*");
     if (result.error) {
         console.warn("Public content table unavailable:", table, result.error);
         return [];
     }
-    return result.data || [];
+    return (result.data || []).filter(row => row.active !== false);
 }
 
 function ensureLightbox() {
@@ -1514,6 +1513,7 @@ async function setupPublicDatabaseContent() {
 function start() {
 
     setupMobileMenu();
+    normalizeEmailLinks();
 
     setupCopyright();
 
