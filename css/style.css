@@ -2103,139 +2103,128 @@ select:focus {
     object-fit: contain;
 }
 
-
 /* =========================================================
-   REQUESTED DEMARCATION / VISIBILITY IMPROVEMENTS
-   ========================================================= */
+   FINAL CONSOLIDATED CORRECTIONS — AUGUST 2026
+========================================================= */
 
-.training-card,
-.service-card,
-.featured-card,
-.gallery-item,
-.why-card,
-.form-section,
-.policy-section,
-.faq-section details {
-    border: 1px solid rgba(0, 128, 128, 0.22);
-    background: rgba(255, 255, 255, 0.96);
-}
-
-.training-card,
-.service-card,
-.featured-card,
-.gallery-item,
-.why-card {
-    box-shadow: 0 2px 10px rgba(0, 128, 128, 0.08);
-}
-
-.training-card + .training-card,
-.service-card + .service-card {
-    border-top-color: rgba(201, 162, 39, 0.35);
-}
-
-.policy-training-note {
-    margin-top: 28px;
-    padding-top: 8px;
-}
-
-.faq-section details {
-    margin-bottom: 12px;
-    padding: 14px 16px;
-    border-radius: 6px;
-}
-
-.size-measurement-section {
-    border: 1px solid rgba(0, 128, 128, 0.28);
-    background: #f8fbfb;
-}
-
-/* Keep the home hero full width; reduce its VERTICAL height only. */
-.home-page .hero {
-    width: 100%;
-    min-height: 255px;
-    height: 255px;
-    margin: 0;
-}
-
-.home-page .hero-content {
-    width: 100%;
-    max-width: 800px;
-    padding: 25px 0;
-}
-
-.home-page .welcome-section {
-    padding-top: 18px;
-    padding-bottom: 22px;
-}
-
-.home-page .featured-section {
-    padding-top: 18px;
-    padding-bottom: 32px;
-}
-
-/* Photo 5 should be substantially wider on the About page. */
-.location-image {
-    width: min(100%, 1000px);
-    height: 420px;
-}
-
-.location-image img {
-    width: 100%;
-    max-width: 100%;
-    height: 100%;
-    object-fit: contain !important;
-}
-
-/* Make the requested subtle in-place media motion visibly perceptible. */
-.gallery-image img,
-.featured-video video {
-    animation: aprilsMediaMotion 5.5s ease-in-out infinite alternate;
-}
-
-@keyframes aprilsMediaMotion {
-    0% { transform: scale(1.01) translate3d(0, 0, 0); }
-    50% { transform: scale(1.035) translate3d(0.55%, -0.35%, 0); }
-    100% { transform: scale(1.06) translate3d(1%, -0.65%, 0); }
-}
-
-@media (max-width: 768px) {
-    .home-page .hero {
+/* Keep the mobile menu active and usable on phones/tablets. */
+@media (max-width: 900px) {
+    .menu-toggle { display: block; margin-left: auto; }
+    .main-navigation {
+        display: none;
         width: 100%;
-        min-height: 300px;
-        height: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        padding-top: 10px;
     }
-
-    .location-image {
-        height: auto;
-    }
-
-    .location-image img {
-        height: auto;
-        min-height: 280px;
-    }
+    .main-navigation.open,
+    .main-navigation.is-open { display: flex; }
+    .main-navigation a { width: 100%; }
 }
 
-
-
-/* Branded boundaries for forms and content boxes. */
-.form-section,
-.contact-form-section,
+/* More visible boundaries for cards, sections, forms and content boxes. */
+.service-card,
+.training-card,
+.gallery-item,
 .contact-item,
-.process-step,
-.upload-box,
+.why-card,
+.testimonial-placeholder,
+.glimpse-section .container,
 .policy-section .container,
-.cta-section .container {
-    border: 1px solid rgba(0, 128, 128, 0.18);
-}
-
+.faq-section details,
+.quote-form,
 .form-section,
-.contact-form-section,
-.contact-item,
-.process-step,
-.upload-box {
-    border-radius: 8px;
+.policy-box,
+.size-measurements-section,
+.services-preview .container,
+.featured-section .container,
+.welcome-section .container {
+    border: 1px solid #c9d1d1;
+    box-shadow: 0 4px 14px rgba(0,0,0,.055);
 }
 
-.form-section + .form-section {
-    border-top-color: rgba(201, 162, 39, 0.38);
+.service-card,
+.training-card,
+.gallery-item,
+.contact-item,
+.why-card,
+.testimonial-placeholder,
+.form-section,
+.policy-box,
+.size-measurements-section {
+    border-radius: var(--radius);
 }
+
+.faq-section details {
+    border-radius: 7px;
+    margin-bottom: 12px;
+}
+
+/* Stronger table grid lines on every admin/public data table. */
+table, th, td {
+    border: 1px solid #c5cdce !important;
+}
+
+/* Home hero: reduce the current teal block by roughly one third vertically. */
+.home-page .hero { min-height: 340px; }
+.home-page .hero-content { padding: 38px 0; }
+
+/* Tighten the requested vertical gaps while retaining a premium amount of breathing room. */
+.home-page .welcome-section { padding-top: 30px; padding-bottom: 28px; }
+.home-page .featured-section { padding-top: 28px; padding-bottom: 36px; }
+
+/* Photo 5: wide presentation, without changing the lightbox behavior. */
+.location-image {
+    width: min(100%, 1100px);
+    margin-left: auto;
+    margin-right: auto;
+}
+.location-image img {
+    width: 100% !important;
+    max-width: 1000px !important;
+    height: auto !important;
+    max-height: none !important;
+    object-fit: contain !important;
+    margin: 0 auto;
+}
+
+/* Subtle in-place movement for gallery images only. Videos are intentionally untouched. */
+.gallery-image img {
+    transform-origin: center;
+    animation: aprilsGalleryImageMotion 6.5s ease-in-out infinite alternate;
+    will-change: transform;
+}
+.gallery-image img:hover {
+    animation-play-state: paused;
+}
+@keyframes aprilsGalleryImageMotion {
+    0% { transform: scale(1) translate3d(0, 0, 0); }
+    50% { transform: scale(1.018) translate3d(.18%, -.1%, 0); }
+    100% { transform: scale(1.03) translate3d(.35%, -.18%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .gallery-image img { animation: none; }
+}
+
+/* Do not animate or restyle the approved gallery/home video presentation. */
+.gallery-image video,
+.featured-video video {
+    animation: none !important;
+    transform: none !important;
+}
+
+/* Requested spacing before the fashion-training paragraphs in policy sections. */
+.policy-training-note {
+    margin-top: 30px !important;
+    padding-top: 18px;
+    border-top: 1px solid var(--gold-light);
+}
+
+.empty-public {
+    padding: 24px;
+    border: 1px solid #c9d1d1;
+    border-radius: 8px;
+    background: var(--light-bg);
+}
+
