@@ -4,7 +4,7 @@ APRILS SIGNATURE
 FORMS CONTROLLER
 =========================================================
 
-This file prepares the website forms forsub submission.
+This file prepares the website forms for submission.
 
 Forms covered:
 1. Order / Quote Requests
