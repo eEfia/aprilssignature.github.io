@@ -2197,9 +2197,8 @@ select:focus {
 /* About-page Photo 5: preserve the complete portrait image
    rather than cropping it inside a short fixed-height box. */
 .about-page .location-image {
-    width: min(100%, 760px);
-    height: auto;
-    aspect-ratio: 468 / 1040;
+    width: min(100%, 570px);
+    height: 840px;
     min-height: 0;
     margin-left: auto;
     margin-right: auto;
@@ -2258,5 +2257,56 @@ select:focus {
 @media (max-width: 700px) {
     .submission-fields {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Full submission details are displayed as a proper table. */
+.submission-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 20px 0;
+}
+
+.submission-details-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+.submission-details-table th,
+.submission-details-table td {
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    text-align: left;
+    vertical-align: top;
+}
+
+.submission-details-table thead th {
+    background: #008c95;
+    color: #fff;
+}
+
+.submission-details-table tbody th {
+    width: 34%;
+    background: #f7f7f7;
+    color: #075957;
+}
+
+/* Keep the Why Choose text comfortably inside the page container. */
+.home-page .why-section .container {
+    padding-left: 32px;
+    padding-right: 32px;
+}
+
+@media (max-width: 700px) {
+    .about-page .location-image {
+        width: min(100%, 430px);
+        height: 620px;
+    }
+
+    .home-page .why-section .container {
+        padding-left: 22px;
+        padding-right: 22px;
     }
 }
