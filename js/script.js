@@ -786,9 +786,14 @@ function setupQuoteForm() {
     }
 
 
-    if (serviceContainer) {
-        serviceContainer.addEventListener("change", updateServiceSections);
-    }
+    serviceInputs.forEach(function (input) {
+
+        input.addEventListener(
+            "change",
+            updateServiceSections
+        );
+
+    });
 
 
     /*
@@ -1192,15 +1197,18 @@ async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
 
     const rows = await loadPublicRows("gallery_items");
+    if (!rows.length) {
+        setupMediaInteractions();
+        return;
+    }
+
     const activeRows = [];
     const seenMedia = new Set();
-    rows.slice().sort((a,b) => String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""))).filter(row => row.image_url).forEach(row => {
-        const key = String(row.image_url).trim();
-        if (!seenMedia.has(key)) {
-            seenMedia.add(key);
-            activeRows.push(row);
-        }
+    rows.filter(row => row.image_url && row.active !== false).forEach(row => {
+        const key = `${row.category || "Gallery"}\u0000${row.image_url}`;
+        if (!seenMedia.has(key)) { seenMedia.add(key); activeRows.push(row); }
     });
+    if (!activeRows.length) return;
 
     const main = document.querySelector("main");
     if (!main) return;
@@ -1265,10 +1273,12 @@ async function loadPublicServices() {
     if (!document.body.classList.contains("services-page")) return;
 
     const rows = await loadPublicRows("admin_services");
+    if (!rows.length) return;
 
     const sections = document.querySelectorAll(".service-section");
+    if (!sections.length) return;
+
     sections.forEach(section => section.remove());
-    if (!rows.length) return;
 
     const main = document.querySelector("main");
     const intro = main?.querySelector(".page-intro");
@@ -1296,33 +1306,19 @@ async function loadPublicServices() {
 async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
-    const rows = (await loadPublicRows("training_programs"))
-        .filter(row => String(row.title || "").trim().toLowerCase() !== "kids holiday class");
+    const rows = await loadPublicRows("training_programs");
+    if (!rows.length) return;
 
     const grid = document.querySelector(".training-section .training-grid");
     if (!grid) return;
 
-    grid.innerHTML = rows.length ? rows.map(row => `
+    grid.innerHTML = rows.map(row => `
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
             
         </article>
-    `).join("") : `<p class="empty-public">No training programmes are currently available.</p>`;
-}
-
-async function loadQuoteServiceOptions() {
-    if (!document.body.classList.contains("quote-page")) return;
-    const container = document.querySelector(".service-options");
-    if (!container) return;
-    const rows = await loadPublicRows("admin_services");
-    if (!rows.length) return;
-    container.innerHTML = rows.map((row, index) => `
-        <label class="check-option">
-            <input type="checkbox" name="services[]" value="${escapeHTML(row.title || "")}'>
-            ${escapeHTML(row.title || "")}
-        </label>
     `).join("");
 }
 
@@ -1346,12 +1342,7 @@ async function loadPublicFAQs() {
 
     const rows = await loadPublicRows("faqs");
     const section = document.querySelector(".faq-section .container");
-    if (!section) return;
-
-    if (!rows.length) {
-        section.innerHTML = `<h2>Frequently Asked Questions</h2><p class="empty-public">No FAQs are currently available.</p>`;
-        return;
-    }
+    if (!section || !rows.length) return;
 
     section.innerHTML = `
         <h2>Frequently Asked Questions</h2>
@@ -1454,17 +1445,7 @@ async function loadPublicManagedContent() {
                     policies.forEach(row => {
                         const section = document.createElement("section");
                         section.className = "policy-section";
-                        const paragraphs = String(row.content || "").split(/\n\n+/);
-                        const body = paragraphs.map(text => {
-                            const clean = text.trim();
-                            if (/^for any form of (fashion )?training/i.test(clean)) {
-                                const parts = clean.split(/\n/);
-                                const heading = parts.shift() || "For any form of training";
-                                return `<div class="policy-training-note"><h3>${escapeHTML(heading)}</h3><p>${escapeHTML(parts.join("\n"))}</p></div>`;
-                            }
-                            return `<p>${escapeHTML(clean).replace(/\n/g, "<br>")}</p>`;
-                        }).join("");
-                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2>${body}</div>`;
+                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
                         frag.appendChild(section);
                     });
                     intro.after(frag);
@@ -1481,7 +1462,6 @@ async function setupPublicDatabaseContent() {
         loadPublicGallery(),
         loadPublicServices(),
         loadPublicTraining(),
-        loadQuoteServiceOptions(),
         loadPublicTestimonials(),
         loadPublicFAQs(),
         loadPublicManagedContent()

@@ -128,8 +128,16 @@ PUBLIC FORM FIXES
                     new FormData(form);
 
 
-                const services = Array.from(form.querySelectorAll('input[name="services[]"]:checked, input[name="service"]:checked'))
-                    .map(input => input.value);
+                const services =
+                    Array.from(
+                        form.querySelectorAll(
+                            'input[name="services[]"]:checked'
+                        )
+                    ).map(function (input) {
+
+                        return input.value;
+
+                    });
 
 
                 if (!services.length) {
@@ -145,27 +153,35 @@ PUBLIC FORM FIXES
                 }
 
 
-                let uploadedFiles = [];
-                if (form.querySelector('input[type="file"]')) {
-                    try {
-                        uploadedFiles = await uploadQuoteFiles(supabase, form);
-                    } catch (uploadError) {
-                        console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        message(output, "The image upload could not be completed. Please try again.", false);
-                        return;
-                    }
-                }
-
                 const details = {
 
-                    selectedServices: services,
-                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
-                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim(),
-                    submittedFrom: window.location.href,
-                    uploads: uploadedFiles
+                    selectedServices:
+                        services,
+
+                    additionalDetails:
+                        String(
+                            data.get(
+                                "additionalDetails"
+                            ) || ""
+                        ).trim(),
+
+                    submittedFrom:
+                        window.location.href,
+
+                    uploads:
+                        uploadedFiles
 
                 };
 
+
+                let uploadedFiles = [];
+                if (form.querySelector('input[type="file"]')) {
+                    try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
+                    catch (uploadError) {
+                        console.error("QUOTE UPLOAD ERROR:", uploadError);
+                        throw new Error("The image upload could not be completed. Please try again.");
+                    }
+                }
 
                 const payload = {
 
@@ -365,17 +381,6 @@ PUBLIC FORM FIXES
 
                 const data =
                     new FormData(form);
-
-
-                const details = {
-
-                    selectedServices: services,
-                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
-                    sizeMeasurements: String(data.get("sizeMeasurements") || "").trim(),
-                    submittedFrom: window.location.href,
-                    uploads: uploadedFiles
-
-                };
 
 
                 const payload = {
