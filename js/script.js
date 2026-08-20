@@ -80,8 +80,10 @@ function waitForSupabase() {
 
 
 function normalizeEmailLinks() {
-    document.querySelectorAll('a[href*="mail.google.com"]').forEach(link => {
-        link.href = "mailto:info@aprilssignature.com";
+    document.querySelectorAll('a[href*="mail.google.com"], a[href^="mailto:"]').forEach(link => {
+        const text = (link.textContent || "").trim();
+        const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i);
+        link.href = "mailto:" + (match ? match[0] : "info@aprilssignature.com");
         link.removeAttribute("target");
         link.removeAttribute("rel");
     });
@@ -833,6 +835,10 @@ function setupQuoteForm() {
 
     });
 
+    form.addEventListener("reset", function () {
+        window.setTimeout(updateServiceSections, 0);
+    });
+
 
     /*
        CAPTURE PHASE
@@ -1494,6 +1500,39 @@ async function loadPublicManagedContent() {
     }
 }
 
+async function loadPublicLogoSetting() {
+    try {
+        const settings = await loadPublicRows("settings");
+        const logoSetting = settings.find(row =>
+            String(row.setting_key || "").toLowerCase() === "site_logo_data"
+        );
+        const removeSetting = settings.find(row =>
+            String(row.setting_key || "").toLowerCase() === "site_logo_removed"
+        );
+
+        const logos = document.querySelectorAll(".brand-logo");
+        if (!logos.length) return;
+
+        if (String(removeSetting?.setting_value || "").toLowerCase() === "true") {
+            logos.forEach(img => {
+                img.style.display = "none";
+                img.setAttribute("aria-hidden", "true");
+            });
+            return;
+        }
+
+        if (logoSetting?.setting_value) {
+            logos.forEach(img => {
+                img.src = logoSetting.setting_value;
+                img.style.display = "";
+                img.removeAttribute("aria-hidden");
+            });
+        }
+    } catch (error) {
+        console.warn("Public logo setting could not be loaded:", error);
+    }
+}
+
 async function setupPublicDatabaseContent() {
     await Promise.all([
         loadPublicGallery(),
@@ -1501,7 +1540,8 @@ async function setupPublicDatabaseContent() {
         loadPublicTraining(),
         loadPublicTestimonials(),
         loadPublicFAQs(),
-        loadPublicManagedContent()
+        loadPublicManagedContent(),
+        loadPublicLogoSetting()
     ]);
     setupMediaInteractions();
 }
