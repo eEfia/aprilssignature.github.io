@@ -80,12 +80,17 @@ function waitForSupabase() {
 
 
 function normalizeEmailLinks() {
-    document.querySelectorAll('a[href*="mail.google.com"], a[href^="mailto:"]').forEach(link => {
+    document.querySelectorAll("a").forEach(function (link) {
         const text = (link.textContent || "").trim();
+        const href = String(link.getAttribute("href") || "");
         const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i);
-        link.href = "mailto:" + (match ? match[0] : "info@aprilssignature.com");
-        link.removeAttribute("target");
-        link.removeAttribute("rel");
+
+        if (match || /^mailto:/i.test(href) || /mail\.google\.com/i.test(href)) {
+            const email = match ? match[0] : "info@aprilssignature.com";
+            link.setAttribute("href", "mailto:" + email);
+            link.removeAttribute("target");
+            link.removeAttribute("rel");
+        }
     });
 }
 
@@ -602,554 +607,217 @@ function setupEnquiryForm() {
 
 function setupQuoteForm() {
 
-    const form =
-        document.getElementById("quoteForm");
-
-    if (!form) {
-        return;
-    }
-
+    const form = document.getElementById("quoteForm");
+    if (!form || form.dataset.quoteUiBound === "1") return;
+    form.dataset.quoteUiBound = "1";
 
     /*
-       Convert the existing service radio buttons
-       into checkboxes so one customer can select
-       multiple services in ONE request.
+       Service Selection
+       -----------------
+       The form supports multiple services in one request. Older HTML
+       versions used name="service"; newer versions use services[].
+       Normalize both so the page remains compatible.
     */
-
-    const serviceInputs =
-        form.querySelectorAll(
-            'input[name="service"]'
-        );
-
+    const serviceInputs = form.querySelectorAll(
+        'input[name="service"], input[name="services[]"]'
+    );
 
     serviceInputs.forEach(function (input) {
-
         input.type = "checkbox";
-
         input.name = "services[]";
-
         input.required = false;
-
     });
 
+    const serviceContainer = form.querySelector(".service-options");
+    const serviceSection = serviceContainer
+        ? serviceContainer.closest(".form-section")
+        : null;
 
-    const serviceContainer =
-        form.querySelector(".service-options");
+    if (!serviceContainer || !serviceSection) return;
 
-
-    if (serviceContainer) {
-
-        const note =
-            document.createElement("p");
-
-        note.textContent =
-            "You can select more than one service.";
-
-        note.style.marginTop = "12px";
-        note.style.fontSize = "14px";
-        note.style.color = "#555";
-
+    if (!serviceContainer.querySelector(".multi-service-note")) {
+        const note = document.createElement("p");
+        note.className = "multi-service-note";
+        note.textContent = "You can select more than one service.";
         serviceContainer.appendChild(note);
-
-        /* The size/measurement fields belong immediately below Service Selection. */
-        const serviceSection = serviceContainer.closest(".form-section");
-        const sizeContainer = document.createElement("div");
-        sizeContainer.id = "serviceSizeContainer";
-        sizeContainer.className = "service-size-container";
-        sizeContainer.innerHTML = `
-            <div class="form-group service-size-field" data-size-service="Streetwear" style="display:none">
-                <label for="streetwearSize">Size (UK) / Measurement — Streetwear</label>
-                <input type="text" id="streetwearSize" name="streetwearSize" placeholder="e.g. Size 12, or provide your measurements">
-            </div>
-            <div class="form-group service-size-field" data-size-service="Ladies Wear" style="display:none">
-                <label for="ladiesWearSize">Size (UK) / Measurement — Ladies Wear</label>
-                <input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12, or provide your measurements">
-            </div>
-            <div class="form-group service-size-field" data-size-service="Kids Wear" style="display:none">
-                <label for="kidsWearSize">Size (UK) / Measurement — Kids Wear</label>
-                <input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12, or provide your measurements">
-            </div>
-            <div class="form-group service-size-field" data-size-service="Embellishment Services" style="display:none">
-                <label for="embellishmentSize">Size (UK) / Measurement — Embellishment Services</label>
-                <input type="text" id="embellishmentSize" name="embellishmentSize" placeholder="e.g. Size 12, or provide your measurements">
-            </div>
-        `;
-        serviceSection?.appendChild(sizeContainer);
     }
 
+    /*
+       Size / Measurements
+       -------------------
+       A separate field is maintained for each selected service so entering
+       a second service never overwrites the first service's size/measurements.
+    */
+    let sizeContainer = document.getElementById("serviceSizeContainer");
+
+    if (!sizeContainer) {
+        sizeContainer = document.createElement("div");
+        sizeContainer.id = "serviceSizeContainer";
+        sizeContainer.className = "service-size-container";
+
+        sizeContainer.innerHTML = `
+            <h3 class="service-size-heading">Size (UK) / Measurements</h3>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Streetwear"
+                 style="display:none">
+                <label for="streetwearSize">
+                    Streetwear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="streetwearSize"
+                    name="streetwearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Ladies Wear"
+                 style="display:none">
+                <label for="ladiesWearSize">
+                    Ladies Wear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="ladiesWearSize"
+                    name="ladiesWearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Kids Wear"
+                 style="display:none">
+                <label for="kidsWearSize">
+                    Kids Wear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="kidsWearSize"
+                    name="kidsWearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Embellishment Services"
+                 style="display:none">
+                <label for="embellishmentSize">
+                    Embellishment Services — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="embellishmentSize"
+                    name="embellishmentSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+        `;
+
+        serviceSection.appendChild(sizeContainer);
+    }
 
     /*
-       Add extra detail boxes for services
-       that currently do not have their own
-       detailed selection section.
+       Extra detail fields for services that do not have a dedicated
+       product-selection panel.
     */
+    let extraDetails = document.getElementById("additionalServiceDetails");
 
+    if (!extraDetails) {
+        extraDetails = document.createElement("div");
+        extraDetails.id = "additionalServiceDetails";
+        extraDetails.className = "additional-service-details";
 
-    if (serviceSection) {
-
-        const extra =
-            document.createElement("div");
-
-        extra.id =
-            "additionalServiceDetails";
-
-        extra.style.marginTop = "25px";
-
-
-        extra.innerHTML = `
-
-            <div
-                class="form-group"
-                data-service-detail="Ladies Wear"
-                style="display:none"
-            >
-                <label>
+        extraDetails.innerHTML = `
+            <div class="form-group"
+                 data-service-detail="Ladies Wear"
+                 style="display:none">
+                <label for="ladiesWearDetails">
                     Ladies Wear — Specify Request
                 </label>
-
                 <textarea
+                    id="ladiesWearDetails"
                     name="ladiesWearDetails"
                     placeholder="Tell us what ladies wear you need, quantity, design or other details."
                 ></textarea>
             </div>
 
-
-            <div
-                class="form-group"
-                data-service-detail="Kids Wear"
-                style="display:none"
-            >
-                <label>
+            <div class="form-group"
+                 data-service-detail="Kids Wear"
+                 style="display:none">
+                <label for="kidsWearDetails">
                     Kids Wear — Specify Request
                 </label>
-
                 <textarea
+                    id="kidsWearDetails"
                     name="kidsWearDetails"
                     placeholder="Tell us what kids wear you need, quantity, design or other details."
                 ></textarea>
             </div>
 
-
-            <div
-                class="form-group"
-                data-service-detail="Practical Fashion Training"
-                style="display:none"
-            >
-                <label>
+            <div class="form-group"
+                 data-service-detail="Practical Fashion Training"
+                 style="display:none">
+                <label for="trainingDetails">
                     Training Request
                 </label>
-
                 <textarea
+                    id="trainingDetails"
                     name="trainingDetails"
                     placeholder="Please specify the training/class you are interested in."
                 ></textarea>
             </div>
-
         `;
 
-        serviceSection.appendChild(extra);
-
+        serviceSection.appendChild(extraDetails);
     }
-
 
     function updateServiceSections() {
+        const selected = Array.from(
+            form.querySelectorAll('input[name="services[]"]:checked')
+        ).map(input => input.value);
 
-        const selected = [];
-
-        form.querySelectorAll(
-            'input[name="services[]"]:checked'
-        ).forEach(function (input) {
-
-            selected.push(input.value);
-
+        form.querySelectorAll(".service-size-field").forEach(function (field) {
+            const serviceName = field.getAttribute("data-size-service");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
+            /*
+               Do NOT clear another service's size simply because another
+               service was selected. Each service keeps its own value.
+            */
         });
 
-
-        form.querySelectorAll(".service-size-field").forEach(function (box) {
-            const serviceName = box.getAttribute("data-size-service");
-            const visible = selected.includes(serviceName);
-            box.style.display = visible ? "block" : "none";
-            if (!visible) {
-                const input = box.querySelector("input");
-                if (input) input.value = "";
-            }
+        form.querySelectorAll("[data-service-detail]").forEach(function (field) {
+            const serviceName = field.getAttribute("data-service-detail");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
         });
 
-        form.querySelectorAll(
-            "[data-service-detail]"
-        ).forEach(function (box) {
-
-            box.style.display =
-                selected.includes(
-                    box.getAttribute(
-                        "data-service-detail"
-                    )
-                )
-                    ? "block"
-                    : "none";
-
-        });
-
-
-        const streetwear =
-            document.getElementById(
-                "streetwearSection"
-            );
-
-        const embellishment =
-            document.getElementById(
-                "embellishmentSection"
-            );
-
-
+        const streetwear = document.getElementById("streetwearSection");
         if (streetwear) {
-
-            streetwear.style.display =
-                selected.includes("Streetwear")
-                    ? "block"
-                    : "none";
-
+            streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
         }
 
-
+        const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
-
             embellishment.style.display =
-                selected.includes(
-                    "Embellishment Services"
-                )
-                    ? "block"
-                    : "none";
-
+                selected.includes("Embellishment Services") ? "block" : "none";
         }
-
     }
 
-
     serviceInputs.forEach(function (input) {
-
-        input.addEventListener(
-            "change",
-            updateServiceSections
-        );
-
+        input.addEventListener("change", updateServiceSections);
     });
 
     form.addEventListener("reset", function () {
         window.setTimeout(updateServiceSections, 0);
     });
 
-
-    /*
-       CAPTURE PHASE
-
-       The old quote page has an older submit
-       handler inside quotes.html.
-
-       This handler catches the submission
-       first so the old handler cannot create
-       a duplicate/broken submission.
-    */
-
-    form.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-
-            const message =
-                document.getElementById(
-                    "quoteFormMessage"
-                );
-
-
-            const button =
-                document.getElementById(
-                    "quoteSubmitButton"
-                );
-
-
-            const selectedServices =
-                Array.from(
-                    form.querySelectorAll(
-                        'input[name="services[]"]:checked, input[name="service"]:checked'
-                    )
-                ).map(function (input) {
-
-                    return input.value;
-
-                });
-
-
-            if (!selectedServices.length) {
-
-                showFormMessage(
-                    message,
-                    "Please select at least one service.",
-                    false
-                );
-
-                return;
-
-            }
-
-
-            if (button) {
-
-                button.disabled = true;
-
-                button.textContent =
-                    "Submitting...";
-
-            }
-
-
-            try {
-
-                const supabase =
-                    await waitForSupabase();
-
-
-                if (!supabase) {
-
-                    throw new Error(
-                        "Supabase unavailable."
-                    );
-
-                }
-
-
-                const data =
-                    new FormData(form);
-
-
-                const get =
-                    function (name) {
-
-                        return String(
-                            data.get(name) || ""
-                        ).trim();
-
-                    };
-
-
-                const streetwearItems = {};
-
-                [
-                    "jerseys",
-                    "hoodies",
-                    "joggers",
-                    "tshirts",
-                    "poloShirts",
-                    "sweatshirts",
-                    "sweatpants",
-                    "ladiesTankTops",
-                    "mensTankTops",
-                    "varsityJackets",
-                    "cargoPants",
-                    "cargoSkirts",
-                    "joggerShorts",
-                    "hoodiesJoggersSet",
-                    "tshirtsShortsSet",
-                    "sweatshirtsShortsSet"
-                ].forEach(function (name) {
-
-                    streetwearItems[name] =
-                        get(name);
-
-                });
-
-
-                const embellishment =
-                    data.getAll(
-                        "embellishment[]"
-                    );
-
-
-                const requestDetails = {
-
-                    selectedServices:
-                        selectedServices,
-
-                    streetwear:
-                        streetwearItems,
-
-                    streetwearOther:
-                        get("streetwearOther"),
-
-                    ladiesWear:
-                        get("ladiesWearDetails"),
-
-                    kidsWear:
-                        get("kidsWearDetails"),
-
-                    training:
-                        get("trainingDetails"),
-
-                    embellishment:
-                        embellishment,
-
-                    embellishmentOther:
-                        get("embellishmentOther"),
-
-                    additionalDetails:
-                        get("additionalDetails"),
-
-                    agreement:
-                        get("agreement"),
-
-                    mockups:
-                        Array.from(
-                            document.getElementById(
-                                "mockups"
-                            )?.files || []
-                        ).map(function (file) {
-
-                            return file.name;
-
-                        }),
-
-                    inspiration:
-                        Array.from(
-                            document.getElementById(
-                                "inspiration"
-                            )?.files || []
-                        ).map(function (file) {
-
-                            return file.name;
-
-                        }),
-
-                    submittedFrom:
-                        window.location.href
-
-                };
-
-
-                const payload = {
-
-                    full_name:
-                        get("fullName"),
-
-                    phone:
-                        get("phone"),
-
-                    whatsapp:
-                        get("whatsapp"),
-
-                    location:
-                        get("location"),
-
-                    email:
-                        get("email"),
-
-                    service:
-                        selectedServices.join(", "),
-
-                    journey:
-                        JSON.stringify(
-                            requestDetails
-                        )
-
-                };
-
-
-                if (!payload.full_name) {
-                    throw new Error(
-                        "Full name is required."
-                    );
-                }
-
-
-                if (!payload.phone) {
-                    throw new Error(
-                        "Phone number is required."
-                    );
-                }
-
-
-                if (!payload.location) {
-                    throw new Error(
-                        "Location is required."
-                    );
-
-
-                }
-
-
-                const result =
-                    await supabase
-                        .from("quote_requests")
-                        .insert([payload]);
-
-
-                if (result.error) {
-
-                    console.error(
-                        "QUOTE ERROR:",
-                        result.error
-                    );
-
-                    throw result.error;
-
-                }
-
-
-                showFormMessage(
-                    message,
-                    "Thank you! Your order / quote request has been received successfully. Aprils Signature will review your request and contact you shortly regarding your quotation.",
-                    true
-                );
-
-
-                form.reset();
-
-                updateServiceSections();
-
-
-                window.scrollTo({
-                    top: 0,
-                    behavior: "smooth"
-                });
-
-
-            } catch (error) {
-
-                console.error(
-                    "QUOTE SUBMISSION ERROR:",
-                    error
-                );
-
-
-                showFormMessage(
-                    message,
-                    "We could not submit your request right now. Please try again. If the problem continues, contact Aprils Signature directly.",
-                    false
-                );
-
-
-            } finally {
-
-                if (button) {
-
-                    button.disabled = false;
-
-                    button.textContent =
-                        "Submit Order / Request a Quote";
-
-                }
-
-            }
-
-        },
-        true
-    );
-
+    updateServiceSections();
 }
-
-
 
 /* =========================================================
    PUBLIC SITE — DATABASE-LINKED CONTENT
@@ -1412,6 +1080,17 @@ async function loadPublicManagedContent() {
             const el = document.querySelector(selector);
             if (el) el.textContent = value;
         };
+
+        /*
+           Any public element marked data-content-key is automatically
+           connected to the matching Website Content record.
+        */
+        document.querySelectorAll("[data-content-key]").forEach(function (el) {
+            const key = String(el.getAttribute("data-content-key") || "").trim().toLowerCase();
+            if (key && content[key] !== undefined) {
+                el.textContent = content[key];
+            }
+        });
 
         setText(".home-page .hero h1", content["homepage hero heading"]);
         setText(".home-page .hero-text", content["homepage tagline"]);
