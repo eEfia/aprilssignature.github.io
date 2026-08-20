@@ -2409,3 +2409,212 @@ table th,
 table td {
     border: 2px solid #666666;
 }
+
+
+/* =========================================================
+   FINAL USER CORRECTIONS — 20 AUGUST 2026
+   ========================================================= */
+
+/* About Photo 5:
+   Keep the current height exactly as established, but increase
+   the current width by 50%. Desktop: 428px -> 642px. */
+.about-page .location-image {
+    width: min(100%, 642px);
+    height: 420px;
+    min-height: 0;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.about-page .location-image a.photo5-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.about-page .location-image img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain !important;
+    object-position: center;
+}
+
+/* Keep the same height on smaller screens while increasing the
+   current mobile width by 50% as requested. */
+@media (max-width: 700px) {
+    .about-page .location-image {
+        width: min(100%, 484.5px);
+        height: 310px;
+    }
+}
+
+/* FAQ: keep the outer outlines thicker, but tone down the
+   separator line between the question and its answer. */
+.policies-page .faq-section details {
+    border: 2px solid #8f8f8f !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 10px;
+}
+
+.policies-page .faq-section details summary {
+    border: 0 !important;
+    padding: 4px 0 12px !important;
+}
+
+.policies-page .faq-section details[open] summary {
+    border-bottom: 1px solid rgba(15, 119, 117, 0.20) !important;
+}
+
+.policies-page .faq-section details p {
+    padding: 10px 0 2px !important;
+    margin: 0 !important;
+}
+
+/* Give text inside public content boxes comfortable breathing room.
+   This only changes alignment/padding, not the content itself. */
+.public-page .policy-section .container,
+.policies-page .policy-section .container,
+.policies-page .faq-section .container,
+.about-page .about-section .container,
+.services-page .service-section .container,
+.quote-form .form-section,
+.form-card,
+.policy-box {
+    box-sizing: border-box;
+}
+
+.policies-page .policy-section .container,
+.policies-page .faq-section .container {
+    padding-left: 28px !important;
+    padding-right: 28px !important;
+}
+
+.policies-page .policy-section p,
+.policies-page .policy-section li,
+.policies-page .faq-section p,
+.policies-page .faq-section summary {
+    padding-left: 2px;
+    padding-right: 2px;
+    line-height: 1.7;
+}
+
+.quote-form .form-section > p,
+.quote-form .form-section > h2,
+.quote-form .form-section > h3,
+.quote-form .form-section > .form-group,
+.quote-form .form-section > .product-options,
+.quote-form .form-section > .quantity-row {
+    max-width: 100%;
+}
+
+.quote-form .form-section {
+    padding: 24px;
+}
+
+.quote-form .service-size-container {
+    padding: 18px 0 4px;
+}
+
+.quote-form .service-size-heading {
+    margin: 0 0 14px;
+    color: var(--teal);
+}
+
+.quote-form .service-size-field {
+    margin-bottom: 16px;
+}
+
+/* Logo management */
+.current-logo-preview {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #d5d5d5;
+    border-radius: 8px;
+    background: #fff;
+    max-width: 320px;
+}
+
+.current-logo-preview img {
+    display: block;
+    width: auto;
+    max-width: 280px;
+    max-height: 180px;
+    object-fit: contain;
+    background: #fff;
+}
+
+.current-logo-preview.empty-logo span {
+    color: #666;
+}
+
+.logo-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+
+.logo-library-item {
+    border: 1px solid #d5d5d5;
+    border-radius: 8px;
+    padding: 14px;
+    background: #fff;
+}
+
+.logo-library-image {
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.logo-library-image img {
+    max-width: 100%;
+    max-height: 145px;
+    object-fit: contain;
+}
+
+.logo-library-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.logo-library-meta small {
+    color: #666;
+}
+
+.logo-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-details-preview {
+    display: block;
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 700px) {
+    .policies-page .policy-section .container,
+    .policies-page .faq-section .container {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+    }
+
+    .quote-form .form-section {
+        padding: 20px 18px;
+    }
+}
