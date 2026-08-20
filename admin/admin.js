@@ -1017,7 +1017,7 @@ async function loadRegistrations() {
 
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Action</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => `<tr>
             <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
@@ -1025,6 +1025,7 @@ async function loadRegistrations() {
             <td>${escapeHTML(row.phone)}</td>
             <td>${escapeHTML(row.course)}</td>
             <td>${escapeHTML(row.location)}</td>
+            <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
             <td>
     <button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button>
     <button type="button" class="danger" data-delete-registration="${row.id}">Delete</button>
@@ -1036,7 +1037,7 @@ async function loadRegistrations() {
     list.querySelectorAll("[data-view-registration]").forEach(button => {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
-            if (row) showSubmissionDetails("Training Registration Details", row, "");
+            if (row) showSubmissionDetails("Training Registration Details", row, row.message || row.request_details || row.details || "");
         };
     });
 
@@ -1056,6 +1057,25 @@ async function loadRegistrations() {
     });
 }
 
+
+function summarizeQuoteQuantities(row) {
+    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
+    const details = parseSubmissionDetails(detailsText);
+    const streetwear = details?.streetwear;
+
+    if (!streetwear || typeof streetwear !== "object") return "—";
+
+    const items = Object.entries(streetwear)
+        .filter(([, quantity]) => {
+            const value = String(quantity ?? "").trim();
+            if (!value) return false;
+            const number = Number(value);
+            return Number.isNaN(number) ? true : number > 0;
+        })
+        .map(([name, quantity]) => `${humanizeProductName(name)}: ${quantity}`);
+
+    return items.length ? items.join(" • ") : "—";
+}
 
 function summarizeQuoteDetails(row) {
     const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
@@ -1112,7 +1132,7 @@ async function loadQuotes() {
 
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Details</th><th>Action</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => {
             let details = row.journey || row.request_details || row.details || row.message || "";
@@ -1129,6 +1149,7 @@ async function loadQuotes() {
                 <td>${escapeHTML(row.whatsapp)}</td>
                 <td>${escapeHTML(row.location)}</td>
                 <td>${escapeHTML(row.service)}</td>
+                <td><span style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
                 <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
                 <td>
     <button type="button" class="secondary" data-view-quote="${row.id}">View Full Details</button>
@@ -1545,6 +1566,110 @@ async function saveSettingValue(key, value) {
     if (result.error) throw result.error;
 }
 
+async function getLogoLibrary() {
+    const result = await db
+        .from("settings")
+        .select("id,setting_key,setting_value,updated_at")
+        .like("setting_key", "site_logo_library_%")
+        .order("updated_at", { ascending: false });
+
+    if (result.error) throw result.error;
+    return result.data || [];
+}
+
+async function renderLogoLibrary() {
+    const library = document.getElementById("logoLibrary");
+    if (!library) return;
+
+    try {
+        const rows = await getLogoLibrary();
+        const current = await getSettingValue("site_logo_data");
+
+        if (!rows.length) {
+            library.innerHTML = `<div class="empty">No saved logo library items yet.</div>`;
+            return;
+        }
+
+        library.innerHTML = `
+            <div class="logo-library-grid">
+                ${rows.map((row, index) => {
+                    const isCurrent = String(current?.setting_value || "") === String(row.setting_value || "");
+                    const safeKey = escapeHTML(row.setting_key || "");
+                    return `
+                        <article class="logo-library-item">
+                            <div class="logo-library-image">
+                                <img src="${escapeHTML(row.setting_value)}" alt="Saved logo ${index + 1}">
+                            </div>
+                            <div class="logo-library-meta">
+                                <strong>${isCurrent ? "Current Public Logo" : "Saved Logo"}</strong>
+                                ${row.updated_at ? `<small>Saved ${escapeHTML(new Date(row.updated_at).toLocaleString())}</small>` : ""}
+                            </div>
+                            <div class="logo-library-actions">
+                                ${isCurrent ? "" : `<button type="button" class="secondary" data-use-logo="${safeKey}">Use This Logo</button>`}
+                                <button type="button" class="danger" data-delete-logo="${safeKey}" data-current-logo="${isCurrent ? "true" : "false"}">Delete</button>
+                            </div>
+                        </article>
+                    `;
+                }).join("")}
+            </div>
+        `;
+
+        library.querySelectorAll("[data-use-logo]").forEach(button => {
+            button.onclick = async () => {
+                try {
+                    const key = button.dataset.useLogo;
+                    const row = rows.find(item => String(item.setting_key) === String(key));
+                    if (!row) return;
+
+                    await saveSettingValue("site_logo_data", String(row.setting_value));
+                    await saveSettingValue("site_logo_removed", "false");
+
+                    const remove = document.getElementById("logoRemove");
+                    if (remove) remove.checked = false;
+
+                    message("Saved logo is now the public logo.", "success");
+                    await loadLogoSettings();
+                } catch (error) {
+                    console.error("USE LOGO ERROR:", error);
+                    message("The selected logo could not be applied: " + (error.message || "Unknown error"), "error");
+                }
+            };
+        });
+
+        library.querySelectorAll("[data-delete-logo]").forEach(button => {
+            button.onclick = async () => {
+                const key = button.dataset.deleteLogo;
+                const isCurrent = button.dataset.currentLogo === "true";
+
+                if (!confirm(isCurrent
+                    ? "Delete this current logo? The public website will show no logo until another logo is selected."
+                    : "Delete this saved logo permanently?")) {
+                    return;
+                }
+
+                try {
+                    const result = await db.from("settings").delete().eq("setting_key", key);
+                    if (result.error) throw result.error;
+
+                    if (isCurrent) {
+                        await db.from("settings").delete().eq("setting_key", "site_logo_data");
+                        await saveSettingValue("site_logo_removed", "true");
+                    }
+
+                    message("Logo deleted.", "success");
+                    await loadLogoSettings();
+                } catch (error) {
+                    console.error("DELETE LOGO ERROR:", error);
+                    message("The logo could not be deleted: " + (error.message || "Unknown error"), "error");
+                }
+            };
+        });
+    } catch (error) {
+        console.error("LOGO LIBRARY ERROR:", error);
+        library.innerHTML = `<div class="empty">Saved logos could not be loaded.</div>`;
+    }
+}
+
 async function loadLogoSettings() {
     const preview = document.getElementById("logoPreview");
     const remove = document.getElementById("logoRemove");
@@ -1553,18 +1678,46 @@ async function loadLogoSettings() {
     try {
         const logo = await getSettingValue("site_logo_data");
         const removed = await getSettingValue("site_logo_removed");
-        remove.checked = String(removed?.setting_value || "").toLowerCase() === "true";
+
+        remove.checked =
+            String(removed?.setting_value || "").toLowerCase() === "true";
 
         if (logo?.setting_value) {
             preview.innerHTML = `
-                <div style="border:2px solid #777;padding:12px;display:inline-block;background:#fff;">
-                    <strong style="display:block;margin-bottom:8px;">Current Saved Logo</strong>
-                    <img src="${escapeHTML(logo.setting_value)}" alt="Current saved logo"
-                         style="max-width:260px;max-height:160px;object-fit:contain;">
+                <div class="current-logo-preview">
+                    <strong>Current Public Logo</strong>
+                    <img src="${escapeHTML(logo.setting_value)}"
+                         alt="Current saved logo">
+                    <button type="button" class="danger" id="deleteCurrentLogo">
+                        Delete Current Logo
+                    </button>
                 </div>`;
         } else {
-            preview.innerHTML = `<p class="small">No replacement logo has been saved. The project logo is currently being used.</p>`;
+            preview.innerHTML = `
+                <div class="current-logo-preview empty-logo">
+                    <strong>No saved public logo</strong>
+                    <span>The original project logo remains available as a project file.</span>
+                </div>`;
         }
+
+        document.getElementById("deleteCurrentLogo")?.addEventListener("click", async () => {
+            if (!confirm("Delete the current public logo? The public website will show no logo until another logo is selected.")) {
+                return;
+            }
+
+            try {
+                await db.from("settings").delete().eq("setting_key", "site_logo_data");
+                await saveSettingValue("site_logo_removed", "true");
+                remove.checked = true;
+                message("Current logo deleted.", "success");
+                await loadLogoSettings();
+            } catch (error) {
+                console.error("DELETE CURRENT LOGO ERROR:", error);
+                message("The current logo could not be deleted.", "error");
+            }
+        });
+
+        await renderLogoLibrary();
     } catch (error) {
         console.warn("Logo settings could not be loaded:", error);
         preview.innerHTML = `<p class="small">Logo settings could not be loaded.</p>`;
@@ -1577,18 +1730,19 @@ function setupLogoForm() {
     const remove = document.getElementById("logoRemove");
     const reset = document.getElementById("logoReset");
     const preview = document.getElementById("logoPreview");
+
     if (!form || !fileInput || !remove) return;
 
     fileInput.addEventListener("change", () => {
         const file = fileInput.files?.[0];
         if (!file || !preview) return;
+
         const reader = new FileReader();
         reader.onload = () => {
             preview.innerHTML = `
-                <div style="border:2px solid #777;padding:12px;display:inline-block;background:#fff;">
-                    <strong style="display:block;margin-bottom:8px;">New Logo Preview</strong>
-                    <img src="${escapeHTML(reader.result)}" alt="New logo preview"
-                         style="max-width:260px;max-height:160px;object-fit:contain;">
+                <div class="current-logo-preview">
+                    <strong>New Logo Preview</strong>
+                    <img src="${escapeHTML(reader.result)}" alt="New logo preview">
                 </div>`;
         };
         reader.readAsDataURL(file);
@@ -1596,6 +1750,7 @@ function setupLogoForm() {
 
     form.addEventListener("submit", async event => {
         event.preventDefault();
+
         try {
             const file = fileInput.files?.[0];
 
@@ -1612,25 +1767,43 @@ function setupLogoForm() {
                     reader.readAsDataURL(file);
                 });
 
-                await saveSettingValue("site_logo_data", String(dataUrl));
+                const value = String(dataUrl);
+                const libraryKey =
+                    "site_logo_library_" +
+                    Date.now() +
+                    "_" +
+                    Math.random().toString(36).slice(2, 8);
+
+                await saveSettingValue(libraryKey, value);
+                await saveSettingValue("site_logo_data", value);
+                await saveSettingValue("site_logo_removed", remove.checked ? "true" : "false");
+            } else {
+                await saveSettingValue(
+                    "site_logo_removed",
+                    remove.checked ? "true" : "false"
+                );
             }
 
-            await saveSettingValue("site_logo_removed", remove.checked ? "true" : "false");
-            message("Logo settings saved. Refresh the public website to see the change.", "success");
-            await loadLogoSettings();
+            message("Logo saved successfully. Refresh the public website to see the change.", "success");
             fileInput.value = "";
+            await loadLogoSettings();
         } catch (error) {
             console.error("LOGO SETTINGS ERROR:", error);
-            message("Logo settings could not be saved: " + (error.message || "Unknown error"), "error");
+            message(
+                "Logo settings could not be saved: " + (error.message || "Unknown error"),
+                "error"
+            );
         }
     });
 
     reset?.addEventListener("click", async () => {
         try {
-            await saveSettingValue("site_logo_removed", "false");
             await db.from("settings").delete().eq("setting_key", "site_logo_data");
+            await saveSettingValue("site_logo_removed", "false");
+
             fileInput.value = "";
             remove.checked = false;
+
             message("The original project logo is restored.", "success");
             await loadLogoSettings();
         } catch (error) {

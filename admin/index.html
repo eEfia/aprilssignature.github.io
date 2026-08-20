@@ -1417,8 +1417,8 @@ WEBSITE SETTINGS
 <div class="form-card">
 <h3 style="color:#008c95;margin-bottom:8px;">Logo Management</h3>
 <p class="small" style="margin-bottom:14px;">
-Upload a new logo, replace the current logo, or remove the logo from the public website.
-The current logo remains in the project as a fallback unless you choose to remove it.
+Add and save new logos, use any saved logo as the public logo, or delete unwanted saved logos.
+You can also remove the current public logo without deleting the original project file.
 </p>
 <form id="logoForm">
 <div class="form-grid">
@@ -1429,14 +1429,17 @@ The current logo remains in the project as a fallback unless you choose to remov
 <div class="form-group">
 <label class="checkbox" style="margin-top:30px;">
 <input type="checkbox" id="logoRemove">
-<span>Remove logo from the public website</span>
+<span>Remove current logo from the public website</span>
 </label>
 </div>
 </div>
 <div id="logoPreview" style="margin:12px 0;"></div>
-<button class="primary" type="submit">Save Logo Settings</button>
+<div class="admin-actions">
+<button class="primary" type="submit">Add &amp; Save Logo</button>
 <button type="button" class="secondary" id="logoReset">Use Project Logo</button>
+</div>
 </form>
+<div id="logoLibrary" class="table-wrap" style="margin-top:18px;"></div>
 </div>
 
 <div class="form-card">
@@ -1457,10 +1460,10 @@ The current logo remains in the project as a fallback unless you choose to remov
 
 
 
-<script src="../js/supabase-config.js"></script>
-<script src="../js/supabase-client.js"></script>
-<script src="admin.js" defer></script>
-<script src="Admin-fixes.js" defer></script>
+<script src="../js/supabase-config.js?v=20260820"></script>
+<script src="../js/supabase-client.js?v=20260820"></script>
+<script src="admin.js?v=20260820" defer></script>
+<script src="Admin-fixes.js?v=20260820" defer></script>
 </body>
 
 <style>
