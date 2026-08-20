@@ -195,7 +195,7 @@ min-width:700px;
 th,
 td{
 padding:12px;
-border-bottom:1px solid #eee;
+border:1.5px solid #8a8a8a;
 text-align:left;
 vertical-align:top;
 font-size:13px;
@@ -238,7 +238,7 @@ margin-bottom:6px;
 .form-group select{
 width:100%;
 padding:11px;
-border:1px solid #ccc;
+border:1.5px solid #8a8a8a;
 border-radius:5px;
 background:white;
 }
@@ -325,7 +325,7 @@ font-size:14px;
 width:100%;
 padding:12px;
 margin-bottom:12px;
-border:1px solid #ccc;
+border:1.5px solid #8a8a8a;
 border-radius:5px;
 }
 
@@ -368,6 +368,33 @@ flex-direction:column;
 
 }
 
+/* Prominent table and form separation lines across the entire admin dashboard. */
+.table-wrap,
+.form-card,
+.card {
+    border: 1.5px solid #8a8a8a;
+}
+.table-wrap table {
+    border: 2px solid #777;
+}
+.table-wrap th,
+.table-wrap td {
+    border: 1.5px solid #8a8a8a !important;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+    border: 1.5px solid #8a8a8a;
+}
+.sidebar {
+    border-right: 2px solid #666;
+}
+@media(max-width:768px) {
+    .sidebar {
+        border-right: 0;
+        border-bottom: 2px solid #666;
+    }
+}
 </style>
 
 </head>
@@ -1385,7 +1412,33 @@ WEBSITE SETTINGS
 ===================================================== -->
 <section id="settings" class="section">
 <h2>Website Settings</h2>
-<p class="intro">Manage basic website settings. These are optional and do not require computer-style content keys.</p>
+<p class="intro">Manage basic website settings and the website logo.</p>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:8px;">Logo Management</h3>
+<p class="small" style="margin-bottom:14px;">
+Upload a new logo, replace the current logo, or remove the logo from the public website.
+The current logo remains in the project as a fallback unless you choose to remove it.
+</p>
+<form id="logoForm">
+<div class="form-grid">
+<div class="form-group">
+<label for="logoFile">Choose New Logo</label>
+<input type="file" id="logoFile" accept="image/*">
+</div>
+<div class="form-group">
+<label class="checkbox" style="margin-top:30px;">
+<input type="checkbox" id="logoRemove">
+<span>Remove logo from the public website</span>
+</label>
+</div>
+</div>
+<div id="logoPreview" style="margin:12px 0;"></div>
+<button class="primary" type="submit">Save Logo Settings</button>
+<button type="button" class="secondary" id="logoReset">Use Project Logo</button>
+</form>
+</div>
+
 <div class="form-card">
 <form id="settingsForm">
 <div class="form-grid">
@@ -1413,7 +1466,7 @@ WEBSITE SETTINGS
 <style>
 .submission-table-wrap{width:100%;overflow-x:auto;margin:20px 0}
 .submission-details-table{width:100%;min-width:560px;border-collapse:collapse;background:#fff}
-.submission-details-table th,.submission-details-table td{padding:12px 14px;border:1px solid #ddd;text-align:left;vertical-align:top}
+.submission-details-table th,.submission-details-table td{padding:12px 14px;border:2px solid #777;text-align:left;vertical-align:top}
 .submission-details-table thead th{background:#008c95;color:#fff}
 .submission-details-table tbody th{width:34%;background:#f7f7f7;color:#075957}
 </style>
@@ -1428,12 +1481,12 @@ WEBSITE SETTINGS
 .submission-modal-body{margin-top:20px;line-height:1.55}
 .submission-uploads{display:flex;flex-wrap:wrap;gap:16px;margin-top:12px}
 .submission-uploads a{display:block;width:180px;text-decoration:none;color:#222}
-.submission-uploads img{width:180px;height:180px;object-fit:contain;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;display:block;margin-bottom:6px}
+.submission-uploads img{width:180px;height:180px;object-fit:contain;background:#f5f5f5;border:2px solid #666666;border-radius:6px;display:block;margin-bottom:6px}
 @media(max-width:700px){.submission-modal{inset:2vh 2vw;padding:18px}.submission-uploads a,.submission-uploads img{width:140px}.submission-uploads img{height:140px}}
 </style>
 
 <style>
-table, th, td { border: 1px solid #cfcfcf !important; }
-th { border-color: #075957 !important; }
-.form-card, .table-wrap, .card { border: 1px solid #c9a24a; }
+table, th, td { border: 2px solid #666666 !important; }
+th { border-color: #075957 !important; border-width: 2px !important; }
+.form-card, .table-wrap, .card { border: 2px solid #666666; }
 </style>

@@ -1025,7 +1025,10 @@ async function loadRegistrations() {
             <td>${escapeHTML(row.phone)}</td>
             <td>${escapeHTML(row.course)}</td>
             <td>${escapeHTML(row.location)}</td>
-            <td><button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button></td>
+            <td>
+    <button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button>
+    <button type="button" class="danger" data-delete-registration="${row.id}">Delete</button>
+</td>
         </tr>`).join("")}
         </tbody></table>
     ` : `<div class="empty">No training registrations received.</div>`;
@@ -1034,6 +1037,21 @@ async function loadRegistrations() {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
             if (row) showSubmissionDetails("Training Registration Details", row, "");
+        };
+    });
+
+    list.querySelectorAll("[data-delete-registration]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this training registration permanently?")) return;
+            const result = await db.from("training_registrations").delete().eq("id", button.dataset.deleteRegistration);
+            if (result.error) {
+                console.error(result.error);
+                message("Training registration could not be deleted.", "error");
+                return;
+            }
+            message("Training registration deleted.", "success");
+            await loadRegistrations();
+            await loadDashboard();
         };
     });
 }
@@ -1112,7 +1130,10 @@ async function loadQuotes() {
                 <td>${escapeHTML(row.location)}</td>
                 <td>${escapeHTML(row.service)}</td>
                 <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
-                <td><button type="button" class="secondary" data-view-quote="${row.id}">View Full Details</button></td>
+                <td>
+    <button type="button" class="secondary" data-view-quote="${row.id}">View Full Details</button>
+    <button type="button" class="danger" data-delete-quote="${row.id}">Delete</button>
+</td>
             </tr>`;
         }).join("")}
         </tbody></table>
@@ -1129,6 +1150,21 @@ async function loadQuotes() {
                 if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
             } catch (_) {}
             showSubmissionDetails("Customer Order / Quote Details", row, details, uploads);
+        };
+    });
+
+    list.querySelectorAll("[data-delete-quote]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this order / quote request permanently?")) return;
+            const result = await db.from("quote_requests").delete().eq("id", button.dataset.deleteQuote);
+            if (result.error) {
+                console.error(result.error);
+                message("Order / quote request could not be deleted.", "error");
+                return;
+            }
+            message("Order / quote request deleted.", "success");
+            await loadQuotes();
+            await loadDashboard();
         };
     });
 }
@@ -1491,6 +1527,121 @@ function setupContactForm() {
     });
 }
 
+async function getSettingValue(key) {
+    const result = await db.from("settings").select("*").eq("setting_key", key).limit(1).maybeSingle();
+    if (result.error) throw result.error;
+    return result.data || null;
+}
+
+async function saveSettingValue(key, value) {
+    const result = await db.from("settings").upsert(
+        {
+            setting_key: key,
+            setting_value: value,
+            updated_at: new Date().toISOString()
+        },
+        { onConflict: "setting_key" }
+    );
+    if (result.error) throw result.error;
+}
+
+async function loadLogoSettings() {
+    const preview = document.getElementById("logoPreview");
+    const remove = document.getElementById("logoRemove");
+    if (!preview || !remove) return;
+
+    try {
+        const logo = await getSettingValue("site_logo_data");
+        const removed = await getSettingValue("site_logo_removed");
+        remove.checked = String(removed?.setting_value || "").toLowerCase() === "true";
+
+        if (logo?.setting_value) {
+            preview.innerHTML = `
+                <div style="border:2px solid #777;padding:12px;display:inline-block;background:#fff;">
+                    <strong style="display:block;margin-bottom:8px;">Current Saved Logo</strong>
+                    <img src="${escapeHTML(logo.setting_value)}" alt="Current saved logo"
+                         style="max-width:260px;max-height:160px;object-fit:contain;">
+                </div>`;
+        } else {
+            preview.innerHTML = `<p class="small">No replacement logo has been saved. The project logo is currently being used.</p>`;
+        }
+    } catch (error) {
+        console.warn("Logo settings could not be loaded:", error);
+        preview.innerHTML = `<p class="small">Logo settings could not be loaded.</p>`;
+    }
+}
+
+function setupLogoForm() {
+    const form = document.getElementById("logoForm");
+    const fileInput = document.getElementById("logoFile");
+    const remove = document.getElementById("logoRemove");
+    const reset = document.getElementById("logoReset");
+    const preview = document.getElementById("logoPreview");
+    if (!form || !fileInput || !remove) return;
+
+    fileInput.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (!file || !preview) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            preview.innerHTML = `
+                <div style="border:2px solid #777;padding:12px;display:inline-block;background:#fff;">
+                    <strong style="display:block;margin-bottom:8px;">New Logo Preview</strong>
+                    <img src="${escapeHTML(reader.result)}" alt="New logo preview"
+                         style="max-width:260px;max-height:160px;object-fit:contain;">
+                </div>`;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        try {
+            const file = fileInput.files?.[0];
+
+            if (file) {
+                if (file.size > 2 * 1024 * 1024) {
+                    message("Please choose a logo image smaller than 2 MB.", "error");
+                    return;
+                }
+
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+
+                await saveSettingValue("site_logo_data", String(dataUrl));
+            }
+
+            await saveSettingValue("site_logo_removed", remove.checked ? "true" : "false");
+            message("Logo settings saved. Refresh the public website to see the change.", "success");
+            await loadLogoSettings();
+            fileInput.value = "";
+        } catch (error) {
+            console.error("LOGO SETTINGS ERROR:", error);
+            message("Logo settings could not be saved: " + (error.message || "Unknown error"), "error");
+        }
+    });
+
+    reset?.addEventListener("click", async () => {
+        try {
+            await saveSettingValue("site_logo_removed", "false");
+            await db.from("settings").delete().eq("setting_key", "site_logo_data");
+            fileInput.value = "";
+            remove.checked = false;
+            message("The original project logo is restored.", "success");
+            await loadLogoSettings();
+        } catch (error) {
+            console.error("LOGO RESET ERROR:", error);
+            message("The project logo could not be restored.", "error");
+        }
+    });
+
+    loadLogoSettings();
+}
+
 async function loadSettings() {
     const rows = await getRows("settings");
     const list = document.getElementById("settingsList");
@@ -1721,6 +1872,7 @@ async function startAdmin() {
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
+    setupLogoForm();
 
     await checkSession();
 }
