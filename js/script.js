@@ -730,7 +730,7 @@ function setupQuoteForm() {
     */
     let extraDetails = document.getElementById("additionalServiceDetails");
 
-    if (!extraDetails) {
+    if (false && !extraDetails) {
         extraDetails = document.createElement("div");
         extraDetails.id = "additionalServiceDetails";
         extraDetails.className = "additional-service-details";
@@ -772,6 +772,7 @@ function setupQuoteForm() {
         ).map(input => input.value);
 
         form.querySelectorAll(".service-size-field").forEach(function (field) {
+            if (field.getAttribute("data-size-service") === "Ladies Wear" || field.getAttribute("data-size-service") === "Kids Wear") { field.style.display = "none"; return; }
             const serviceName = field.getAttribute("data-size-service");
             field.style.display = selected.includes(serviceName) ? "block" : "none";
             /*
@@ -789,6 +790,12 @@ function setupQuoteForm() {
         if (streetwear) {
             streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
         }
+
+        const ladiesWear = document.getElementById("ladiesWearSection");
+        if (ladiesWear) ladiesWear.style.display = selected.includes("Ladies Wear") ? "block" : "none";
+
+        const kidsWear = document.getElementById("kidsWearSection");
+        if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
 
         const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
