@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Order / Request a Quote | Aprils Signature</title>lss
+    <title>Order / Request a Quote | Aprils Signature</title>
 
     <meta
         name="description"
@@ -529,6 +529,20 @@
             Embellishment Services
         </label>
 
+        <label class="check-option">
+            <input
+                type="checkbox"
+                name="services[]"
+                value="Others"
+            >
+            Others
+        </label>
+
+        <div class="form-group hidden-section" id="serviceOtherWrap" style="display:none;">
+            <label for="serviceOther">Specify Your Request</label>
+            <textarea id="serviceOther" name="serviceOther" placeholder="Please specify your request."></textarea>
+        </div>
+
         <a
             class="training-service-link"
             href="training.html"
@@ -540,24 +554,6 @@
 
 </section>
 
-
-<!-- LADIES WEAR -->
-<section class="form-section hidden-section" id="ladiesWearSection" style="display:none;">
-<h2>Ladies Wear Details</h2>
-<div class="form-grid">
-<div class="form-group"><label for="ladiesWearItem">Garment / Item</label><input type="text" id="ladiesWearItem" name="ladiesWearItem" placeholder="e.g. Dress, skirt, blouse, trousers"></div>
-<div class="form-group"><label for="ladiesWearSize">Size / Measurements</label><input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12 (UK) or measurements"></div>
-<div class="form-group"><label for="ladiesWearQuantity">Quantity</label><input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1"></div>
-</div></section>
-
-<!-- KIDS WEAR -->
-<section class="form-section hidden-section" id="kidsWearSection" style="display:none;">
-<h2>Kids Wear Details</h2>
-<div class="form-grid">
-<div class="form-group"><label for="kidsWearItem">Garment / Item</label><input type="text" id="kidsWearItem" name="kidsWearItem" placeholder="e.g. Dress, shirt, shorts, set"></div>
-<div class="form-group"><label for="kidsWearSize">Size / Measurements</label><input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Age 10 / Size or measurements"></div>
-<div class="form-group"><label for="kidsWearQuantity">Quantity</label><input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1"></div>
-</div></section>
 
 <!-- STREETWEAR -->
 
@@ -937,6 +933,40 @@
 </section>
 
 
+<!-- LADIES WEAR -->
+<section class="form-section hidden-section" id="ladiesWearSection">
+    <h2>Ladies Wear Details</h2>
+    <div class="form-group">
+        <label for="ladiesWearQuantity">Quantity</label>
+        <input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1">
+    </div>
+    <div class="form-group">
+        <label for="ladiesWearSize">Size / Measurements</label>
+        <textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Enter size or measurements."></textarea>
+    </div>
+    <div class="form-group">
+        <label for="ladiesWearDetails">Details / Style Request</label>
+        <textarea id="ladiesWearDetails" name="ladiesWearDetails" placeholder="Describe the ladies wear you want."></textarea>
+    </div>
+</section>
+
+<!-- KIDS WEAR -->
+<section class="form-section hidden-section" id="kidsWearSection">
+    <h2>Kids Wear Details</h2>
+    <div class="form-group">
+        <label for="kidsWearQuantity">Quantity</label>
+        <input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1">
+    </div>
+    <div class="form-group">
+        <label for="kidsWearSize">Age / Size / Measurements</label>
+        <textarea id="kidsWearSize" name="kidsWearSize" placeholder="Enter age, size or measurements (for example: Age 12)."></textarea>
+    </div>
+    <div class="form-group">
+        <label for="kidsWearDetails">Details / Style Request</label>
+        <textarea id="kidsWearDetails" name="kidsWearDetails" placeholder="Describe the kids wear you want."></textarea>
+    </div>
+</section>
+
 <!-- EMBELLISHMENT -->
 
 <section
@@ -948,21 +978,81 @@
         Embellishment Services Selection
     </h2>
 
+    <div class="form-group">
+        <label for="embellishmentQuantity">Quantity</label>
+        <input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" value="1">
+    </div>
+
+    <div class="form-group">
+        <label for="embellishmentSize">Size / Measurements</label>
+        <textarea id="embellishmentSize" name="embellishmentSize" placeholder="Enter size or measurements where applicable."></textarea>
+    </div>
+
     <div class="product-options">
 
-        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Rhinestone Embellishment"> Rhinestone Embellishment</label><input type="number" name="rhinestoneQuantity" min="1" value="1" aria-label="Rhinestone Embellishment quantity"></div>
+        <label class="check-option">
+
+            <input
+                type="checkbox"
+                name="embellishment[]"
+                value="Rhinestone Embellishment"
+            >
+
+            Rhinestone Embellishment
+
+        </label>
 
 
-        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Screen Printing"> Screen Printing</label><input type="number" name="screenPrintingQuantity" min="1" value="1" aria-label="Screen Printing quantity"></div>
+        <label class="check-option">
+
+            <input
+                type="checkbox"
+                name="embellishment[]"
+                value="Screen Printing"
+            >
+
+            Screen Printing
+
+        </label>
 
 
-        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Fabric Painting"> Fabric Painting</label><input type="number" name="fabricPaintingQuantity" min="1" value="1" aria-label="Fabric Painting quantity"></div>
+        <label class="check-option">
+
+            <input
+                type="checkbox"
+                name="embellishment[]"
+                value="Fabric Painting"
+            >
+
+            Fabric Painting
+
+        </label>
 
 
-        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Glitter Works"> Glitter Works</label><input type="number" name="glitterWorksQuantity" min="1" value="1" aria-label="Glitter Works quantity"></div>
+        <label class="check-option">
+
+            <input
+                type="checkbox"
+                name="embellishment[]"
+                value="Glitter Works"
+            >
+
+            Glitter Works
+
+        </label>
 
 
-        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Others"> Others</label><input type="number" name="embellishmentOtherQuantity" min="1" value="1" aria-label="Others quantity"></div>
+        <label class="check-option">
+
+            <input
+                type="checkbox"
+                name="embellishment[]"
+                value="Others"
+            >
+
+            Others
+
+        </label>
 
     </div>
 
@@ -1281,11 +1371,11 @@ All rights reserved.
 
 
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260821-3"></script>
-<script src="js/supabase-client.js?v=20260821-3"></script>
+<script src="js/supabase-config.js?v=20260822"></script>
+<script src="js/supabase-client.js?v=20260822"></script>
 
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script src="js/form-fixes.js?v=20260821-3" defer></script> <script src="js/script.js?v=20260821-3" defer></script>
+<script src="js/form-fixes.js?v=20260822" defer></script> <script src="js/script.js?v=20260822" defer></script>
 
 </body>
 
