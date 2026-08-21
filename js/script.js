@@ -725,12 +725,37 @@ function setupQuoteForm() {
     }
 
     /*
+       Quantity fields for non-streetwear services. Streetwear already has
+       individual quantity inputs. Ladies Wear, Kids Wear and Embellishment
+       Services each get one quantity field so every selected service can be
+       quoted correctly.
+    */
+    let quantityContainer = document.getElementById("serviceQuantityContainer");
+    if (!quantityContainer) {
+        quantityContainer = document.createElement("div");
+        quantityContainer.id = "serviceQuantityContainer";
+        quantityContainer.className = "service-quantity-container";
+        quantityContainer.innerHTML = `
+            <h3 class="service-size-heading">Quantity</h3>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Ladies Wear" style="display:none">
+                <div class="form-group"><label for="ladiesWearQuantity">Ladies Wear — Quantity</label><input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" step="1" value="1"></div>
+            </div>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Kids Wear" style="display:none">
+                <div class="form-group"><label for="kidsWearQuantity">Kids Wear — Quantity</label><input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" step="1" value="1"></div>
+            </div>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Embellishment Services" style="display:none">
+                <div class="form-group"><label for="embellishmentQuantity">Embellishment Services — Quantity</label><input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" step="1" value="1"></div>
+            </div>`;
+        serviceSection.appendChild(quantityContainer);
+    }
+
+    /*
        Extra detail fields for services that do not have a dedicated
        product-selection panel.
     */
     let extraDetails = document.getElementById("additionalServiceDetails");
 
-    if (false && !extraDetails) {
+    if (!extraDetails) {
         extraDetails = document.createElement("div");
         extraDetails.id = "additionalServiceDetails";
         extraDetails.className = "additional-service-details";
@@ -772,7 +797,6 @@ function setupQuoteForm() {
         ).map(input => input.value);
 
         form.querySelectorAll(".service-size-field").forEach(function (field) {
-            if (field.getAttribute("data-size-service") === "Ladies Wear" || field.getAttribute("data-size-service") === "Kids Wear") { field.style.display = "none"; return; }
             const serviceName = field.getAttribute("data-size-service");
             field.style.display = selected.includes(serviceName) ? "block" : "none";
             /*
@@ -786,6 +810,11 @@ function setupQuoteForm() {
             field.style.display = selected.includes(serviceName) ? "block" : "none";
         });
 
+        form.querySelectorAll(".service-quantity-field").forEach(function (field) {
+            const serviceName = field.getAttribute("data-quantity-service");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
+        });
+
         const streetwear = document.getElementById("streetwearSection");
         if (streetwear) {
             streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
@@ -796,6 +825,15 @@ function setupQuoteForm() {
 
         const kidsWear = document.getElementById("kidsWearSection");
         if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
+
+        const serviceOtherWrap = document.getElementById("serviceOtherWrap");
+        const serviceOtherInput = document.getElementById("serviceOther");
+        const otherServiceSelected = selected.includes("Others");
+        if (serviceOtherWrap) serviceOtherWrap.style.display = otherServiceSelected ? "block" : "none";
+        if (serviceOtherInput) {
+            serviceOtherInput.required = otherServiceSelected;
+            if (!otherServiceSelected) serviceOtherInput.value = "";
+        }
 
         const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
@@ -843,7 +881,7 @@ async function loadPublicRows(table) {
         .from(table)
         .select("*");
     if (result.error) {
-        console.warn("Public content table unavailable:", table, result.error);
+        console.error("PUBLIC SUPABASE READ FAILED:", table, result.error);
         return [];
     }
     return (result.data || []).filter(row => row.active !== false);
@@ -952,9 +990,16 @@ async function loadPublicGallery() {
         groups[category].push(row);
     });
 
+    const collectionOrder = new Map();
+    try {
+        const collections = await loadPublicRows("gallery_collections");
+        collections.forEach(row => collectionOrder.set(String(row.name || ""), Number(row.display_order ?? 9999)));
+    } catch (_) {}
+
     const fragment = document.createDocumentFragment();
 
-    Object.keys(groups).sort().forEach(category => {
+    Object.keys(groups).sort((a,b) => (collectionOrder.get(a) ?? 9999) - (collectionOrder.get(b) ?? 9999) || a.localeCompare(b)).forEach(category => {
+        groups[category].sort((a,b) => Number(a.display_order ?? 9999) - Number(b.display_order ?? 9999) || String(a.title || "").localeCompare(String(b.title || "")));
         const section = document.createElement("section");
         section.className = "full-gallery";
         section.innerHTML = `
