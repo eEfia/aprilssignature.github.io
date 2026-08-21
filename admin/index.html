@@ -395,6 +395,53 @@ flex-direction:column;
         border-bottom: 2px solid #666;
     }
 }
+
+
+/* Final admin spacing and clarity corrections. */
+.section .form-card,
+.section .table-wrap,
+.section .card {
+    padding-left: 20px;
+    padding-right: 20px;
+}
+.table-wrap {
+    margin-left: 2px;
+    margin-right: 2px;
+}
+.table-wrap th,
+.table-wrap td {
+    padding-left: 14px;
+    padding-right: 14px;
+}
+.form-group input,
+.form-group textarea,
+.form-group select {
+    padding-left: 13px;
+    padding-right: 13px;
+}
+.admin-details-preview {
+    display: block;
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.submission-modal-header {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:15px;
+    margin-bottom:15px;
+}
+.submission-modal-header h2 {
+    margin:0;
+}
+@media(max-width:700px) {
+    .submission-modal-header {
+        flex-direction:column;
+        align-items:flex-start;
+    }
+}
 </style>
 
 </head>
@@ -530,6 +577,18 @@ Training Registrations
 data-section="orders"
 >
 Order / Quote Requests
+</button>
+
+<button
+data-section="invoice"
+>
+Invoice Pricing
+</button>
+
+<button
+data-section="links"
+>
+Website Links
 </button>
 <button
 data-section="testimonials"
@@ -1369,7 +1428,154 @@ class="table-wrap"
 <!-- =====================================================
 WEBSITE CONTENT
 ===================================================== -->
-<section id="content" class="section"><h2>Website Content</h2><p class="intro">Edit website wording without changing the HTML files. Technical keys stay behind the scenes.</p><div class="form-card"><form id="contentForm"><input type="hidden" id="contentId"><div class="form-group"><label>Content Name</label><input id="contentKey" required placeholder="Example: Homepage Hero Heading"></div><div class="form-group"><label>Content</label><textarea id="contentValue" required></textarea></div><button class="primary" type="submit">Save Website Content</button><button type="button" class="secondary" id="contentCancel">Cancel</button></form></div><div id="contentList" class="table-wrap"></div></section>
+<section id="content" class="section">
+<h2>Website Content</h2>
+<p class="intro">Add, edit, hide or remove managed website content. New content can be added to any public page without editing the HTML.</p><div class="toolbar"><button type="button" class="primary" id="newContentButton">+ Add New Content</button></div>
+
+<div class="form-card">
+<form id="contentForm">
+<input type="hidden" id="contentId">
+<input type="hidden" id="contentStorageKey">
+
+<div class="form-grid">
+<div class="form-group">
+<label for="contentPage">Page</label>
+<select id="contentPage" required>
+<option value="home">Home</option>
+<option value="about">About</option>
+<option value="services">Services</option>
+<option value="gallery">Gallery</option>
+<option value="training">Training</option>
+<option value="quotes">Order / Request a Quote</option>
+<option value="policies">Policies &amp; Terms</option>
+<option value="contact">Contact</option>
+<option value="all">All Public Pages</option>
+</select>
+</div>
+
+<div class="form-group">
+<label for="contentType">Content Type</label>
+<select id="contentType" required>
+<option value="heading">Heading</option>
+<option value="paragraph">Paragraph</option>
+<option value="notice">Notice / Information Box</option>
+<option value="button">Button / Link</option>
+</select>
+</div>
+
+<div class="form-group">
+<label for="contentKey">Content Name</label>
+<input id="contentKey" required placeholder="Example: New seasonal announcement">
+</div>
+</div>
+
+<div class="form-group">
+<label for="contentValue">Content</label>
+<textarea id="contentValue" required placeholder="Type the wording you want displayed on the website."></textarea>
+</div>
+
+<label class="checkbox">
+<input type="checkbox" id="contentActive" checked>
+Show this content on the website
+</label>
+
+<br>
+<button class="primary" type="submit">Save Website Content</button>
+<button type="button" class="secondary" id="contentCancel">Cancel</button>
+</form>
+</div>
+
+<div id="contentList" class="table-wrap"></div>
+</section>
+
+<!-- =====================================================
+INVOICE PRICING
+===================================================== -->
+<section id="invoice" class="section">
+<h2>Invoice Pricing</h2>
+<p class="intro">Separate internal pricing for invoices. These prices do not change the public Services, Training or Gallery prices.</p><div class="toolbar"><button type="button" class="primary" id="newInvoiceButton">+ Add Invoice Price</button></div>
+
+<div class="notice">
+<strong>Internal use only.</strong> Invoice prices are stored separately from public website pricing and are not displayed on the public website.
+</div>
+
+<div class="form-card">
+<form id="invoiceForm">
+<input type="hidden" id="invoiceId">
+<div class="form-grid">
+<div class="form-group">
+<label for="invoiceItem">Item / Service</label>
+<input id="invoiceItem" required placeholder="Example: Custom Hoodie">
+</div>
+<div class="form-group">
+<label for="invoiceCategory">Category</label>
+<input id="invoiceCategory" placeholder="Streetwear, Ladies Wear, etc.">
+</div>
+<div class="form-group">
+<label for="invoicePrice">Invoice Price (GHS)</label>
+<input id="invoicePrice" type="number" min="0" step="0.01" required placeholder="0.00">
+</div>
+</div>
+<div class="form-group">
+<label for="invoiceNotes">Notes</label>
+<textarea id="invoiceNotes" placeholder="Optional internal invoicing note"></textarea>
+</div>
+<label class="checkbox">
+<input type="checkbox" id="invoiceActive" checked>
+Active
+</label>
+<br>
+<button class="primary" type="submit">Save Invoice Price</button>
+<button type="button" class="secondary" id="invoiceCancel">Cancel</button>
+</form>
+</div>
+
+<div id="invoiceList" class="table-wrap"></div>
+</section>
+
+<!-- =====================================================
+WEBSITE LINKS
+===================================================== -->
+<section id="links" class="section">
+<h2>Website Links</h2>
+<p class="intro">Manage the public navigation links. You can add future links, edit existing links, change their order, or remove links you no longer want.</p><div class="toolbar"><button type="button" class="primary" id="newLinkButton">+ Add New Link</button></div>
+
+<div class="form-card">
+<form id="linkForm">
+<input type="hidden" id="linkId">
+<div class="form-grid">
+<div class="form-group">
+<label for="linkLabel">Link Name</label>
+<input id="linkLabel" required placeholder="Example: Blog">
+</div>
+<div class="form-group">
+<label for="linkUrl">Link URL</label>
+<input id="linkUrl" required placeholder="blog.html or https://example.com">
+</div>
+<div class="form-group">
+<label for="linkOrder">Display Order</label>
+<input id="linkOrder" type="number" min="1" step="1" value="1">
+</div>
+</div>
+<div class="form-group">
+<label for="linkLocation">Location</label>
+<select id="linkLocation">
+<option value="header">Header Navigation</option>
+<option value="footer">Footer Links</option>
+</select>
+</div>
+<label class="checkbox">
+<input type="checkbox" id="linkActive" checked>
+Active
+</label>
+<br>
+<button class="primary" type="submit">Save Website Link</button>
+<button type="button" class="secondary" id="linkCancel">Cancel</button>
+</form>
+</div>
+
+<div id="linkList" class="table-wrap"></div>
+</section>
 
 <!-- =====================================================
 POLICIES & TERMS

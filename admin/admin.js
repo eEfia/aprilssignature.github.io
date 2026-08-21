@@ -179,6 +179,8 @@ async function loadSection(id) {
         if (id === "training") await loadTraining();
         if (id === "registrations") await loadRegistrations();
         if (id === "orders") await loadQuotes();
+        if (id === "invoice") await loadInvoicePricing();
+        if (id === "links") await loadWebsiteLinks();
         if (id === "testimonials") await loadTestimonials();
         if (id === "faq") await loadFAQs();
         if (id === "policies") await loadPolicies();
@@ -922,6 +924,56 @@ function buildQuoteDetailRows(row, details) {
     return rows;
 }
 
+
+function exportSubmissionDetails(title, row = {}, detailsText = "", uploads = []) {
+    const details = parseSubmissionDetails(detailsText);
+    const lines = [];
+    lines.push(title);
+    lines.push("=".repeat(title.length));
+    lines.push("");
+
+    Object.entries(row || {})
+        .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
+        .forEach(([key, value]) => {
+            if (value === undefined || value === null || String(value).trim() === "") return;
+            lines.push(`${formatDetailLabel(key)}: ${key === "created_at" && value ? new Date(value).toLocaleString() : value}`);
+        });
+
+    if (detailsText) {
+        lines.push("");
+        lines.push("Additional Details");
+        lines.push("------------------");
+        Object.entries(details || {})
+            .filter(([key]) => key !== "uploads" && valueIsExportable(details[key]))
+            .forEach(([key, value]) => {
+                lines.push(`${formatDetailLabel(key)}: ${typeof value === "object" ? JSON.stringify(value, null, 2) : value}`);
+            });
+    }
+
+    if (uploads && uploads.length) {
+        lines.push("");
+        lines.push("Attached Images");
+        uploads.forEach(upload => {
+            const url = upload?.url || upload?.path || upload;
+            if (url) lines.push(String(url));
+        });
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${contentSlug(row?.full_name || "submission")}-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+}
+
+function valueIsExportable(value) {
+    return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
 function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     let modal = document.getElementById("submissionDetailsModal");
     let backdrop = document.getElementById("submissionDetailsBackdrop");
@@ -993,10 +1045,17 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
         : (isQuote ? `<p class="submission-no-uploads"><strong>Attached Images:</strong> None</p>` : "");
 
     body.innerHTML = `
-        <h2>${escapeHTML(title)}</h2>
+        <div class="submission-modal-header">
+            <h2>${escapeHTML(title)}</h2>
+            <button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button>
+        </div>
         <div class="submission-fields">${fields || '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>'}</div>
         ${uploadHtml}
     `;
+
+    document.getElementById("exportSubmissionDetails")?.addEventListener("click", () => {
+        exportSubmissionDetails(title, row || {}, detailsText, uploads || []);
+    });
 
     backdrop.style.display = "block";
     modal.classList.add("open");
@@ -1125,46 +1184,83 @@ function summarizeQuoteDetails(row) {
     return parts.join(" | ");
 }
 
+
+function quoteDuplicateSignature(row) {
+    return [
+        row.full_name,
+        row.phone,
+        row.whatsapp,
+        row.location,
+        row.email,
+        row.service,
+        row.journey || row.request_details || row.details || row.message || ""
+    ].map(v => String(v ?? "").trim().toLowerCase()).join("\u001f");
+}
+
+function groupDuplicateQuotes(rows) {
+    const groups = new Map();
+
+    rows.forEach(row => {
+        const signature = quoteDuplicateSignature(row);
+        if (!groups.has(signature)) {
+            groups.set(signature, { ...row, _ids: [row.id], _duplicateCount: 1 });
+        } else {
+            const group = groups.get(signature);
+            group._ids.push(row.id);
+            group._duplicateCount += 1;
+        }
+    });
+
+    return Array.from(groups.values());
+}
+
 async function loadQuotes() {
-    const rows = await getRows("quote_requests");
+    const rawRows = await getRows("quote_requests");
+    const rows = groupDuplicateQuotes(rawRows);
     const list = document.getElementById("quoteList");
     if (!list) return;
 
     list.innerHTML = rows.length ? `
-        <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Action</th>
-        </tr></thead><tbody>
-        ${rows.map(row => {
-            let details = row.journey || row.request_details || row.details || row.message || "";
-            let uploads = [];
-            try {
-                const parsed = parseSubmissionDetails(details);
-                if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
-            } catch (_) {}
-            const preview = summarizeQuoteDetails(row);
-            return `<tr>
-                <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
-                <td>${escapeHTML(row.full_name)}</td>
-                <td>${escapeHTML(row.phone)}</td>
-                <td>${escapeHTML(row.whatsapp)}</td>
-                <td>${escapeHTML(row.location)}</td>
-                <td>${escapeHTML(row.service)}</td>
-                <td><span style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
-                <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
-                <td>
-    <button type="button" class="secondary" data-view-quote="${row.id}">View Full Details</button>
-    <button type="button" class="danger" data-delete-quote="${row.id}">Delete</button>
-</td>
-            </tr>`;
-        }).join("")}
-        </tbody></table>
+        <table>
+            <thead><tr>
+                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Action</th>
+            </tr></thead>
+            <tbody>
+            ${rows.map(row => {
+                let details = row.journey || row.request_details || row.details || row.message || "";
+                let uploads = [];
+                try {
+                    const parsed = parseSubmissionDetails(details);
+                    if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
+                } catch (_) {}
+                const preview = summarizeQuoteDetails(row);
+                const duplicateNote = row._duplicateCount > 1
+                    ? ` <small style="display:block;margin-top:5px;color:#b00020;font-weight:bold;">${row._duplicateCount} identical records grouped as one request</small>`
+                    : "";
+                return `<tr>
+                    <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+                    <td>${escapeHTML(row.full_name)}</td>
+                    <td>${escapeHTML(row.phone)}</td>
+                    <td>${escapeHTML(row.whatsapp)}</td>
+                    <td>${escapeHTML(row.location)}</td>
+                    <td>${escapeHTML(row.service)}${duplicateNote}</td>
+                    <td><span style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
+                    <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
+                    <td>
+                        <button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button>
+                        <button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button>
+                    </td>
+                </tr>`;
+            }).join("")}
+            </tbody>
+        </table>
     ` : `<div class="empty">No quote requests received.</div>`;
 
     list.querySelectorAll("[data-view-quote]").forEach(button => {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewQuote));
             if (!row) return;
-            let details = row.journey || row.request_details || row.details || row.message || "";
+            const details = row.journey || row.request_details || row.details || row.message || "";
             let uploads = [];
             try {
                 const parsed = parseSubmissionDetails(details);
@@ -1176,16 +1272,25 @@ async function loadQuotes() {
 
     list.querySelectorAll("[data-delete-quote]").forEach(button => {
         button.onclick = async () => {
-            if (!confirm("Delete this order / quote request permanently?")) return;
-            const result = await db.from("quote_requests").delete().eq("id", button.dataset.deleteQuote);
-            if (result.error) {
-                console.error(result.error);
-                message("Order / quote request could not be deleted.", "error");
-                return;
+            const row = rows.find(item => String(item.id) === String(button.dataset.deleteQuote));
+            if (!row) return;
+            const count = row._ids?.length || 1;
+            if (!confirm(count > 1
+                ? `Delete this grouped request and all ${count} identical records permanently?`
+                : "Delete this order / quote request permanently?")) return;
+
+            try {
+                for (const id of row._ids || [row.id]) {
+                    const result = await db.from("quote_requests").delete().eq("id", id);
+                    if (result.error) throw result.error;
+                }
+                message(count > 1 ? "Grouped duplicate quote records deleted." : "Order / quote request deleted.", "success");
+                await loadQuotes();
+                await loadDashboard();
+            } catch (error) {
+                console.error(error);
+                message("Order / quote request could not be deleted: " + error.message, "error");
             }
-            message("Order / quote request deleted.", "success");
-            await loadQuotes();
-            await loadDashboard();
         };
     });
 }
@@ -1488,13 +1593,471 @@ function setupPolicyForm() {
     });
 }
 
-async function loadContent() {
- const rows=await getRows("site_content"),list=document.getElementById("contentList"); if(!list)return;
- list.innerHTML=rows.length?`<table><thead><tr><th>Content Name</th><th>Current Content</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHTML(r.content_key||"")}</td><td><pre style="white-space:pre-wrap;max-width:650px;font-family:inherit">${escapeHTML(r.content_value||"")}</pre></td><td><button type="button" class="secondary" data-edit-content="${r.id}">Edit</button> <button type="button" class="danger" data-delete-content="${r.id}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No editable website content has been added yet.</div>`;
- list.querySelectorAll("[data-edit-content]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editContent));if(!r)return;document.getElementById("contentId").value=r.id||"";document.getElementById("contentKey").value=r.content_key||"";document.getElementById("contentValue").value=r.content_value||"";document.getElementById("contentForm").scrollIntoView({behavior:"smooth",block:"start"});});
- list.querySelectorAll("[data-delete-content]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this website content item?"))return;const r=await db.from("site_content").delete().eq("id",b.dataset.deleteContent);if(r.error){message("Website content could not be deleted.","error");return;}message("Website content deleted.","success");await loadContent();});
+
+function contentSlug(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 80);
 }
-function setupContentForm(){const f=document.getElementById("contentForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";f.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("contentId").value.trim(),key=document.getElementById("contentKey").value.trim(),value=document.getElementById("contentValue").value.trim();if(!key||!value)return;try{const r=id?await db.from("site_content").update({content_key:key,content_value:value,updated_at:new Date().toISOString()}).eq("id",id):await db.from("site_content").insert({content_key:key,content_value:value});if(r.error)throw r.error;f.reset();document.getElementById("contentId").value="";message("Website content saved.","success");await loadContent();}catch(err){console.error(err);message("Website content could not be saved: "+err.message,"error");}});document.getElementById("contentCancel")?.addEventListener("click",()=>{f.reset();document.getElementById("contentId").value="";});}
+
+function parseDynamicContentKey(key) {
+    const parts = String(key || "").split("::");
+    if (parts[0] !== "dynamic") return null;
+    return {
+        page: parts[1] || "all",
+        type: parts[2] || "paragraph",
+        name: parts.slice(3).join("::").replace(/_/g, " ") || "Website Content"
+    };
+}
+
+async function getHiddenContentKeys() {
+    try {
+        const result = await db.from("settings").select("setting_key,setting_value").like("setting_key", "hidden_content_%");
+        if (result.error) return new Set();
+        return new Set((result.data || [])
+            .filter(r => String(r.setting_value).toLowerCase() === "true")
+            .map(r => String(r.setting_key).replace(/^hidden_content_/, "")));
+    } catch (_) {
+        return new Set();
+    }
+}
+
+async function setHiddenContentKey(key, hidden) {
+    const storage = contentSlug(key);
+    if (!storage) return;
+    if (hidden) {
+        await db.from("settings").upsert({
+            setting_key: "hidden_content_" + storage,
+            setting_value: "true",
+            updated_at: new Date().toISOString()
+        }, { onConflict: "setting_key" });
+    } else {
+        await db.from("settings").delete().eq("setting_key", "hidden_content_" + storage);
+    }
+}
+
+async function loadContent() {
+    const rows = await getRows("site_content");
+    const list = document.getElementById("contentList");
+    if (!list) return;
+
+    const hidden = await getHiddenContentKeys();
+
+    list.innerHTML = rows.length ? `
+        <table>
+            <thead>
+                <tr><th>Page</th><th>Type</th><th>Content Name</th><th>Current Content</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                ${rows.map(r => {
+                    const dynamic = parseDynamicContentKey(r.content_key);
+                    const page = dynamic ? dynamic.page : "managed";
+                    const type = dynamic ? dynamic.type : "existing";
+                    const isHidden = hidden.has(contentSlug(r.content_key));
+                    return `
+                    <tr>
+                        <td>${escapeHTML(page)}</td>
+                        <td>${escapeHTML(type)}</td>
+                        <td>${escapeHTML(dynamic?.name || r.content_key || "")}</td>
+                        <td><pre style="white-space:pre-wrap;max-width:600px;font-family:inherit">${escapeHTML(r.content_value || "")}</pre></td>
+                        <td>${isHidden ? "Hidden" : "Visible"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-content="${r.id}">Edit</button>
+                            <button type="button" class="secondary" data-toggle-content="${r.id}" data-hidden="${isHidden ? "true" : "false"}">${isHidden ? "Show" : "Hide"}</button>
+                            <button type="button" class="danger" data-delete-content="${r.id}">Remove</button>
+                        </td>
+                    </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No website content has been added yet. Use the form above to add the first item.</div>`;
+
+    list.querySelectorAll("[data-edit-content]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editContent));
+            if (!row) return;
+
+            const dynamic = parseDynamicContentKey(row.content_key);
+            document.getElementById("contentId").value = row.id || "";
+            document.getElementById("contentStorageKey").value = row.content_key || "";
+            document.getElementById("contentKey").value = dynamic?.name || row.content_key || "";
+            document.getElementById("contentValue").value = row.content_value || "";
+            document.getElementById("contentPage").value = dynamic?.page || "all";
+            document.getElementById("contentType").value = dynamic?.type || "paragraph";
+            document.getElementById("contentActive").checked = !hidden.has(contentSlug(row.content_key));
+            document.getElementById("contentForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-toggle-content]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.toggleContent));
+            if (!row) return;
+            const currentlyHidden = button.dataset.hidden === "true";
+            try {
+                await setHiddenContentKey(row.content_key, !currentlyHidden);
+                message(currentlyHidden ? "Website content is visible again." : "Website content hidden from the public website.", "success");
+                await loadContent();
+            } catch (error) {
+                message("Website content visibility could not be changed: " + error.message, "error");
+            }
+        };
+    });
+
+    list.querySelectorAll("[data-delete-content]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.deleteContent));
+            if (!row || !confirm("Remove this website content item from the public website and the admin list?")) return;
+
+            try {
+                await setHiddenContentKey(row.content_key, true);
+                const result = await db.from("site_content").delete().eq("id", button.dataset.deleteContent);
+                if (result.error) throw result.error;
+                message("Website content removed.", "success");
+                await loadContent();
+            } catch (error) {
+                message("Website content could not be removed: " + error.message, "error");
+            }
+        };
+    });
+}
+
+function setupContentForm() {
+    const form = document.getElementById("contentForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("contentId").value.trim();
+        const oldStorageKey = document.getElementById("contentStorageKey").value.trim();
+        const name = document.getElementById("contentKey").value.trim();
+        const value = document.getElementById("contentValue").value.trim();
+        const page = document.getElementById("contentPage").value;
+        const type = document.getElementById("contentType").value;
+        const active = document.getElementById("contentActive").checked;
+
+        if (!name || !value) {
+            message("Please enter a content name and content.", "error");
+            return;
+        }
+
+        const storageKey = oldStorageKey && !oldStorageKey.startsWith("dynamic::")
+            ? oldStorageKey
+            : `dynamic::${page}::${type}::${contentSlug(name)}`;
+
+        try {
+            const payload = {
+                content_key: storageKey,
+                content_value: value,
+                updated_at: new Date().toISOString()
+            };
+
+            const result = id
+                ? await db.from("site_content").update(payload).eq("id", id)
+                : await db.from("site_content").insert(payload);
+
+            if (result.error) throw result.error;
+
+            if (oldStorageKey && oldStorageKey !== storageKey) {
+                await setHiddenContentKey(oldStorageKey, false);
+            }
+            await setHiddenContentKey(storageKey, !active);
+
+            form.reset();
+            document.getElementById("contentId").value = "";
+            document.getElementById("contentStorageKey").value = "";
+            document.getElementById("contentActive").checked = true;
+            document.getElementById("contentPage").value = "home";
+            document.getElementById("contentType").value = "paragraph";
+
+            message("Website content saved. Changes are connected to the public website.", "success");
+            await loadContent();
+        } catch (error) {
+            console.error(error);
+            message("Website content could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("newContentButton")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("contentId").value = "";
+        document.getElementById("contentStorageKey").value = "";
+        document.getElementById("contentActive").checked = true;
+        document.getElementById("contentPage").value = "home";
+        document.getElementById("contentType").value = "paragraph";
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("contentCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("contentId").value = "";
+        document.getElementById("contentStorageKey").value = "";
+        document.getElementById("contentActive").checked = true;
+    });
+}
+
+/* =========================================================
+   INVOICE PRICING — INTERNAL ONLY
+   Stored in the existing settings table with invoice_price_
+   keys, so it remains separate from public pricing.
+========================================================= */
+
+function invoiceStorageKey(id) {
+    return "invoice_price_" + contentSlug(id);
+}
+
+async function loadInvoicePricing() {
+    const rows = await getRows("settings");
+    const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_"));
+    const list = document.getElementById("invoiceList");
+    if (!list) return;
+
+    list.innerHTML = invoices.length ? `
+        <table>
+            <thead><tr><th>Item / Service</th><th>Category</th><th>Invoice Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                ${invoices.map(r => {
+                    let item = { name: "", category: "", price: "", notes: "", active: true };
+                    try { item = { ...item, ...JSON.parse(r.setting_value || "{}") }; } catch (_) {}
+                    return `<tr>
+                        <td>${escapeHTML(item.name)}</td>
+                        <td>${escapeHTML(item.category)}</td>
+                        <td>GHS ${Number(item.price || 0).toFixed(2)}</td>
+                        <td>${escapeHTML(item.notes)}</td>
+                        <td>${item.active === false ? "Inactive" : "Active"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-invoice="${escapeHTML(r.id)}">Edit</button>
+                            <button type="button" class="danger" data-delete-invoice="${escapeHTML(r.id)}">Delete</button>
+                        </td>
+                    </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No internal invoice prices have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-invoice]").forEach(button => {
+        button.onclick = () => {
+            const row = invoices.find(r => String(r.id) === String(button.dataset.editInvoice));
+            if (!row) return;
+            let item = {};
+            try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+            document.getElementById("invoiceId").value = row.id || "";
+            document.getElementById("invoiceItem").value = item.name || "";
+            document.getElementById("invoiceCategory").value = item.category || "";
+            document.getElementById("invoicePrice").value = item.price ?? "";
+            document.getElementById("invoiceNotes").value = item.notes || "";
+            document.getElementById("invoiceActive").checked = item.active !== false;
+            document.getElementById("invoiceForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-invoice]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this internal invoice price?")) return;
+            const result = await db.from("settings").delete().eq("id", button.dataset.deleteInvoice);
+            if (result.error) {
+                message("Invoice price could not be deleted.", "error");
+                return;
+            }
+            message("Invoice price deleted.", "success");
+            await loadInvoicePricing();
+        };
+    });
+}
+
+function setupInvoiceForm() {
+    const form = document.getElementById("invoiceForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("invoiceId").value.trim();
+        const name = document.getElementById("invoiceItem").value.trim();
+        const category = document.getElementById("invoiceCategory").value.trim();
+        const price = Number(document.getElementById("invoicePrice").value);
+        const notes = document.getElementById("invoiceNotes").value.trim();
+        const active = document.getElementById("invoiceActive").checked;
+
+        if (!name || Number.isNaN(price)) {
+            message("Please enter an item/service and a valid price.", "error");
+            return;
+        }
+
+        const payload = {
+            setting_key: invoiceStorageKey(name),
+            setting_value: JSON.stringify({ name, category, price, notes, active }),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            let result;
+            if (id) {
+                result = await db.from("settings").update(payload).eq("id", id);
+            } else {
+                result = await db.from("settings").upsert(payload, { onConflict: "setting_key" });
+            }
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("invoiceId").value = "";
+            document.getElementById("invoiceActive").checked = true;
+            message("Invoice price saved separately from public pricing.", "success");
+            await loadInvoicePricing();
+        } catch (error) {
+            message("Invoice price could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("newInvoiceButton")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("invoiceId").value = "";
+        document.getElementById("invoiceActive").checked = true;
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("invoiceCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("invoiceId").value = "";
+        document.getElementById("invoiceActive").checked = true;
+    });
+}
+
+/* =========================================================
+   WEBSITE LINKS — HEADER / FOOTER
+========================================================= */
+
+function linkStorageKey(label) {
+    return "site_link_" + contentSlug(label);
+}
+
+async function loadWebsiteLinks() {
+    const rows = await getRows("settings");
+    const links = rows.filter(r => String(r.setting_key || "").startsWith("site_link_"));
+    const list = document.getElementById("linkList");
+    if (!list) return;
+
+    list.innerHTML = links.length ? `
+        <table>
+            <thead><tr><th>Link Name</th><th>URL</th><th>Location</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                ${links.map(r => {
+                    let item = {};
+                    try { item = JSON.parse(r.setting_value || "{}"); } catch (_) {}
+                    return `<tr>
+                        <td>${escapeHTML(item.label || "")}</td>
+                        <td>${escapeHTML(item.url || "")}</td>
+                        <td>${escapeHTML(item.location || "header")}</td>
+                        <td>${escapeHTML(item.order ?? "")}</td>
+                        <td>${item.active === false ? "Inactive" : "Active"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-link="${escapeHTML(r.id)}">Edit</button>
+                            <button type="button" class="danger" data-delete-link="${escapeHTML(r.id)}">Delete</button>
+                        </td>
+                    </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No managed website links have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-link]").forEach(button => {
+        button.onclick = () => {
+            const row = links.find(r => String(r.id) === String(button.dataset.editLink));
+            if (!row) return;
+            let item = {};
+            try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+            document.getElementById("linkId").value = row.id || "";
+            document.getElementById("linkLabel").value = item.label || "";
+            document.getElementById("linkUrl").value = item.url || "";
+            document.getElementById("linkOrder").value = item.order ?? 1;
+            document.getElementById("linkLocation").value = item.location || "header";
+            document.getElementById("linkActive").checked = item.active !== false;
+            document.getElementById("linkForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-link]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this website link?")) return;
+            const result = await db.from("settings").delete().eq("id", button.dataset.deleteLink);
+            if (result.error) {
+                message("Website link could not be deleted.", "error");
+                return;
+            }
+            message("Website link deleted.", "success");
+            await loadWebsiteLinks();
+        };
+    });
+}
+
+function setupWebsiteLinksForm() {
+    const form = document.getElementById("linkForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("linkId").value.trim();
+        const label = document.getElementById("linkLabel").value.trim();
+        const url = document.getElementById("linkUrl").value.trim();
+        const order = Number(document.getElementById("linkOrder").value) || 1;
+        const location = document.getElementById("linkLocation").value;
+        const active = document.getElementById("linkActive").checked;
+
+        if (!label || !url) {
+            message("Please enter a link name and URL.", "error");
+            return;
+        }
+
+        const payload = {
+            setting_key: linkStorageKey(label),
+            setting_value: JSON.stringify({ label, url, order, location, active }),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            let result;
+            if (id) {
+                result = await db.from("settings").update(payload).eq("id", id);
+            } else {
+                result = await db.from("settings").upsert(payload, { onConflict: "setting_key" });
+            }
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("linkId").value = "";
+            document.getElementById("linkOrder").value = 1;
+            document.getElementById("linkActive").checked = true;
+            message("Website link saved.", "success");
+            await loadWebsiteLinks();
+        } catch (error) {
+            message("Website link could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("newLinkButton")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("linkId").value = "";
+        document.getElementById("linkOrder").value = 1;
+        document.getElementById("linkActive").checked = true;
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("linkCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("linkId").value = "";
+        document.getElementById("linkOrder").value = 1;
+        document.getElementById("linkActive").checked = true;
+    });
+}
+
 async function loadSocial(){const rows=await getRows("settings"),sr=rows.filter(r=>String(r.setting_key||"").toLowerCase().startsWith("social_")),list=document.getElementById("socialList");if(!list)return;list.innerHTML=sr.length?`<table><thead><tr><th>Platform</th><th>Link / Number</th><th>Actions</th></tr></thead><tbody>${sr.map(r=>`<tr><td>${escapeHTML(String(r.setting_key).replace(/^social_/i,"").replace(/_/g," "))}</td><td>${escapeHTML(r.setting_value||"")}</td><td><button type="button" class="secondary" data-edit-social="${r.id}">Edit</button> <button type="button" class="danger" data-delete-social="${r.id}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No social links have been added yet.</div>`;list.querySelectorAll("[data-edit-social]").forEach(b=>b.onclick=()=>{const r=sr.find(x=>String(x.id)===String(b.dataset.editSocial));if(!r)return;document.getElementById("socialId").value=r.id||"";const p=String(r.setting_key||"").replace(/^social_/i,"").replace(/_/g," ");document.getElementById("socialPlatform").value=["TikTok","Instagram","Facebook","WhatsApp","Other"].includes(p)?p:"Other";document.getElementById("socialUrl").value=r.setting_value||"";document.getElementById("socialForm").scrollIntoView({behavior:"smooth",block:"start"});});list.querySelectorAll("[data-delete-social]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this social link?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteSocial);if(r.error){message("Social link could not be deleted.","error");return;}message("Social link deleted.","success");await loadSocial();});}
 function setupSocialForm(){const f=document.getElementById("socialForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";f.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("socialId").value.trim(),p=document.getElementById("socialPlatform").value.trim(),v=document.getElementById("socialUrl").value.trim(),k="social_"+p.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");try{const r=id?await db.from("settings").update({setting_key:k,setting_value:v,updated_at:new Date().toISOString()}).eq("id",id):await db.from("settings").upsert({setting_key:k,setting_value:v,updated_at:new Date().toISOString()},{onConflict:"setting_key"});if(r.error)throw r.error;f.reset();document.getElementById("socialId").value="";message("Social link saved.","success");await loadSocial();}catch(err){console.error(err);message("Social link could not be saved: "+err.message,"error");}});document.getElementById("socialCancel")?.addEventListener("click",()=>{f.reset();document.getElementById("socialId").value="";});}
 
@@ -1816,7 +2379,14 @@ function setupLogoForm() {
 }
 
 async function loadSettings() {
-    const rows = await getRows("settings");
+    const allRows = await getRows("settings");
+    const rows = allRows.filter(row => {
+        const key = String(row.setting_key || "");
+        return !key.startsWith("invoice_price_")
+            && !key.startsWith("site_link_")
+            && !key.startsWith("hidden_content_")
+            && !key.startsWith("social_");
+    });
     const list = document.getElementById("settingsList");
     if (!list) return;
 
@@ -2008,6 +2578,31 @@ async function seedInitialPublicContent() {
         }
     } catch (e) { console.warn("Social links initial import unavailable:", e); }
 
+    const INITIAL_SITE_LINKS = [
+        ["site_link_home", { label: "Home", url: "index.html", order: 1, location: "header", active: true }],
+        ["site_link_about", { label: "About", url: "about.html", order: 2, location: "header", active: true }],
+        ["site_link_services", { label: "Services", url: "services.html", order: 3, location: "header", active: true }],
+        ["site_link_gallery", { label: "Gallery", url: "gallery.html", order: 4, location: "header", active: true }],
+        ["site_link_training", { label: "Training", url: "training.html", order: 5, location: "header", active: true }],
+        ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 6, location: "header", active: true }],
+        ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 7, location: "header", active: true }],
+        ["site_link_contact", { label: "Contact", url: "contact.html", order: 8, location: "header", active: true }]
+    ];
+    try {
+        const existing = await db.from("settings").select("setting_key").like("setting_key", "site_link_%");
+        if (!existing.error) {
+            const keys = new Set((existing.data || []).map(r => String(r.setting_key || "").toLowerCase()));
+            const missing = INITIAL_SITE_LINKS
+                .filter(([key]) => !keys.has(key.toLowerCase()))
+                .map(([setting_key, value]) => ({
+                    setting_key,
+                    setting_value: JSON.stringify(value),
+                    updated_at: new Date().toISOString()
+                }));
+            if (missing.length) await db.from("settings").insert(missing);
+        }
+    } catch (e) { console.warn("Website links initial import unavailable:", e); }
+
     try {
         const existing = await db.from("contact_settings").select("id").limit(1).maybeSingle();
         if (!existing.error && !existing.data) {
@@ -2042,6 +2637,8 @@ async function startAdmin() {
     setupFAQForm();
     setupPolicyForm();
     setupContentForm();
+    setupInvoiceForm();
+    setupWebsiteLinksForm();
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
