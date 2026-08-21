@@ -2618,3 +2618,130 @@ table td {
         padding: 20px 18px;
     }
 }
+
+
+/* =========================================================
+   FINAL WEBSITE MANAGEMENT / SPACING CORRECTIONS
+========================================================= */
+
+/* Keep all footer content away from the box edge. */
+.site-footer .footer-column,
+.site-footer .testimonial-placeholder,
+.testimonial-placeholder {
+    padding: 18px !important;
+}
+
+/* Give footer grid columns a little breathing room from their outlines. */
+.site-footer .footer-grid {
+    gap: 28px;
+}
+
+/* Customer review area: text must not sit directly against the left outline. */
+.home-page .testimonial-placeholder {
+    margin-left: 6px;
+    margin-right: 6px;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+}
+
+/* Photo 5: width increased by 50%, height retained, and image remains clickable. */
+.about-page .location-image {
+    width: min(100%, 642px) !important;
+    height: 420px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+.about-page .location-image a.photo5-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+.about-page .location-image img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+}
+@media (max-width: 700px) {
+    .about-page .location-image {
+        width: min(100%, 484.5px) !important;
+        height: 310px !important;
+    }
+}
+
+/* Dynamically added website content from the admin dashboard. */
+.admin-managed-content {
+    background: #ffffff;
+    padding: 28px 0;
+}
+.admin-managed-content .container {
+    border: 2px solid #666666;
+    padding: 20px;
+    border-radius: 8px;
+}
+.admin-managed-content h2 {
+    margin-top: 0;
+}
+.admin-managed-content p {
+    margin: 0 0 14px;
+}
+.admin-managed-notice {
+    border: 2px solid #666666;
+    border-left: 6px solid var(--gold);
+    padding: 16px;
+    margin: 8px 0;
+    background: var(--teal-light);
+}
+.footer-managed-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    padding: 16px 20px 0;
+}
+.footer-managed-links a {
+    color: var(--white);
+    text-decoration: none;
+    font-weight: 700;
+}
+.footer-managed-links a:hover,
+.footer-managed-links a:focus {
+    color: var(--gold-light);
+}
+
+/* Practical Fashion Training is a page link, not a garment-order field. */
+.training-service-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px;
+    border: 2px solid #666666;
+    border-radius: 6px;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    font-weight: 700;
+    text-decoration: none;
+}
+.training-service-link:hover,
+.training-service-link:focus {
+    background: var(--teal);
+    color: var(--white);
+}
+
+/* Admin order/training detail modal header. */
+.submission-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+.submission-modal-header h2 {
+    margin: 0;
+}
+@media (max-width: 700px) {
+    .submission-modal-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
