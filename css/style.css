@@ -2753,3 +2753,42 @@ table td {
         flex-direction: column;
     }
 }
+
+/* FINAL PHOTO 5 CORRECTION — 21 AUGUST 2026
+   Keep the existing Photo 5 section/container height exactly as it is.
+   Display the photograph itself in a portrait frame without extending
+   the section. The image remains clickable. */
+.about-page .location-image {
+    height: 420px !important;
+    width: min(100%, 642px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.about-page .location-image a.photo5-link {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.about-page .location-image img {
+    width: auto !important;
+    height: 100% !important;
+    max-width: 78% !important;
+    max-height: 100% !important;
+    aspect-ratio: 3 / 4 !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    display: block !important;
+}
+@media (max-width: 700px) {
+    .about-page .location-image {
+        height: 310px !important;
+        width: min(100%, 484.5px) !important;
+    }
+    .about-page .location-image img {
+        max-width: 78% !important;
+    }
+}
