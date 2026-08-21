@@ -1650,11 +1650,16 @@ You can also remove the current public logo without deleting the original projec
 
 <div class="form-card">
 <form id="settingsForm">
+<input type="hidden" id="settingId">
 <div class="form-grid">
 <div class="form-group"><label>Setting Name</label><input id="settingKey" required placeholder="site_title"></div>
 <div class="form-group"><label>Setting Value</label><input id="settingValue" required></div>
 </div>
+<div class="admin-actions">
 <button class="primary" type="submit">Save Setting</button>
+<button type="button" class="secondary" id="newSettingButton">+ Add New Setting</button>
+<button type="button" class="secondary" id="settingCancel">Cancel</button>
+</div>
 </form>
 </div>
 <div id="settingsList" class="table-wrap"></div>
@@ -1666,10 +1671,10 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260820"></script>
-<script src="../js/supabase-client.js?v=20260820"></script>
-<script src="admin.js?v=20260820" defer></script>
-<script src="Admin-fixes.js?v=20260820" defer></script>
+<script src="../js/supabase-config.js?v=20260821"></script>
+<script src="../js/supabase-client.js?v=20260821"></script>
+<script src="admin.js?v=20260821" defer></script>
+<script src="Admin-fixes.js?v=20260821" defer></script>
 </body>
 
 <style>

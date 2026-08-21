@@ -426,11 +426,41 @@ function setupGalleryForm() {
         }
 
         try {
-            const result = id
-                ? await db.from("gallery_items").update(data).eq("id", id)
-                : await db.from("gallery_items").insert(data);
+            let result;
+            if (id) {
+                result = await db.from("gallery_items").update(data).eq("id", id);
+            } else {
+                // Do not create a second database record for the same media in the same collection.
+                const existing = await db.from("gallery_items")
+                    .select("id")
+                    .eq("category", data.category)
+                    .eq("image_url", data.image_url)
+                    .limit(1);
+                if (existing.error) throw existing.error;
+                if (existing.data?.length) {
+                    result = await db.from("gallery_items").update(data).eq("id", existing.data[0].id);
+                } else {
+                    result = await db.from("gallery_items").insert(data);
+                }
+            }
 
             if (result.error) throw result.error;
+
+            // Clean up exact duplicates created previously, keeping the record just saved.
+            const duplicateQuery = db.from("gallery_items")
+                .select("id")
+                .eq("category", data.category)
+                .eq("image_url", data.image_url);
+            const duplicateResult = await duplicateQuery;
+            if (!duplicateResult.error && duplicateResult.data?.length > 1) {
+                const keepId = id || result.data?.[0]?.id || duplicateResult.data[0].id;
+                const duplicateIds = duplicateResult.data
+                    .map(r => r.id)
+                    .filter(rowId => String(rowId) !== String(keepId));
+                if (duplicateIds.length) {
+                    await db.from("gallery_items").delete().in("id", duplicateIds);
+                }
+            }
 
             form.reset();
             document.getElementById("galleryId").value = "";
@@ -2400,7 +2430,7 @@ async function loadSettings() {
         </tbody></table>
     ` : `<div class="empty">No website settings records yet.</div>`;
 
-    list.querySelectorAll("[data-edit-setting]").forEach(button => { button.onclick = () => { const row = rows.find(item => String(item.id) === String(button.dataset.editSetting)); if (!row) return; document.getElementById("settingKey").value=row.setting_key||""; document.getElementById("settingValue").value=row.setting_value||""; document.getElementById("settingsForm").scrollIntoView({behavior:"smooth",block:"start"}); }; });
+    list.querySelectorAll("[data-edit-setting]").forEach(button => { button.onclick = () => { const row = rows.find(item => String(item.id) === String(button.dataset.editSetting)); if (!row) return; document.getElementById("settingId").value=row.id||""; document.getElementById("settingKey").value=row.setting_key||""; document.getElementById("settingValue").value=row.setting_value||""; document.getElementById("settingsForm").scrollIntoView({behavior:"smooth",block:"start"}); }; });
 
     list.querySelectorAll("[data-delete-setting]").forEach(button => {
         button.onclick = async () => {
@@ -2424,23 +2454,43 @@ function setupSettingsForm() {
     form.addEventListener("submit", async event => {
         event.preventDefault();
 
+        const id = document.getElementById("settingId").value.trim();
         const key = document.getElementById("settingKey").value.trim();
         const value = document.getElementById("settingValue").value.trim();
 
+        if (!key) {
+            message("Please enter a setting name.", "error");
+            return;
+        }
+
         try {
-            const existing = await db.from("settings").select("id").eq("setting_key", key).maybeSingle();
-            const result = existing.data?.id
-                ? await db.from("settings").update({ setting_value: value, updated_at: new Date().toISOString() }).eq("id", existing.data.id)
-                : await db.from("settings").insert({ setting_key: key, setting_value: value });
+            let result;
+            if (id) {
+                result = await db.from("settings").update({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() }).eq("id", id);
+            } else {
+                result = await db.from("settings").upsert({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
+            }
 
             if (result.error) throw result.error;
             form.reset();
+            document.getElementById("settingId").value = "";
             message("Setting saved.", "success");
             await loadSettings();
         } catch (error) {
             console.error(error);
             message("Setting could not be saved: " + error.message, "error");
         }
+    });
+
+    document.getElementById("newSettingButton")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("settingId").value = "";
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("settingCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("settingId").value = "";
     });
 }
 
