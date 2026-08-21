@@ -1868,7 +1868,7 @@ async function loadInvoicePricing() {
                 }).join("")}
             </tbody>
         </table>
-    ` : `<div class="empty">No internal invoice prices have been added yet.</div>`;
+    ` : `<div class="empty">No internal invoice prices have been added yet.<br><strong>Management is already enabled:</strong> after you add a price, an <strong>Edit</strong> and <strong>Delete</strong> button will appear beside every saved invoice price.</div>`;
 
     list.querySelectorAll("[data-edit-invoice]").forEach(button => {
         button.onclick = () => {
