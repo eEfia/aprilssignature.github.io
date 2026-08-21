@@ -792,12 +792,27 @@ function setupQuoteForm() {
 
         const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
-            embellishment.style.display =
-                selected.includes("Embellishment Services") ? "block" : "none";
+            const showEmbellishment = selected.includes("Embellishment Services");
+            embellishment.style.display = showEmbellishment ? "block" : "none";
+
+            const otherWrap = document.getElementById("embellishmentOtherWrap");
+            const otherInput = document.getElementById("embellishmentOther");
+            const otherSelected = Array.from(embellishment.querySelectorAll('input[name="embellishment[]"]'))
+                .some(input => input.checked && input.value === "Others");
+
+            if (otherWrap) otherWrap.style.display = showEmbellishment && otherSelected ? "block" : "none";
+            if (otherInput) {
+                otherInput.required = showEmbellishment && otherSelected;
+                if (!otherSelected) otherInput.value = "";
+            }
         }
     }
 
     serviceInputs.forEach(function (input) {
+        input.addEventListener("change", updateServiceSections);
+    });
+
+    form.querySelectorAll('input[name="embellishment[]"]').forEach(function (input) {
         input.addEventListener("change", updateServiceSections);
     });
 
@@ -905,8 +920,13 @@ async function loadPublicGallery() {
     const activeRows = [];
     const seenMedia = new Set();
     rows.filter(row => row.image_url && row.active !== false).forEach(row => {
-        const key = `${row.category || "Gallery"}\u0000${row.image_url}`;
-        if (!seenMedia.has(key)) { seenMedia.add(key); activeRows.push(row); }
+        const normalizedUrl = String(row.image_url).trim().replace(/\s+/g, " ");
+        const normalizedCategory = String(row.category || "Gallery").trim().toLowerCase();
+        const key = `${normalizedCategory}\u0000${normalizedUrl}`;
+        if (!seenMedia.has(key)) {
+            seenMedia.add(key);
+            activeRows.push(row);
+        }
     });
     if (!activeRows.length) return;
 
