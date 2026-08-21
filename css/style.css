@@ -2024,13 +2024,21 @@ select:focus {
     overflow: hidden;
 }
 
-.gallery-image img {
+.gallery-page .gallery-image img {
     transform-origin: center;
-    animation: aprilsMediaMotion 6s ease-in-out infinite alternate;
+    animation: aprilsGalleryMotion 4.8s ease-in-out infinite alternate;
     will-change: transform;
 }
 
-.gallery-image img:hover {
+/* Motion is intentionally limited to still images on the Gallery page.
+   It does not change gallery dimensions, arrangement, videos, or homepage media. */
+@keyframes aprilsGalleryMotion {
+    0% { transform: translate3d(-0.8%, 0, 0) scale(1.01); }
+    50% { transform: translate3d(0.8%, -0.15%, 0) scale(1.025); }
+    100% { transform: translate3d(-0.6%, 0.15%, 0) scale(1.015); }
+}
+
+.gallery-page .gallery-image img:hover {
     animation-play-state: paused;
     transform: scale(1.04);
 }
@@ -2061,7 +2069,7 @@ select:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .gallery-image img {
+    .gallery-page .gallery-image img {
         animation: none;
     }
 }
@@ -2197,8 +2205,8 @@ select:focus {
 /* About-page Photo 5: preserve the complete portrait image
    rather than cropping it inside a short fixed-height box. */
 .about-page .location-image {
-    /* Photo 5: width reduced by about one quarter; height reduced by half. */
-    width: min(100%, 428px);
+    /* Photo 5: keep the current height and increase the width by 50%. */
+    width: min(100%, 642px);
     height: 420px;
     min-height: 0;
     margin-left: auto;
