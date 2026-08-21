@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Order / Request a Quote | Aprils Signature</title>
-kskslls
+
     <meta
         name="description"
         content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services."
@@ -541,6 +541,24 @@ kskslls
 </section>
 
 
+<!-- LADIES WEAR -->
+<section class="form-section hidden-section" id="ladiesWearSection" style="display:none;">
+<h2>Ladies Wear Details</h2>
+<div class="form-grid">
+<div class="form-group"><label for="ladiesWearItem">Garment / Item</label><input type="text" id="ladiesWearItem" name="ladiesWearItem" placeholder="e.g. Dress, skirt, blouse, trousers"></div>
+<div class="form-group"><label for="ladiesWearSize">Size / Measurements</label><input type="text" id="ladiesWearSize" name="ladiesWearSize" placeholder="e.g. Size 12 (UK) or measurements"></div>
+<div class="form-group"><label for="ladiesWearQuantity">Quantity</label><input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1"></div>
+</div></section>
+
+<!-- KIDS WEAR -->
+<section class="form-section hidden-section" id="kidsWearSection" style="display:none;">
+<h2>Kids Wear Details</h2>
+<div class="form-grid">
+<div class="form-group"><label for="kidsWearItem">Garment / Item</label><input type="text" id="kidsWearItem" name="kidsWearItem" placeholder="e.g. Dress, shirt, shorts, set"></div>
+<div class="form-group"><label for="kidsWearSize">Size / Measurements</label><input type="text" id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Age 10 / Size or measurements"></div>
+<div class="form-group"><label for="kidsWearQuantity">Quantity</label><input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1"></div>
+</div></section>
+
 <!-- STREETWEAR -->
 
 <section
@@ -932,69 +950,19 @@ kskslls
 
     <div class="product-options">
 
-        <label class="check-option">
-
-            <input
-                type="checkbox"
-                name="embellishment[]"
-                value="Rhinestone Embellishment"
-            >
-
-            Rhinestone Embellishment
-
-        </label>
+        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Rhinestone Embellishment"> Rhinestone Embellishment</label><input type="number" name="rhinestoneQuantity" min="1" value="1" aria-label="Rhinestone Embellishment quantity"></div>
 
 
-        <label class="check-option">
-
-            <input
-                type="checkbox"
-                name="embellishment[]"
-                value="Screen Printing"
-            >
-
-            Screen Printing
-
-        </label>
+        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Screen Printing"> Screen Printing</label><input type="number" name="screenPrintingQuantity" min="1" value="1" aria-label="Screen Printing quantity"></div>
 
 
-        <label class="check-option">
-
-            <input
-                type="checkbox"
-                name="embellishment[]"
-                value="Fabric Painting"
-            >
-
-            Fabric Painting
-
-        </label>
+        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Fabric Painting"> Fabric Painting</label><input type="number" name="fabricPaintingQuantity" min="1" value="1" aria-label="Fabric Painting quantity"></div>
 
 
-        <label class="check-option">
-
-            <input
-                type="checkbox"
-                name="embellishment[]"
-                value="Glitter Works"
-            >
-
-            Glitter Works
-
-        </label>
+        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Glitter Works"> Glitter Works</label><input type="number" name="glitterWorksQuantity" min="1" value="1" aria-label="Glitter Works quantity"></div>
 
 
-        <label class="check-option">
-
-            <input
-                type="checkbox"
-                name="embellishment[]"
-                value="Others"
-            >
-
-            Others
-
-        </label>
+        <div class="quantity-row embellishment-option-row"><label class="check-option"><input type="checkbox" name="embellishment[]" value="Others"> Others</label><input type="number" name="embellishmentOtherQuantity" min="1" value="1" aria-label="Others quantity"></div>
 
     </div>
 
@@ -1313,11 +1281,11 @@ All rights reserved.
 
 
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260821"></script>
-<script src="js/supabase-client.js?v=20260821"></script>
+<script src="js/supabase-config.js?v=20260821-3"></script>
+<script src="js/supabase-client.js?v=20260821-3"></script>
 
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script src="js/form-fixes.js?v=20260821" defer></script> <script src="js/script.js?v=20260821" defer></script>
+<script src="js/form-fixes.js?v=20260821-3" defer></script> <script src="js/script.js?v=20260821-3" defer></script>
 
 </body>
 
