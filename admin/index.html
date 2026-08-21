@@ -444,7 +444,7 @@ flex-direction:column;
 }
 </style>
 
-</head>
+<style>.submission-modal-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.submission-modal-actions button{margin:0}</style></head>
 
 
 <body>
@@ -855,6 +855,11 @@ Category
 id="galleryCategory"
 placeholder="Streetwear, Dresses, etc."
 >
+
+</div>
+<div class="form-group">
+<label for="galleryOrder">Display Order</label>
+<input id="galleryOrder" type="number" min="1" value="1" placeholder="1">
 
 </div>
 
@@ -1530,6 +1535,19 @@ Active
 </form>
 </div>
 
+<div class="form-card" style="margin-top:20px;">
+<h3>Invoice Payment Details</h3>
+<p class="intro">Save these once so future invoices can automatically show the payment information at the bottom.</p>
+<form id="invoicePaymentForm">
+<div class="form-grid">
+<div class="form-group"><label for="invoicePaymentNumber">MoMo / Payment Number</label><input id="invoicePaymentNumber" placeholder="e.g. 024..." ></div>
+<div class="form-group"><label for="invoicePaymentName">Account / MoMo Name</label><input id="invoicePaymentName" placeholder="Name on the account" ></div>
+<div class="form-group"><label for="invoicePaymentNetwork">Network / Payment Method</label><input id="invoicePaymentNetwork" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
+</div>
+<div class="form-group"><label for="invoicePaymentNote">Payment Note</label><textarea id="invoicePaymentNote" placeholder="Any payment instruction to appear on invoices."></textarea></div>
+<button class="primary" type="submit">Save Payment Details</button>
+</form>
+</div>
 <div id="invoiceList" class="table-wrap"></div>
 </section>
 
@@ -1673,8 +1691,8 @@ You can also remove the current public logo without deleting the original projec
 
 <script src="../js/supabase-config.js?v=20260821"></script>
 <script src="../js/supabase-client.js?v=20260821"></script>
-<script src="admin.js?v=20260821-3" defer></script>
-<script src="Admin-fixes.js?v=20260821-3" defer></script>
+<script src="admin.js?v=20260821" defer></script>
+<script src="Admin-fixes.js?v=20260821" defer></script>
 </body>
 
 <style>

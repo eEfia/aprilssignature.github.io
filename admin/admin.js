@@ -203,7 +203,7 @@ async function getGalleryCollections() {
     const names = new Set(DEFAULT_GALLERY_COLLECTIONS);
 
     try {
-        const result = await db.from("gallery_collections").select("name,active").order("name");
+        const result = await db.from("gallery_collections").select("id,name,active,display_order").order("display_order", { ascending: true }).order("name");
         if (!result.error) {
             (result.data || []).forEach(row => {
                 if (row.active !== false && row.name) names.add(row.name);
@@ -266,7 +266,9 @@ async function renderGalleryCategorySelect(currentValue = "") {
             if (!cleanName) return;
 
             try {
-                const result = await db.from("gallery_collections").insert({ name: cleanName, active: true });
+                const current = await db.from("gallery_collections").select("display_order").order("display_order", { ascending: false }).limit(1);
+                const nextOrder = (current.data?.[0]?.display_order || 0) + 1;
+                const result = await db.from("gallery_collections").insert({ name: cleanName, active: true, display_order: nextOrder });
                 if (result.error) throw result.error;
 
                 await renderGalleryCategorySelect(cleanName);
@@ -298,13 +300,14 @@ async function loadGallery() {
             <button type="button" class="primary" id="newGalleryItemButton">+ Add Gallery Item</button>
             <button type="button" class="secondary" id="newGalleryCollectionButton">+ Add New Collection</button>
         </div>
+        <div id="galleryCollectionOrderList" style="margin:15px 0;"><strong>Collection Order</strong><div class="empty">Loading collections…</div></div>
         ${rows.length ? `
         <table>
             <thead>
                 <tr>
                     <th>Image</th>
                     <th>Title</th>
-                    <th>Collection</th>
+                    <th>Collection</th><th>Order</th>
                     <th>Price (GHS)</th>
                     <th>Featured</th>
                     <th>Active</th>
@@ -316,7 +319,7 @@ async function loadGallery() {
                     <tr>
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
                         <td>${escapeHTML(row.title)}</td>
-                        <td>${escapeHTML(row.category)}</td>
+                        <td>${escapeHTML(row.category)}</td><td>${escapeHTML(row.display_order ?? 1)}</td>
                         <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
@@ -332,6 +335,16 @@ async function loadGallery() {
 
     document.getElementById("newGalleryItemButton").onclick = newGalleryItem;
     document.getElementById("newGalleryCollectionButton").onclick = addGalleryCollection;
+
+    try {
+        const collectionResult = await db.from("gallery_collections").select("id,name,active,display_order").order("display_order", {ascending:true}).order("name");
+        const collectionBox = document.getElementById("galleryCollectionOrderList");
+        if (!collectionResult.error && collectionBox) {
+            const collections = collectionResult.data || [];
+            collectionBox.innerHTML = collections.length ? `<strong>Collection Order</strong><table><thead><tr><th>Collection</th><th>Order</th><th>Save</th></tr></thead><tbody>${collections.map(c=>`<tr><td>${escapeHTML(c.name||"")}</td><td><input type="number" min="1" value="${escapeHTML(c.display_order??1)}" data-collection-order="${escapeHTML(c.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-save-collection-order="${escapeHTML(c.id)}">Save Order</button></td></tr>`).join("")}</tbody></table>` : `<strong>Collection Order</strong><div class="empty">No collections yet.</div>`;
+            collectionBox.querySelectorAll("[data-save-collection-order]").forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.saveCollectionOrder;const input=collectionBox.querySelector(`[data-collection-order="${id}"]`);const value=Number(input?.value)||1;const r=await db.from("gallery_collections").update({display_order:value}).eq("id",id);if(r.error)message("Collection order could not be saved: "+r.error.message,"error");else{message("Collection order saved.","success");await loadGallery();}});
+        }
+    } catch(error) { console.warn("Gallery collection ordering unavailable:",error); }
 
     list.querySelectorAll("[data-edit-gallery]").forEach(button => {
         button.onclick = () => {
@@ -355,7 +368,9 @@ async function addGalleryCollection() {
     if (!cleanName) return;
 
     try {
-        const result = await db.from("gallery_collections").insert({ name: cleanName, active: true });
+        const current = await db.from("gallery_collections").select("display_order").order("display_order", { ascending: false }).limit(1);
+                const nextOrder = (current.data?.[0]?.display_order || 0) + 1;
+                const result = await db.from("gallery_collections").insert({ name: cleanName, active: true, display_order: nextOrder });
         if (result.error) throw result.error;
         await renderGalleryCategorySelect(cleanName);
         message("Collection added.", "success");
@@ -371,6 +386,7 @@ function newGalleryItem() {
     form.reset();
     document.getElementById("galleryId").value = "";
     document.getElementById("galleryActive").checked = true;
+    document.getElementById("galleryOrder").value = 1;
     renderGalleryCategorySelect("");
     form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -382,6 +398,7 @@ function editGallery(row) {
     document.getElementById("galleryImage").value = row.image_url || "";
     document.getElementById("galleryDescription").value = row.description || "";
     document.getElementById("galleryPrice").value = row.price ?? "";
+    document.getElementById("galleryOrder").value = row.display_order ?? 1;
     document.getElementById("galleryFeatured").checked = !!row.featured;
     document.getElementById("galleryActive").checked = row.active !== false;
     document.getElementById("galleryForm").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -415,6 +432,7 @@ function setupGalleryForm() {
             image_url: document.getElementById("galleryImage").value.trim(),
             description: document.getElementById("galleryDescription").value.trim(),
             price: document.getElementById("galleryPrice").value === "" ? null : Number(document.getElementById("galleryPrice").value),
+            display_order: Number(document.getElementById("galleryOrder").value) || 1,
             featured: document.getElementById("galleryFeatured").checked,
             active: document.getElementById("galleryActive").checked,
             updated_at: new Date().toISOString()
@@ -920,11 +938,13 @@ function buildQuoteDetailRows(row, details) {
     }
 
     if (selected.includes("Ladies Wear")) {
+        add("Ladies Wear Quantity", details.ladiesWearQuantity);
         add("Ladies Wear Request", details.ladiesWear);
         add("Ladies Wear Size / Measurements", details.ladiesWearSize);
     }
 
     if (selected.includes("Kids Wear")) {
+        add("Kids Wear Quantity", details.kidsWearQuantity);
         add("Kids Wear Request", details.kidsWear);
         add("Kids Wear Size / Measurements", details.kidsWearSize);
     }
@@ -933,6 +953,7 @@ function buildQuoteDetailRows(row, details) {
         const embellishments = Array.isArray(details.embellishment)
             ? details.embellishment.filter(Boolean)
             : [];
+        add("Embellishment Quantity", details.embellishmentQuantity);
         add("Embellishment Services", embellishments.join(", "));
         add("Embellishment Request", details.embellishmentOther);
         add("Embellishment Size / Measurements", details.embellishmentSize);
@@ -942,6 +963,7 @@ function buildQuoteDetailRows(row, details) {
         add("Training Request", details.training);
     }
 
+    add("Other Service Request", details.serviceOther);
     add("Additional Request Details", details.additionalDetails);
 
     const attachmentNames = []
@@ -1002,6 +1024,25 @@ function exportSubmissionDetails(title, row = {}, detailsText = "", uploads = []
 
 function valueIsExportable(value) {
     return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+async function shareText(title, text) {
+    try {
+        if (navigator.share) { await navigator.share({ title, text }); return; }
+        await navigator.clipboard.writeText(text);
+        message("Share is not available on this device. The details were copied to the clipboard.", "success");
+    } catch (error) {
+        if (error?.name === "AbortError") return;
+        try { await navigator.clipboard.writeText(text); message("Details copied to the clipboard. You can paste them into WhatsApp, email or another app.", "success"); } catch (_) { message("Unable to share these details on this device.", "error"); }
+    }
+}
+
+function buildShareText(title, row = {}, detailsText = "") {
+    const details = parseSubmissionDetails(detailsText);
+    const lines=[title,""];
+    Object.entries(row||{}).filter(([k])=>!["id","journey","request_details","details","message","uploads"].includes(k)).forEach(([k,v])=>{if(v!==undefined&&v!==null&&String(v).trim()) lines.push(`${formatDetailLabel(k)}: ${v}`);});
+    Object.entries(details||{}).filter(([k])=>k!=="uploads"&&valueIsExportable(details[k])).forEach(([k,v])=>lines.push(`${formatDetailLabel(k)}: ${typeof v==="object"?JSON.stringify(v):v}`));
+    return lines.join("\n");
 }
 
 function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
@@ -1077,7 +1118,7 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     body.innerHTML = `
         <div class="submission-modal-header">
             <h2>${escapeHTML(title)}</h2>
-            <button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button>
+            <div class="submission-modal-actions"><button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button><button type="button" class="secondary" id="shareSubmissionDetails">Share</button></div>
         </div>
         <div class="submission-fields">${fields || '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>'}</div>
         ${uploadHtml}
@@ -1085,6 +1126,9 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
 
     document.getElementById("exportSubmissionDetails")?.addEventListener("click", () => {
         exportSubmissionDetails(title, row || {}, detailsText, uploads || []);
+    });
+    document.getElementById("shareSubmissionDetails")?.addEventListener("click", () => {
+        shareText(title, buildShareText(title, row || {}, detailsText));
     });
 
     backdrop.style.display = "block";
@@ -1368,7 +1412,7 @@ async function loadTestimonials() {
             <td>${row.active ? "Yes" : "No"}</td>
             <td>
                 <button type="button" class="secondary" data-edit-testimonial="${row.id}">Edit</button>
-                <button type="button" class="danger" data-delete-testimonial="${row.id}">Delete</button>
+                <button type="button" class="danger" data-delete-testimonial="${row.id}">Delete</button> <button type="button" class="secondary" data-share-testimonial="${row.id}">Share</button>
             </td>
         </tr>`).join("")}
         </tbody></table>
@@ -1384,6 +1428,10 @@ async function loadTestimonials() {
             document.getElementById("testimonialActive").checked = row.active !== false;
             document.getElementById("testimonialForm").scrollIntoView({ behavior: "smooth", block: "start" });
         };
+    });
+
+    list.querySelectorAll("[data-share-testimonial]").forEach(button => {
+        button.onclick=()=>{const row=rows.find(item=>String(item.id)===String(button.dataset.shareTestimonial)); if(row) shareText("Aprils Signature Testimonial", `“${row.testimonial||""}”\n— ${row.customer_name||"Customer"}`);};
     });
 
     list.querySelectorAll("[data-delete-testimonial]").forEach(button => {
@@ -1542,7 +1590,7 @@ function setupFAQForm() {
 ========================================================= */
 
 async function loadPolicies() {
-    const rows = await getRows("policies");
+    const rows = (await getRows("policies")).sort((a,b)=>{const na=Number((String(a.title||"").match(/^\s*(\d+)/)||[])[1]||9999); const nb=Number((String(b.title||"").match(/^\s*(\d+)/)||[])[1]||9999); return na-nb||String(a.title||"").localeCompare(String(b.title||""));});
     const list = document.getElementById("policyList");
     if (!list) return;
 
@@ -1554,7 +1602,7 @@ async function loadPolicies() {
             <td><pre style="white-space:pre-wrap;max-width:550px;font-family:inherit">${escapeHTML(row.content)}</pre></td>
             <td>
                 <button type="button" class="secondary" data-edit-policy="${row.id}">Edit</button>
-                <button type="button" class="danger" data-delete-policy="${row.id}">Delete</button>
+                <button type="button" class="danger" data-delete-policy="${row.id}">Delete</button> <button type="button" class="secondary" data-share-policy="${row.id}">Share</button>
             </td>
         </tr>`).join("")}
         </tbody></table>
@@ -1571,6 +1619,8 @@ async function loadPolicies() {
             document.getElementById("policyForm").scrollIntoView({ behavior: "smooth", block: "start" });
         };
     });
+
+    list.querySelectorAll("[data-share-policy]").forEach(button=>{button.onclick=()=>{const row=rows.find(item=>String(item.id)===String(button.dataset.sharePolicy));if(row)shareText(row.title||"Policy",`${row.title||"Policy"}\n\n${row.content||""}`);};});
 
     list.querySelectorAll("[data-delete-policy]").forEach(button => {
         button.onclick = async () => {
@@ -1862,13 +1912,13 @@ async function loadInvoicePricing() {
                         <td>${item.active === false ? "Inactive" : "Active"}</td>
                         <td>
                             <button type="button" class="secondary" data-edit-invoice="${escapeHTML(r.id)}">Edit</button>
-                            <button type="button" class="danger" data-delete-invoice="${escapeHTML(r.id)}">Delete</button>
+                            <button type="button" class="danger" data-delete-invoice="${escapeHTML(r.id)}">Delete</button> <button type="button" class="secondary" data-share-invoice="${escapeHTML(r.id)}">Share</button>
                         </td>
                     </tr>`;
                 }).join("")}
             </tbody>
         </table>
-    ` : `<div class="empty">No internal invoice prices have been added yet.<br><strong>Management is already enabled:</strong> after you add a price, an <strong>Edit</strong> and <strong>Delete</strong> button will appear beside every saved invoice price.</div>`;
+    ` : `<div class="empty"><strong>No internal invoice prices have been added yet.</strong><br>Use “+ Add Invoice Price” above. Once a price is saved, every invoice-price row will have its own <strong>Edit</strong> and <strong>Delete</strong> buttons.</div>`;
 
     list.querySelectorAll("[data-edit-invoice]").forEach(button => {
         button.onclick = () => {
@@ -1886,6 +1936,8 @@ async function loadInvoicePricing() {
         };
     });
 
+    list.querySelectorAll("[data-share-invoice]").forEach(button=>{button.onclick=()=>{const row=invoices.find(r=>String(r.id)===String(button.dataset.shareInvoice));if(!row)return;let item={};try{item=JSON.parse(row.setting_value||"{}");}catch(_){} shareText("Aprils Signature Invoice Price",`Item / Service: ${item.name||""}\nCategory: ${item.category||""}\nUnit Price: GHS ${Number(item.price||0).toFixed(2)}\nNotes: ${item.notes||""}`);};});
+
     list.querySelectorAll("[data-delete-invoice]").forEach(button => {
         button.onclick = async () => {
             if (!confirm("Delete this internal invoice price?")) return;
@@ -1898,6 +1950,18 @@ async function loadInvoicePricing() {
             await loadInvoicePricing();
         };
     });
+}
+
+async function loadInvoicePaymentDetails() {
+    const rows=await getRows("settings"); const values={};
+    rows.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_")).forEach(r=>values[r.setting_key]=r.setting_value||"");
+    const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
+    Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
+}
+function setupInvoicePaymentForm(){
+    const form=document.getElementById("invoicePaymentForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
+    form.addEventListener("submit",async e=>{e.preventDefault();const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};try{for(const [id,key] of Object.entries(map)){const value=document.getElementById(id)?.value.trim()||"";const r=await db.from("settings").upsert({setting_key:key,setting_value:value,updated_at:new Date().toISOString()},{onConflict:"setting_key"});if(r.error)throw r.error;}message("Invoice payment details saved.","success");}catch(error){message("Invoice payment details could not be saved: "+error.message,"error");}});
+    loadInvoicePaymentDetails();
 }
 
 function setupInvoiceForm() {
@@ -2688,6 +2752,7 @@ async function startAdmin() {
     setupPolicyForm();
     setupContentForm();
     setupInvoiceForm();
+    setupInvoicePaymentForm();
     setupWebsiteLinksForm();
     setupContactForm();
     setupSocialForm();
