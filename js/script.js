@@ -80,14 +80,16 @@ function waitForSupabase() {
 
 
 function normalizeEmailLinks() {
+    const fallbackEmail = "info@aprilssignature.com";
+
     document.querySelectorAll("a").forEach(function (link) {
         const text = (link.textContent || "").trim();
         const href = String(link.getAttribute("href") || "");
-        const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i);
+        const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
 
-        if (match || /^mailto:/i.test(href) || /mail\.google\.com/i.test(href)) {
-            const email = match ? match[0] : "info@aprilssignature.com";
-            link.setAttribute("href", "mailto:" + email);
+        if (match || /^mailto:/i.test(href) || /mail\.google\.com/i.test(href) || /gmail\.com/i.test(href)) {
+            const email = match ? match[0] : (href.match(/[?&]to=([^&]+)/i)?.[1] || fallbackEmail);
+            link.setAttribute("href", "mailto:" + decodeURIComponent(email));
             link.removeAttribute("target");
             link.removeAttribute("rel");
         }
@@ -759,20 +761,7 @@ function setupQuoteForm() {
                     placeholder="Tell us what kids wear you need, quantity, design or other details."
                 ></textarea>
             </div>
-
-            <div class="form-group"
-                 data-service-detail="Practical Fashion Training"
-                 style="display:none">
-                <label for="trainingDetails">
-                    Training Request
-                </label>
-                <textarea
-                    id="trainingDetails"
-                    name="trainingDetails"
-                    placeholder="Please specify the training/class you are interested in."
-                ></textarea>
-            </div>
-        `;
+`;
 
         serviceSection.appendChild(extraDetails);
     }
@@ -1004,6 +993,7 @@ async function loadPublicServices() {
             <div class="container">
                 <h2>${escapeHTML(row.title)}</h2>
                 ${row.category ? `<p class="eyebrow">${escapeHTML(row.category)}</p>` : ""}
+                ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="service-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
                 <p>${escapeHTML(row.description || "")}</p>
                 <a href="quotes.html" class="button">Order / Request a Quote</a>
             </div>
@@ -1027,6 +1017,7 @@ async function loadPublicTraining() {
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
+            ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
             
         </article>
@@ -1067,12 +1058,119 @@ async function loadPublicFAQs() {
 }
 
 
+
+function getPublicPageKey() {
+    const classes = Array.from(document.body.classList);
+    const found = classes.find(c => c.endsWith("-page"));
+    return found ? found.replace(/-page$/, "") : "home";
+}
+
+function contentKeySlug(value) {
+    return String(value || "").trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 80);
+}
+
+function getManagedContentContainer(page) {
+    let container = document.querySelector(".admin-managed-content");
+    if (!container) {
+        container = document.createElement("section");
+        container.className = "admin-managed-content";
+        const inner = document.createElement("div");
+        inner.className = "container";
+        container.appendChild(inner);
+
+        const main = document.querySelector("main");
+        const intro = main?.querySelector(".page-intro");
+        if (main && intro) intro.after(container);
+        else if (main) main.appendChild(container);
+    }
+    return container.querySelector(".container") || container;
+}
+
+function renderDynamicManagedContent(rows, page) {
+    const dynamic = rows
+        .map(row => ({ row, parts: String(row.content_key || "").split("::") }))
+        .filter(item => item.parts[0] === "dynamic" && (item.parts[1] === page || item.parts[1] === "all"));
+
+    if (!dynamic.length) return;
+
+    const target = getManagedContentContainer(page);
+    target.innerHTML = "";
+
+    dynamic.forEach(({ row, parts }) => {
+        const type = parts[2] || "paragraph";
+        const name = parts.slice(3).join(" ").replace(/_/g, " ") || "Website Content";
+        const value = String(row.content_value || "");
+
+        if (type === "heading") {
+            const h = document.createElement("h2");
+            h.textContent = value;
+            target.appendChild(h);
+            return;
+        }
+
+        if (type === "notice") {
+            const box = document.createElement("div");
+            box.className = "admin-managed-notice";
+            box.textContent = value;
+            target.appendChild(box);
+            return;
+        }
+
+        if (type === "button") {
+            const parts = value.split("|");
+            const label = (parts[0] || name).trim();
+            const url = (parts[1] || "quotes.html").trim();
+            const a = document.createElement("a");
+            a.className = "button";
+            a.textContent = label;
+            a.href = url;
+            target.appendChild(a);
+            return;
+        }
+
+        const p = document.createElement("p");
+        p.textContent = value;
+        target.appendChild(p);
+    });
+
+    if (target.children.length) {
+        target.parentElement.classList.add("has-admin-content");
+    }
+}
+
 async function loadPublicManagedContent() {
     try {
         const contentRows = await loadPublicRows("site_content");
+        const settings = await loadPublicRows("settings");
+
+        const hidden = new Set(
+            settings
+                .filter(row => String(row.setting_key || "").startsWith("hidden_content_"))
+                .filter(row => String(row.setting_value || "").toLowerCase() === "true")
+                .map(row => String(row.setting_key).replace(/^hidden_content_/, ""))
+        );
+
         const content = {};
         contentRows.forEach(row => {
-            content[String(row.content_key || "").trim().toLowerCase()] = String(row.content_value || "");
+            const key = String(row.content_key || "").trim().toLowerCase();
+            if (!key) return;
+            if (hidden.has(contentKeySlug(key))) return;
+            content[key] = String(row.content_value || "");
+        });
+
+        document.querySelectorAll("[data-content-key]").forEach(function (el) {
+            const key = String(el.getAttribute("data-content-key") || "").trim().toLowerCase();
+            const storage = contentKeySlug(key);
+            if (hidden.has(storage)) {
+                el.style.display = "none";
+                return;
+            }
+            if (content[key] !== undefined) {
+                el.textContent = content[key];
+            }
         });
 
         const setText = (selector, value) => {
@@ -1080,17 +1178,6 @@ async function loadPublicManagedContent() {
             const el = document.querySelector(selector);
             if (el) el.textContent = value;
         };
-
-        /*
-           Any public element marked data-content-key is automatically
-           connected to the matching Website Content record.
-        */
-        document.querySelectorAll("[data-content-key]").forEach(function (el) {
-            const key = String(el.getAttribute("data-content-key") || "").trim().toLowerCase();
-            if (key && content[key] !== undefined) {
-                el.textContent = content[key];
-            }
-        });
 
         setText(".home-page .hero h1", content["homepage hero heading"]);
         setText(".home-page .hero-text", content["homepage tagline"]);
@@ -1100,11 +1187,10 @@ async function loadPublicManagedContent() {
         if (document.body.classList.contains("about-page")) {
             setText(".about-section p:first-of-type", content["about page introduction"]);
         }
-    } catch (error) {
-        console.warn("Public website content could not be loaded:", error);
-    }
 
-    try {
+        renderDynamicManagedContent(contentRows.filter(row => !hidden.has(contentKeySlug(row.content_key))), getPublicPageKey());
+
+        /* Contact information is a single managed source used by every public footer. */
         const contact = await loadPublicRows("contact_settings");
         const row = contact[0];
         if (row) {
@@ -1113,10 +1199,21 @@ async function loadPublicManagedContent() {
                 if (text.includes("contact")) {
                     const phone = column.querySelector('a[href^="tel:"]');
                     const whatsapp = column.querySelector('a[href*="wa.me"]');
-                    const email = column.querySelector('a[href^="mailto:"]');
-                    if (phone && row.phone) { phone.textContent = row.phone; phone.href = "tel:" + row.phone.replace(/\s+/g, ""); }
-                    if (whatsapp && row.whatsapp) { whatsapp.textContent = row.whatsapp; whatsapp.href = "https://wa.me/" + row.whatsapp.replace(/\D/g, ""); }
-                    if (email && row.email) { email.textContent = row.email; email.href = "mailto:" + row.email; }
+                    const email = column.querySelector('a[href^="mailto:"], a[href*="mail.google.com"]');
+                    if (phone && row.phone) {
+                        phone.textContent = row.phone;
+                        phone.href = "tel:" + row.phone.replace(/\s+/g, "");
+                    }
+                    if (whatsapp && row.whatsapp) {
+                        whatsapp.textContent = row.whatsapp;
+                        whatsapp.href = "https://wa.me/" + row.whatsapp.replace(/\D/g, "");
+                    }
+                    if (email && row.email) {
+                        email.textContent = row.email;
+                        email.href = "mailto:" + row.email;
+                        email.removeAttribute("target");
+                        email.removeAttribute("rel");
+                    }
                     const address = column.querySelector("p:last-of-type");
                     if (address && row.address) {
                         const strong = address.querySelector("strong");
@@ -1129,29 +1226,48 @@ async function loadPublicManagedContent() {
                 }
             });
         }
-    } catch (error) {
-        console.warn("Public contact settings could not be loaded:", error);
-    }
 
-    try {
-        const settings = await loadPublicRows("settings");
-        const socials = settings.filter(row => String(row.setting_key || "").toLowerCase().startsWith("social_"));
-        if (socials.length) {
-            const map = {};
-            socials.forEach(row => map[String(row.setting_key).replace(/^social_/i, "").toLowerCase()] = row.setting_value || "");
-            document.querySelectorAll(".footer-social a").forEach(link => {
-                const img = link.querySelector("img");
-                const platform = String(img?.alt || link.textContent || "").trim().toLowerCase().replace(/\s+/g, "");
-                const url = map[platform];
-                if (url) {
-                    link.href = url;
-                    link.target = "_blank";
-                    link.rel = "noopener noreferrer";
-                }
-            });
+        /* Managed public navigation and future links. */
+        const links = settings
+            .filter(row => String(row.setting_key || "").startsWith("site_link_"))
+            .map(row => {
+                try { return { ...JSON.parse(row.setting_value || "{}"), id: row.id }; }
+                catch (_) { return null; }
+            })
+            .filter(Boolean)
+            .filter(item => item.active !== false)
+            .sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
+
+        const headerLinks = links.filter(item => (item.location || "header") === "header");
+        const nav = document.querySelector(".main-navigation");
+        if (nav && headerLinks.length) {
+            nav.innerHTML = headerLinks.map(item => {
+                const url = String(item.url || "").trim();
+                return `<a href="${escapeHTML(url)}">${escapeHTML(item.label || "")}</a>`;
+            }).join("");
         }
+
+        const footerLinks = links.filter(item => item.location === "footer");
+        if (footerLinks.length) {
+            let footer = document.querySelector(".footer-managed-links");
+            if (!footer) {
+                footer = document.createElement("div");
+                footer.className = "footer-managed-links";
+                const footerTop = document.querySelector(".footer-top");
+                if (footerTop) footerTop.appendChild(footer);
+            }
+            footer.innerHTML = footerLinks.map(item => `<a href="${escapeHTML(item.url || "")}">${escapeHTML(item.label || "")}</a>`).join("");
+        }
+
+        document.querySelectorAll("a").forEach(link => {
+            const href = String(link.getAttribute("href") || "");
+            if (/^mailto:/i.test(href)) {
+                link.removeAttribute("target");
+                link.removeAttribute("rel");
+            }
+        });
     } catch (error) {
-        console.warn("Public social links could not be loaded:", error);
+        console.warn("Public website content could not be loaded:", error);
     }
 
     try {
