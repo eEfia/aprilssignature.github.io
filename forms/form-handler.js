@@ -5,7 +5,7 @@ FORMS CONTROLLER
 =========================================================
 
 This file prepares the website forms for submission.
-lkx
+
 Forms covered:
 1. Order / Quote Requests
 2. Training Registration
