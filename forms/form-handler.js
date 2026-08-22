@@ -3,8 +3,8 @@
 APRILS SIGNATURE
 FORMS CONTROLLER
 =========================================================
-zz
-This file prepares the website forms for submission.cj
+
+This file prepares the website forms for submission.
 
 Forms covered:
 1. Order / Quote Requests
