@@ -642,6 +642,26 @@ Dashboard Overview
 Welcome to the Aprils Signature Admin Dashboard.
 </p>
 
+<div class="form-card" style="margin:18px 0 24px;">
+<h3 style="margin-top:0;color:#075957;">Customer Direct Links</h3>
+<p class="intro">Send these links directly to customers. They open the requested form page immediately instead of making the customer search through the website.</p>
+<div class="form-grid">
+<div class="form-group">
+<label>Order / Request a Quote</label>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<button type="button" class="primary" id="shareOrderFormLink">Share Order Form Link</button>
+<button type="button" class="secondary" id="copyOrderFormLink">Copy Link</button>
+</div>
+</div>
+<div class="form-group">
+<label>Training Registration</label>
+<div style="display:flex;gap:8px;flex-wrap:wrap;">
+<button type="button" class="primary" id="shareTrainingFormLink">Share Training Link</button>
+<button type="button" class="secondary" id="copyTrainingFormLink">Copy Link</button>
+</div>
+</div>
+</div>
+</div>
 
 <div class="cards">
 
@@ -960,6 +980,18 @@ Cancel
 id="galleryList"
 class="table-wrap"
 ></div>
+
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Gallery Media Order &amp; Featured Collection</h3>
+<p class="intro">Use this separate section to control the order of every gallery image/video and the order of items shown in the Featured Collection on the public homepage. Changes made here are saved directly to the website database.</p>
+<div id="galleryMediaOrderList" class="table-wrap"></div>
+</div>
+
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Collection Order</h3>
+<p class="intro">Change the order of the gallery collections shown on the public Gallery page.</p>
+<div id="galleryCollectionOrderList" class="table-wrap"></div>
+</div>
 
 </section>
 
@@ -1439,6 +1471,7 @@ Active
 <div class="form-group"><label for="invoicePaymentNote">Payment Note</label><textarea id="invoicePaymentNote" placeholder="Any payment instruction to appear on invoices."></textarea></div>
 <button class="primary" type="submit">Save Payment Details</button>
 </form>
+<div id="invoicePaymentSaved" style="margin-top:16px;"></div>
 </div>
 <div id="invoiceList" class="table-wrap"></div>
 </section>

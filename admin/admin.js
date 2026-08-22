@@ -188,6 +188,19 @@ function setupNavigation() {
     });
 }
 
+function setupCustomerDirectLinks() {
+    const orderUrl = () => getPublicPageUrl("quotes.html");
+    const trainingUrl = () => getPublicPageUrl("training.html");
+    const copy = async (url, label) => {
+        try { await navigator.clipboard.writeText(url); message(`${label} copied to the clipboard.`, "success"); }
+        catch (_) { window.prompt(`Copy the ${label.toLowerCase()}:`, url); }
+    };
+    document.getElementById("shareOrderFormLink")?.addEventListener("click", () => sharePublicPageLink("Aprils Signature Order / Request a Quote", "quotes.html", "Aprils Signature — Order / Request a Quote\nPlease use this direct form to send your request:"));
+    document.getElementById("shareTrainingFormLink")?.addEventListener("click", () => sharePublicPageLink("Aprils Signature Training Registration", "training.html", "Aprils Signature — Training Registration\nPlease use this direct form to register:"));
+    document.getElementById("copyOrderFormLink")?.addEventListener("click", () => copy(orderUrl(), "Order / Request a Quote link"));
+    document.getElementById("copyTrainingFormLink")?.addEventListener("click", () => copy(trainingUrl(), "Training Registration link"));
+}
+
 async function loadDashboard() {
     const counters = {
         galleryCount: "gallery_items",
@@ -433,6 +446,113 @@ async function loadGallery() {
 
     await renderGalleryCategorySelect(document.getElementById("galleryCategory")?.value || "");
     renderHomepageFeaturedMedia(rows);
+    renderGalleryMediaOrder(rows);
+}
+
+
+async function renderGalleryMediaOrder(rows) {
+    const box = document.getElementById("galleryMediaOrderList");
+    if (!box) return;
+
+    const mediaRows = [...(rows || [])].sort((a, b) =>
+        Number(a.display_order || 9999) - Number(b.display_order || 9999) ||
+        String(a.category || "").localeCompare(String(b.category || "")) ||
+        String(a.title || "").localeCompare(String(b.title || ""))
+    );
+
+    if (!mediaRows.length) {
+        box.innerHTML = `<div class="empty">No gallery media yet. Add an image or video above.</div>`;
+        return;
+    }
+
+    box.innerHTML = `
+        <div class="admin-actions" style="margin-bottom:14px;">
+            <button type="button" class="primary" id="addMediaFromOrderManager">+ Add New Media</button>
+            <span class="muted" style="align-self:center;">Use this area to manage the homepage Featured Collection and media order.</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Preview</th>
+                    <th>Title</th>
+                    <th>Collection</th>
+                    <th>Gallery Order</th>
+                    <th>Featured</th>
+                    <th>Featured Order</th>
+                    <th>Active</th>
+                    <th>Save</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${mediaRows.map(row => {
+                    const media = row.image_url
+                        ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url)
+                            ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted controls playsinline style="width:90px;height:70px;object-fit:cover"></video>`
+                            : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover">`)
+                        : "—";
+                    return `
+                        <tr>
+                            <td>${media}</td>
+                            <td>${escapeHTML(row.title || "")}</td>
+                            <td>${escapeHTML(row.category || "")}</td>
+                            <td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-media-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
+                            <td><input type="checkbox" ${row.featured ? "checked" : ""} data-media-featured="${escapeHTML(row.id)}"></td>
+                            <td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-media-featured-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
+                            <td><input type="checkbox" ${row.active !== false ? "checked" : ""} data-media-active="${escapeHTML(row.id)}"></td>
+                            <td>
+                                <button type="button" class="secondary" data-media-save="${escapeHTML(row.id)}">Save</button>
+                                <button type="button" class="secondary" data-media-edit="${escapeHTML(row.id)}">Edit</button>
+                                <button type="button" class="danger" data-media-delete="${escapeHTML(row.id)}">Delete</button>
+                            </td>
+                        </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    `;
+
+    box.querySelectorAll("[data-media-save]").forEach(button => {
+        button.onclick = async () => {
+            const id = button.dataset.mediaSave;
+            const order = Number(box.querySelector(`[data-media-order="${id}"]`)?.value) || 1;
+            const featured = !!box.querySelector(`[data-media-featured="${id}"]`)?.checked;
+            const featuredOrder = Number(box.querySelector(`[data-media-featured-order="${id}"]`)?.value) || order;
+            const active = !!box.querySelector(`[data-media-active="${id}"]`)?.checked;
+
+            try {
+                const result = await db.from("gallery_items")
+                    .update({ display_order: order, featured, active, updated_at: new Date().toISOString() })
+                    .eq("id", id);
+                if (result.error) throw result.error;
+
+                if (featured) {
+                    await safeSettingUpsert("featured_order_" + id, String(featuredOrder));
+                } else {
+                    await db.from("settings").delete().eq("setting_key", "featured_order_" + id);
+                }
+
+                message("Gallery media order and settings saved.", "success");
+                await loadGallery();
+            } catch (error) {
+                console.error(error);
+                message("Gallery media could not be saved: " + error.message, "error");
+            }
+        };
+    });
+
+    box.querySelectorAll("[data-media-edit]").forEach(button => {
+        button.onclick = () => {
+            const row = mediaRows.find(item => String(item.id) === String(button.dataset.mediaEdit));
+            if (row) editGallery(row);
+        };
+    });
+
+    box.querySelectorAll("[data-media-delete]").forEach(button => {
+        button.onclick = () => deleteGallery(button.dataset.mediaDelete);
+    });
+
+    box.querySelector("#addMediaFromOrderManager")?.addEventListener("click", () => {
+        document.getElementById("newGalleryItemButton")?.click();
+    });
 }
 
 function renderHomepageFeaturedMedia(rows) {
@@ -779,12 +899,15 @@ function setupProductForm() {
         if(!name){message("Please enter a product name.","error");return;}
         try{
             const key=productKeyFromName(name);
+            let oldItem = {};
+            let oldSettingKey = "";
             if(id){
                 const old=await db.from("settings").select("setting_key,setting_value").eq("id",id).maybeSingle();
                 if(old.error)throw old.error;
-                let oldItem={}; try { oldItem=JSON.parse(old.data?.setting_value||"{}"); } catch(_) {}
-                await safeSettingUpsert(old.data?.setting_key||key,JSON.stringify(payload));
-                if(old.data?.setting_key && old.data.setting_key!==key) await db.from("settings").delete().eq("setting_key",key);
+                oldSettingKey = old.data?.setting_key || "";
+                try { oldItem=JSON.parse(old.data?.setting_value||"{}"); } catch(_) { oldItem={}; }
+                await safeSettingUpsert(oldSettingKey || key,JSON.stringify(payload));
+                if(oldSettingKey && oldSettingKey!==key) await db.from("settings").delete().eq("setting_key",key);
             }else{
                 await safeSettingUpsert(key,JSON.stringify(payload));
             }
@@ -859,7 +982,7 @@ async function loadTraining() {
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
     list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm")?.scrollIntoView({behavior:"smooth",block:"start"});});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -982,6 +1105,8 @@ function humanizeProductName(name) {
         jerseys: "Jerseys",
         hoodies: "Hoodies",
         joggers: "Joggers",
+        joggersSuperThick: "Joggers — Super Thick Cutting Joggers",
+        joggersEveryday: "Joggers — Everyday Wear Type",
         tshirts: "T-shirts",
         poloShirts: "Polo Shirts",
         sweatshirts: "Sweatshirts",
@@ -994,7 +1119,10 @@ function humanizeProductName(name) {
         joggerShorts: "Jogger Shorts",
         hoodiesJoggersSet: "Hoodies & Joggers Set",
         tshirtsShortsSet: "T-shirts & Shorts Set",
-        sweatshirtsShortsSet: "Sweatshirts & Shorts Set"
+        sweatshirtsShortsSet: "Sweatshirts & Shorts Set",
+        sweatshirtsSweatpantsSet: "Sweatshirts & Sweatpants Set",
+        tshirtsShortsSet: "T-shirts & Shorts Set",
+        tshirtSweatpantsSet: "T-shirt & Sweatpants Set"
     };
     return labels[name] || formatDetailLabel(name);
 }
@@ -1023,17 +1151,21 @@ function buildQuoteDetailRows(row, details) {
 
     if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
         const items = Object.entries(details.streetwear)
-            .filter(([, quantity]) => {
+            .map(([name, value]) => {
+                const quantity = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
+                const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
                 const n = Number(quantity);
-                return String(quantity).trim() !== "" && !Number.isNaN(n) ? n > 0 : String(quantity).trim() !== "";
+                if (!String(quantity ?? "").trim() || (!Number.isNaN(n) && n <= 0)) return "";
+                return `${product}: ${quantity}`;
             })
-            .map(([name, quantity]) => `${humanizeProductName(name)}: ${quantity}`);
+            .filter(Boolean);
 
         if (items.length) add("Streetwear Items & Quantities", items.join(" • "));
     }
 
     if (selected.includes("Streetwear")) {
         add("Streetwear Size / Measurements", details.streetwearSize);
+        add("Streetwear Colour", details.streetwearColour);
         add("Streetwear Other Request", details.streetwearOther);
     }
 
@@ -1041,22 +1173,35 @@ function buildQuoteDetailRows(row, details) {
         add("Ladies Wear Quantity", details.ladiesWearQuantity);
         add("Ladies Wear Request", details.ladiesWear);
         add("Ladies Wear Size / Measurements", details.ladiesWearSize);
+        add("Ladies Wear Colour", details.ladiesWearColour);
     }
 
     if (selected.includes("Kids Wear")) {
         add("Kids Wear Quantity", details.kidsWearQuantity);
         add("Kids Wear Request", details.kidsWear);
         add("Kids Wear Size / Measurements", details.kidsWearSize);
+        add("Kids Wear Colour", details.kidsWearColour);
     }
 
     if (selected.includes("Embellishment Services")) {
         const embellishments = Array.isArray(details.embellishment)
             ? details.embellishment.filter(Boolean)
             : [];
-        add("Embellishment Quantity", details.embellishmentQuantity);
         add("Embellishment Services", embellishments.join(", "));
-        add("Embellishment Request", details.embellishmentOther);
-        add("Embellishment Size / Measurements", details.embellishmentSize);
+
+        if (details.embellishmentDetails && typeof details.embellishmentDetails === "object") {
+            Object.entries(details.embellishmentDetails).forEach(([service, info]) => {
+                if (!info || typeof info !== "object") return;
+                add(service + " — Quantity", info.quantity);
+                add(service + " — Size / Measurements", info.size);
+                add(service + " — Colour", info.colour);
+                add(service + " — Details / Style Request", info.details);
+            });
+        } else {
+            add("Embellishment Quantity", details.embellishmentQuantity);
+            add("Embellishment Request", details.embellishmentOther);
+            add("Embellishment Size / Measurements", details.embellishmentSize);
+        }
     }
 
     if (selected.includes("Practical Fashion Training")) {
@@ -1134,6 +1279,115 @@ async function shareText(title, text) {
     } catch (error) {
         if (error?.name === "AbortError") return;
         try { await navigator.clipboard.writeText(text); message("Details copied to the clipboard. You can paste them into WhatsApp, email or another app.", "success"); } catch (_) { message("Unable to share these details on this device.", "error"); }
+    }
+}
+
+function getPublicPageUrl(fileName) {
+    try {
+        return new URL("../" + fileName, window.location.href).href;
+    } catch (_) {
+        return fileName;
+    }
+}
+
+async function sharePublicPageLink(title, fileName, messageText) {
+    const url = getPublicPageUrl(fileName);
+    const text = messageText ? `${messageText}\n\n${url}` : url;
+    try {
+        if (navigator.share) {
+            await navigator.share({ title, text, url });
+            return;
+        }
+    } catch (error) {
+        if (error?.name === "AbortError") return;
+    }
+    try {
+        await navigator.clipboard.writeText(url);
+        message("The direct page link has been copied. You can paste it into WhatsApp, SMS, email or any other message.", "success");
+    } catch (_) {
+        window.prompt("Copy this direct page link:", url);
+    }
+}
+
+function normalizeWhatsAppNumber(value) {
+    let digits = String(value || "").replace(/[^0-9]/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.startsWith("0") && digits.length === 10) digits = "233" + digits.slice(1);
+    return digits;
+}
+
+function buildInvoiceShareText(data) {
+    const lines = [
+        "Aprils Signature — Invoice",
+        `Invoice No.: ${data.invoiceNumber}`,
+        `Customer: ${data.customer}`,
+        data.phone ? `Phone: ${data.phone}` : "",
+        data.invoiceDate ? `Date: ${data.invoiceDate}` : "",
+        "",
+        "Items:"
+    ];
+    data.lines.forEach(item => lines.push(`${item.description} — Qty ${item.quantity} × GHS ${item.unitPrice.toFixed(2)} = GHS ${item.amount.toFixed(2)}`));
+    lines.push("", `Total: GHS ${data.subtotal.toFixed(2)}`);
+    if (data.paymentText) lines.push("", "Payment details:", data.paymentText);
+    lines.push("", "Thank you for choosing Aprils Signature.", "Elegance in Every Stitch");
+    return lines.filter((line, index) => !(line === "" && lines[index - 1] === "")).join("\n");
+}
+
+function collectManualInvoiceData() {
+    const modal = document.getElementById("manualInvoiceModal");
+    if (!modal) return null;
+    const body = modal.querySelector(".submission-modal-body");
+    const lines = [];
+    body.querySelectorAll("[data-invoice-row]").forEach(tr => {
+        const description = tr.querySelector(".manual-invoice-description")?.value.trim() || "";
+        const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
+        const unitPrice = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
+        if (description && quantity > 0) lines.push({ description, quantity, unitPrice, amount: quantity * unitPrice });
+    });
+    return {
+        invoiceNumber: body.querySelector("#manualInvoiceNumber")?.value.trim() || "",
+        invoiceDate: body.querySelector("#manualInvoiceDate")?.value || "",
+        customer: body.querySelector("#manualInvoiceCustomer")?.value.trim() || "",
+        phone: body.querySelector("#manualInvoicePhone")?.value.trim() || "",
+        email: body.querySelector("#manualInvoiceEmail")?.value.trim() || "",
+        lines,
+        subtotal: lines.reduce((sum, item) => sum + item.amount, 0),
+        paymentText: document.getElementById("manualInvoicePaymentPreview")?.innerText.replace(/^Payment details that will appear on the invoice\s*/i, "").trim() || ""
+    };
+}
+
+async function shareGeneratedInvoice(mode = "native") {
+    const data = collectManualInvoiceData();
+    if (!data) return;
+    if (!data.lines.length) { message("Add at least one invoice item before sharing the invoice.", "error"); return; }
+    const text = buildInvoiceShareText(data);
+    const number = normalizeWhatsAppNumber(data.phone);
+
+    if (mode === "whatsapp") {
+        if (!number) { message("No valid customer phone number is available for WhatsApp.", "error"); return; }
+        window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+        return;
+    }
+
+    if (mode === "email") {
+        if (!data.email) { message("No customer email address is available.", "error"); return; }
+        window.location.href = `mailto:${encodeURIComponent(data.email)}?subject=${encodeURIComponent("Aprils Signature Invoice " + data.invoiceNumber)}&body=${encodeURIComponent(text)}`;
+        return;
+    }
+
+    try {
+        if (navigator.share) {
+            await navigator.share({ title: "Aprils Signature Invoice " + data.invoiceNumber, text });
+            return;
+        }
+    } catch (error) {
+        if (error?.name === "AbortError") return;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+        message("Invoice details copied. You can paste them into WhatsApp, SMS or email.", "success");
+    } catch (_) {
+        window.prompt("Copy the invoice message:", text);
     }
 }
 
@@ -1261,6 +1515,7 @@ async function loadRegistrations() {
             <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
             <td>
     <button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button>
+    <button type="button" class="primary" data-generate-training-invoice="${row.id}">Generate Invoice</button>
     <button type="button" class="danger" data-delete-registration="${row.id}">Delete</button>
 </td>
         </tr>`).join("")}
@@ -1271,6 +1526,15 @@ async function loadRegistrations() {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
             if (row) showSubmissionDetails("Training Registration Details", row, row.message || row.request_details || row.details || "");
+        };
+    });
+
+    list.querySelectorAll("[data-generate-training-invoice]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.generateTrainingInvoice));
+            if (!row) return;
+            const invoiceRow = { ...row, _invoiceType: "training", _invoiceItems: getInvoiceLineItemsFromTraining(row) };
+            showManualInvoiceBuilder(invoiceRow);
         };
     });
 
@@ -1299,13 +1563,14 @@ function summarizeQuoteQuantities(row) {
     if (!streetwear || typeof streetwear !== "object") return "—";
 
     const items = Object.entries(streetwear)
-        .filter(([, quantity]) => {
-            const value = String(quantity ?? "").trim();
-            if (!value) return false;
-            const number = Number(value);
-            return Number.isNaN(number) ? true : number > 0;
+        .map(([name, value]) => {
+            const quantity = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
+            const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
+            const number = Number(quantity);
+            if (!String(quantity ?? "").trim() || (!Number.isNaN(number) && number <= 0)) return "";
+            return `${product}: ${quantity}`;
         })
-        .map(([name, quantity]) => `${humanizeProductName(name)}: ${quantity}`);
+        .filter(Boolean);
 
     return items.length ? items.join(" • ") : "—";
 }
@@ -1322,23 +1587,29 @@ function summarizeQuoteDetails(row) {
 
     if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
         const items = Object.entries(details.streetwear)
-            .filter(([, q]) => {
+            .map(([name, value]) => {
+                const q = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
+                const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
                 const n = Number(q);
-                return String(q).trim() !== "" && (!Number.isNaN(n) ? n > 0 : true);
+                if (!String(q ?? "").trim() || (!Number.isNaN(n) && n <= 0)) return "";
+                return `${product}: ${q}`;
             })
-            .map(([name, q]) => `${humanizeProductName(name)}: ${q}`);
+            .filter(Boolean);
         if (items.length) parts.push(items.join(" • "));
         if (details.streetwearSize) parts.push(`Size: ${details.streetwearSize}`);
+        if (details.streetwearColour) parts.push(`Colour: ${details.streetwearColour}`);
     }
 
     if (selected.includes("Ladies Wear")) {
         if (details.ladiesWear) parts.push(`Ladies Wear: ${details.ladiesWear}`);
         if (details.ladiesWearSize) parts.push(`Size: ${details.ladiesWearSize}`);
+        if (details.ladiesWearColour) parts.push(`Colour: ${details.ladiesWearColour}`);
     }
 
     if (selected.includes("Kids Wear")) {
         if (details.kidsWear) parts.push(`Kids Wear: ${details.kidsWear}`);
         if (details.kidsWearSize) parts.push(`Size: ${details.kidsWearSize}`);
+        if (details.kidsWearColour) parts.push(`Colour: ${details.kidsWearColour}`);
     }
 
     if (selected.includes("Embellishment Services")) {
@@ -1388,6 +1659,348 @@ function groupDuplicateQuotes(rows) {
     return Array.from(groups.values());
 }
 
+
+function invoiceNameKey(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[–—]/g, "-")
+        .replace(/\s+/g, " ");
+}
+
+function getInvoiceLineItemsFromQuote(row) {
+    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
+    const details = parseSubmissionDetails(detailsText);
+    const selected = Array.isArray(details.selectedServices)
+        ? details.selectedServices
+        : String(row?.service || "").split(",").map(v => v.trim()).filter(Boolean);
+    const items = [];
+
+    const add = (description, quantity = 1, unitPrice = "") => {
+        if (!description) return;
+        const q = Number(quantity);
+        items.push({
+            description: String(description),
+            quantity: Number.isFinite(q) && q > 0 ? q : 1,
+            unitPrice: unitPrice === "" ? "" : Number(unitPrice) || 0
+        });
+    };
+
+    if (details.streetwear && typeof details.streetwear === "object") {
+        Object.entries(details.streetwear).forEach(([key, value]) => {
+            let quantity = value;
+            let product = humanizeProductName(key);
+            if (value && typeof value === "object") {
+                quantity = value.quantity ?? value.qty ?? 1;
+                product = value.product || value.name || product;
+            }
+            const n = Number(quantity);
+            if (String(quantity ?? "").trim() && (Number.isNaN(n) || n > 0)) add(product, n);
+        });
+    }
+
+    if (selected.includes("Ladies Wear")) {
+        add(details.ladiesWear || "Ladies Wear", details.ladiesWearQuantity || 1);
+    }
+    if (selected.includes("Kids Wear")) {
+        add(details.kidsWear || "Kids Wear", details.kidsWearQuantity || 1);
+    }
+
+    if (details.embellishmentDetails && typeof details.embellishmentDetails === "object") {
+        Object.entries(details.embellishmentDetails).forEach(([service, info]) => {
+            if (!info || typeof info !== "object") return;
+            const quantity = Number(info.quantity) > 0 ? Number(info.quantity) : 1;
+            const description = info.details
+                ? `${service} — ${info.details}`
+                : service;
+            add(description, quantity);
+        });
+    } else if (Array.isArray(details.embellishment)) {
+        details.embellishment.filter(Boolean).forEach(service => {
+            add(service, details.embellishmentQuantity || 1);
+        });
+    }
+
+    if (selected.includes("Practical Fashion Training") && details.training) {
+        add(details.training, 1);
+    }
+
+    if (!items.length) {
+        selected.forEach(service => add(service, 1));
+    }
+
+    return items;
+}
+
+async function getInvoicePriceMaps() {
+    const rows = await getRows("settings");
+    const invoice = new Map();
+    const products = new Map();
+
+    rows.forEach(row => {
+        const key = String(row.setting_key || "");
+        let value = {};
+        try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+
+        if (key.startsWith("invoice_price_") && value.name) {
+            invoice.set(invoiceNameKey(value.name), Number(value.price) || 0);
+        }
+        if (key.startsWith("product_") && value.name && value.public_price !== null && value.public_price !== undefined && value.public_price !== "") {
+            products.set(invoiceNameKey(value.name), Number(value.public_price) || 0);
+        }
+        if (key.startsWith("public_training_price_") && value.name) {
+            products.set(invoiceNameKey(value.name), Number(value.price) || 0);
+        }
+        if (key.startsWith("invoice_price_Training - ")) {
+            const trainingName = String(value.name || "").replace(/^Training - /i, "").trim();
+            if (trainingName) invoice.set(invoiceNameKey(trainingName), Number(value.price) || 0);
+        }
+    });
+
+    return { invoice, products };
+}
+
+async function getSavedInvoicePaymentValues() {
+    const rows = await getRows("settings");
+    const values = {};
+    rows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_"))
+        .forEach(r => { values[r.setting_key] = r.setting_value || ""; });
+    return values;
+}
+
+function getInvoiceLineItemsFromTraining(row) {
+    const detailsText = row?.message || row?.request_details || row?.details || "";
+    let course = String(row?.course || row?.training || "Training Registration").trim();
+    if (!course) course = "Training Registration";
+    return [{ description: course, quantity: 1, unitPrice: "" }];
+}
+
+function showManualInvoiceBuilder(row) {
+    let modal = document.getElementById("manualInvoiceModal");
+    let backdrop = document.getElementById("manualInvoiceBackdrop");
+
+    if (!modal) {
+        backdrop = document.createElement("div");
+        backdrop.id = "manualInvoiceBackdrop";
+        backdrop.className = "submission-modal-backdrop";
+        backdrop.addEventListener("click", closeManualInvoiceBuilder);
+
+        modal = document.createElement("div");
+        modal.id = "manualInvoiceModal";
+        modal.className = "submission-modal";
+        modal.style.maxWidth = "1100px";
+        modal.innerHTML = '<button type="button" class="submission-modal-close" aria-label="Close">&times;</button><div class="submission-modal-body"></div>';
+        modal.querySelector(".submission-modal-close").addEventListener("click", closeManualInvoiceBuilder);
+        document.body.appendChild(modal);
+    }
+
+    const body = modal.querySelector(".submission-modal-body");
+    const detailsText = row.journey || row.request_details || row.details || row.message || "";
+    const isTrainingInvoice = row._invoiceType === "training";
+    const items = Array.isArray(row._invoiceItems) ? row._invoiceItems : getInvoiceLineItemsFromQuote(row);
+    const invoiceNumber = "AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(row.id || "").replace(/[^a-zA-Z0-9]/g,"").slice(-6).toUpperCase();
+
+    body.innerHTML = `
+        <div class="submission-modal-header">
+            <h2>${isTrainingInvoice ? "Generate Training Invoice" : "Generate Invoice"}</h2>
+            <div class="submission-modal-actions">
+                <button type="button" class="primary" id="preparePrintableInvoice">Print / Save Invoice as PDF</button>
+                <button type="button" class="primary" id="shareInvoiceNative">Share Invoice</button>
+                <button type="button" class="secondary" id="shareInvoiceWhatsApp">Send via WhatsApp</button>
+                <button type="button" class="secondary" id="shareInvoiceEmail">Send by Email</button>
+                <button type="button" class="secondary" id="closeManualInvoice">Close</button>
+            </div>
+        </div>
+        <div class="form-card" style="box-shadow:none;padding:0;">
+            <div class="form-grid">
+                <div class="form-group"><label>Invoice Number</label><input id="manualInvoiceNumber" value="${escapeHTML(invoiceNumber)}"></div>
+                <div class="form-group"><label>Invoice Date</label><input id="manualInvoiceDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+                <div class="form-group"><label>Customer Name</label><input id="manualInvoiceCustomer" value="${escapeHTML(row.full_name || "")}"></div>
+                <div class="form-group"><label>Phone</label><input id="manualInvoicePhone" value="${escapeHTML(row.phone || "")}"></div>
+                <div class="form-group"><label>Email</label><input id="manualInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
+                <div class="form-group"><label>Location</label><input id="manualInvoiceLocation" value="${escapeHTML(row.location || "")}"></div>
+            </div>
+            <div class="form-group"><label>Notes / Customer Request</label><textarea id="manualInvoiceNotes" rows="3">${escapeHTML(detailsText && !/^\s*\{/.test(detailsText) ? detailsText : "")}</textarea></div>
+        </div>
+        <div class="table-wrap">
+            <table id="manualInvoiceItemsTable">
+                <thead><tr><th>Description</th><th style="width:110px;">Quantity</th><th style="width:160px;">Unit Price (GHS)</th><th style="width:160px;">Amount (GHS)</th><th></th></tr></thead>
+                <tbody>
+                    ${items.map((item, index) => `
+                        <tr data-invoice-row>
+                            <td><input class="manual-invoice-description" value="${escapeHTML(item.description)}"></td>
+                            <td><input class="manual-invoice-quantity" type="number" min="1" step="1" value="${escapeHTML(item.quantity)}"></td>
+                            <td><input class="manual-invoice-price" type="number" min="0" step="0.01" value="${item.unitPrice === "" ? "" : Number(item.unitPrice).toFixed(2)}"></td>
+                            <td class="manual-invoice-amount">GHS 0.00</td>
+                            <td><button type="button" class="danger manual-invoice-remove">Remove</button></td>
+                        </tr>`).join("")}
+                </tbody>
+                <tfoot>
+                    <tr><th colspan="3" style="text-align:right;">Subtotal</th><th id="manualInvoiceSubtotal">GHS 0.00</th><th></th></tr>
+                </tfoot>
+            </table>
+        </div>
+        <div style="margin-top:12px;">
+            <button type="button" class="secondary" id="manualInvoiceAddItem">+ Add Line Item</button>
+        </div>
+        <div id="manualInvoicePaymentPreview" class="notice" style="margin-top:18px;">Loading saved payment details…</div>
+    `;
+
+    const recalc = () => {
+        let subtotal = 0;
+        body.querySelectorAll("[data-invoice-row]").forEach(tr => {
+            const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
+            const price = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
+            const amount = quantity * price;
+            subtotal += amount;
+            const amountCell = tr.querySelector(".manual-invoice-amount");
+            if (amountCell) amountCell.textContent = "GHS " + amount.toFixed(2);
+        });
+        const subtotalCell = body.querySelector("#manualInvoiceSubtotal");
+        if (subtotalCell) subtotalCell.textContent = "GHS " + subtotal.toFixed(2);
+    };
+
+    const bindRow = tr => {
+        tr.querySelectorAll("input").forEach(input => input.addEventListener("input", recalc));
+        tr.querySelector(".manual-invoice-remove")?.addEventListener("click", () => { tr.remove(); recalc(); });
+    };
+
+    body.querySelectorAll("[data-invoice-row]").forEach(bindRow);
+
+    body.querySelector("#manualInvoiceAddItem")?.addEventListener("click", () => {
+        const tr = document.createElement("tr");
+        tr.setAttribute("data-invoice-row", "");
+        tr.innerHTML = `<td><input class="manual-invoice-description" placeholder="Item / Service"></td><td><input class="manual-invoice-quantity" type="number" min="1" value="1"></td><td><input class="manual-invoice-price" type="number" min="0" step="0.01" placeholder="0.00"></td><td class="manual-invoice-amount">GHS 0.00</td><td><button type="button" class="danger manual-invoice-remove">Remove</button></td>`;
+        body.querySelector("#manualInvoiceItemsTable tbody").appendChild(tr);
+        bindRow(tr);
+        recalc();
+    });
+
+    body.querySelector("#closeManualInvoice")?.addEventListener("click", closeManualInvoiceBuilder);
+    body.querySelector("#preparePrintableInvoice")?.addEventListener("click", () => printManualInvoice(row));
+    body.querySelector("#shareInvoiceNative")?.addEventListener("click", () => shareGeneratedInvoice("native"));
+    body.querySelector("#shareInvoiceWhatsApp")?.addEventListener("click", () => shareGeneratedInvoice("whatsapp"));
+    body.querySelector("#shareInvoiceEmail")?.addEventListener("click", () => shareGeneratedInvoice("email"));
+
+    (async () => {
+        const maps = await getInvoicePriceMaps();
+        body.querySelectorAll("[data-invoice-row]").forEach(tr => {
+            const description = tr.querySelector(".manual-invoice-description")?.value || "";
+            const priceInput = tr.querySelector(".manual-invoice-price");
+            if (priceInput && priceInput.value === "") {
+                const key = invoiceNameKey(description);
+                const price = maps.invoice.get(key) ?? maps.products.get(key);
+                if (price !== undefined) priceInput.value = Number(price).toFixed(2);
+            }
+        });
+        const payment = await getSavedInvoicePaymentValues();
+        const preview = body.querySelector("#manualInvoicePaymentPreview");
+        if (preview) {
+            preview.innerHTML = `
+                <strong>Payment details that will appear on the invoice</strong><br>
+                ${escapeHTML(payment.invoice_payment_network || "")}
+                ${payment.invoice_payment_name ? " — " + escapeHTML(payment.invoice_payment_name) : ""}
+                ${payment.invoice_payment_number ? " — " + escapeHTML(payment.invoice_payment_number) : ""}
+                ${payment.invoice_payment_note ? "<br>" + escapeHTML(payment.invoice_payment_note) : ""}
+            `;
+        }
+        recalc();
+    })();
+
+    backdrop.style.display = "block";
+    modal.classList.add("open");
+}
+
+function closeManualInvoiceBuilder() {
+    document.getElementById("manualInvoiceModal")?.classList.remove("open");
+    const backdrop = document.getElementById("manualInvoiceBackdrop");
+    if (backdrop) backdrop.style.display = "none";
+}
+
+async function printManualInvoice(row) {
+    const modal = document.getElementById("manualInvoiceModal");
+    if (!modal) return;
+
+    const body = modal.querySelector(".submission-modal-body");
+    const payment = await getSavedInvoicePaymentValues();
+    const lines = [];
+
+    body.querySelectorAll("[data-invoice-row]").forEach(tr => {
+        const description = tr.querySelector(".manual-invoice-description")?.value.trim() || "";
+        const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
+        const unitPrice = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
+        if (description && quantity > 0) {
+            lines.push({ description, quantity, unitPrice, amount: quantity * unitPrice });
+        }
+    });
+
+    const subtotal = lines.reduce((sum, item) => sum + item.amount, 0);
+    const invoiceNumber = body.querySelector("#manualInvoiceNumber")?.value.trim() || "";
+    const invoiceDate = body.querySelector("#manualInvoiceDate")?.value || "";
+    const customer = body.querySelector("#manualInvoiceCustomer")?.value.trim() || "";
+    const phone = body.querySelector("#manualInvoicePhone")?.value.trim() || "";
+    const email = body.querySelector("#manualInvoiceEmail")?.value.trim() || "";
+    const location = body.querySelector("#manualInvoiceLocation")?.value.trim() || "";
+    const notes = body.querySelector("#manualInvoiceNotes")?.value.trim() || "";
+
+    const win = window.open("", "_blank");
+    if (!win) {
+        message("The invoice window was blocked. Please allow pop-ups for the admin page.", "error");
+        return;
+    }
+
+    const rowsHtml = lines.map(item => `
+        <tr>
+            <td>${escapeHTML(item.description)}</td>
+            <td style="text-align:center">${item.quantity}</td>
+            <td style="text-align:right">GHS ${item.unitPrice.toFixed(2)}</td>
+            <td style="text-align:right">GHS ${item.amount.toFixed(2)}</td>
+        </tr>`).join("");
+
+    win.document.write(`<!doctype html><html><head><title>${escapeHTML(invoiceNumber)}</title>
+        <style>
+            :root{--teal:#075957;--teal2:#0f7775;--gold:#d6a542;--ink:#171717;--line:#b7b7b7;--light:#f5faf9}
+            *{box-sizing:border-box}
+            body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);padding:30px;max-width:920px;margin:auto;background:#fff}
+            .invoice-shell{border:2px solid var(--teal);padding:28px}
+            .brandbar{height:8px;background:var(--gold);margin:-28px -28px 24px}
+            h1{margin:0 0 5px;color:var(--teal);font-size:30px;letter-spacing:.2px}.tagline{font-weight:700}.muted{color:#555}
+            .top{display:flex;justify-content:space-between;gap:30px;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid var(--teal)}
+            .invoice-title{text-align:right}.invoice-title strong{font-size:24px;color:var(--teal);letter-spacing:1px}
+            .billto{border:1.5px solid var(--line);padding:14px 16px;margin-bottom:22px;background:var(--light)}
+            .section-title{font-weight:700;color:var(--teal);text-transform:uppercase;font-size:12px;letter-spacing:.8px;margin-bottom:6px}
+            table{width:100%;border-collapse:collapse;margin-top:10px;border:2px solid var(--teal)}
+            th,td{border:1.5px solid var(--line);padding:11px 12px;text-align:left}
+            th{background:#e9f5f4;color:var(--teal);font-weight:700;border-bottom:2px solid var(--teal)}
+            tbody tr:nth-child(even){background:#fafafa}
+            .totalbox{display:flex;justify-content:flex-end;margin-top:16px}.total{border:2px solid var(--gold);padding:13px 18px;font-size:20px;font-weight:bold;min-width:240px;text-align:right}
+            .payment{margin-top:28px;border:2px solid var(--teal);padding:16px;background:var(--light)}
+            .footer{margin-top:26px;padding-top:15px;border-top:1.5px solid var(--line);text-align:center}
+            .print-btn{margin-top:20px;padding:12px 20px;background:var(--teal);color:#fff;border:0;border-radius:4px;font-weight:700;cursor:pointer}
+            @media print{body{padding:0}.invoice-shell{border:0;padding:0}.brandbar{margin:0 0 20px}.no-print{display:none}}
+        </style></head><body>
+        <div class="invoice-shell"><div class="brandbar"></div>
+        <div class="top">
+            <div><h1>Aprils Signature</h1><div>Elegance in Every Stitch</div><div class="muted">Winneba, Central Region, Ghana</div></div>
+            <div><strong>INVOICE</strong><br>Invoice No: ${escapeHTML(invoiceNumber)}<br>Date: ${escapeHTML(invoiceDate)}</div>
+        </div>
+        <div class="billto"><div class="section-title">Bill To</div><strong>${escapeHTML(customer)}</strong><br>${escapeHTML(phone)}${email ? "<br>" + escapeHTML(email) : ""}${location ? "<br>" + escapeHTML(location) : ""}</div>
+        <table><thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>${rowsHtml || "<tr><td colspan='4'>No line items added.</td></tr>"}</tbody></table>
+        <div class="totalbox"><div class="total">Total: GHS ${subtotal.toFixed(2)}</div></div>
+        ${notes ? `<div style="margin-top:22px"><strong>Notes:</strong><br>${escapeHTML(notes).replace(/\n/g,"<br>")}</div>` : ""}
+        <div class="payment"><strong>Payment Details</strong><br>
+            ${escapeHTML(payment.invoice_payment_network || "")}
+            ${payment.invoice_payment_name ? " — " + escapeHTML(payment.invoice_payment_name) : ""}
+            ${payment.invoice_payment_number ? " — " + escapeHTML(payment.invoice_payment_number) : ""}
+            ${payment.invoice_payment_note ? "<br>" + escapeHTML(payment.invoice_payment_note).replace(/\n/g,"<br>") : ""}
+        </div>
+        <div class="footer"><strong>Thank you for choosing Aprils Signature.</strong><div class="muted" style="margin-top:5px">Elegance in Every Stitch</div></div>
+        <button class="no-print print-btn" onclick="window.print()">Print / Save Invoice as PDF</button>
+        </div></body></html>`);
+    win.document.close();
+    win.focus();
+}
+
 async function loadQuotes() {
     const rawRows = await getRows("quote_requests");
     const rows = groupDuplicateQuotes(rawRows);
@@ -1422,6 +2035,7 @@ async function loadQuotes() {
                     <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
                     <td>
                         <button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button>
+                        <button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
                         <button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button>
                     </td>
                 </tr>`;
@@ -1441,6 +2055,13 @@ async function loadQuotes() {
                 if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
             } catch (_) {}
             showSubmissionDetails("Customer Order / Quote Details", row, details, uploads);
+        };
+    });
+
+    list.querySelectorAll("[data-generate-invoice]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.generateInvoice));
+            if (row) showManualInvoiceBuilder(row);
         };
     });
 
@@ -2049,11 +2670,69 @@ async function loadInvoicePricing() {
 }
 
 async function loadInvoicePaymentDetails() {
-    const rows=await getRows("settings"); const values={};
-    rows.filter(r=>["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||""))).forEach(r=>{ values[r.setting_key]=r.setting_value||""; });
-    const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
-    Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
+    const rows = await getRows("settings");
+    const values = {};
+    rows
+        .filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key || "")))
+        .forEach(r => { values[r.setting_key] = r.setting_value || ""; });
+
+    const map = {
+        invoicePaymentNumber: "invoice_payment_number",
+        invoicePaymentName: "invoice_payment_name",
+        invoicePaymentNetwork: "invoice_payment_network",
+        invoicePaymentNote: "invoice_payment_note"
+    };
+
+    Object.entries(map).forEach(([id, key]) => {
+        const el = document.getElementById(id);
+        if (el) el.value = values[key] || "";
+    });
+
+    const box = document.getElementById("invoicePaymentSaved");
+    if (!box) return;
+
+    const hasSaved = Object.values(values).some(value => String(value || "").trim() !== "");
+    box.innerHTML = hasSaved ? `
+        <div class="notice" style="margin-top:12px;">
+            <strong>Saved invoice payment details</strong>
+            <table style="margin-top:10px;width:100%;border-collapse:collapse;">
+                <tbody>
+                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Payment Number</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_number || "—")}</td></tr>
+                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Account / MoMo Name</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_name || "—")}</td></tr>
+                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Network / Method</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_network || "—")}</td></tr>
+                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Payment Note</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_note || "—")}</td></tr>
+                </tbody>
+            </table>
+            <div style="margin-top:10px;">
+                <button type="button" class="secondary" id="editSavedInvoicePayment">Edit Saved Details</button>
+                <button type="button" class="danger" id="deleteSavedInvoicePayment">Delete Saved Details</button>
+            </div>
+        </div>
+    ` : `<div class="empty" style="margin-top:12px;">No invoice payment details have been saved yet.</div>`;
+
+    document.getElementById("editSavedInvoicePayment")?.addEventListener("click", () => {
+        document.getElementById("invoicePaymentForm")?.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+
+    document.getElementById("deleteSavedInvoicePayment")?.addEventListener("click", async () => {
+        if (!confirm("Delete the saved invoice payment details?")) return;
+        try {
+            for (const key of Object.values(map)) {
+                const result = await db.from("settings").delete().eq("setting_key", key);
+                if (result.error) throw result.error;
+            }
+            Object.keys(map).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = "";
+            });
+            message("Saved invoice payment details deleted.", "success");
+            await loadInvoicePaymentDetails();
+        } catch (error) {
+            message("Invoice payment details could not be deleted: " + error.message, "error");
+        }
+    });
 }
+
 function setupInvoicePaymentForm(){
     const form=document.getElementById("invoicePaymentForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
     form.addEventListener("submit",async e=>{
@@ -2867,6 +3546,7 @@ async function startAdmin() {
     setupLogin();
     setupLogout();
     setupNavigation();
+    setupCustomerDirectLinks();
 
     setupGalleryForm();
     setupTrainingForm();
