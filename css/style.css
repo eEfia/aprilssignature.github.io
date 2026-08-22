@@ -2792,3 +2792,292 @@ table td {
         max-width: 78% !important;
     }
 }
+
+
+/* =========================================================
+   ROBUST EMAIL FALLBACK + SITE-WIDE HELP CHAT
+========================================================= */
+
+.aprils-email-fallback {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,.58);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .22s ease, visibility .22s ease;
+}
+.aprils-email-fallback.is-open {
+    opacity: 1;
+    visibility: visible;
+}
+.aprils-email-fallback-card {
+    width: min(100%, 430px);
+    background: #fff;
+    border-radius: 14px;
+    padding: 30px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,.28);
+    text-align: center;
+    transform: translateY(14px) scale(.98);
+    transition: transform .22s ease;
+}
+.aprils-email-fallback.is-open .aprils-email-fallback-card {
+    transform: translateY(0) scale(1);
+}
+.aprils-email-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 0;
+    background: transparent;
+    font-size: 30px;
+    line-height: 1;
+    cursor: pointer;
+    color: #333;
+}
+.aprils-email-icon {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    font-size: 27px;
+}
+.aprils-email-fallback-card h3 {
+    margin: 0 0 10px;
+}
+.aprils-email-fallback-card p {
+    color: #555;
+    line-height: 1.6;
+}
+.aprils-email-gmail,
+.aprils-email-copy {
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
+    padding: 13px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    margin-top: 10px;
+}
+.aprils-email-gmail {
+    background: var(--teal);
+    color: #fff;
+}
+.aprils-email-copy {
+    border: 2px solid var(--teal);
+    background: #fff;
+    color: var(--teal-dark);
+}
+.aprils-email-small {
+    font-size: 13px;
+    margin-bottom: 0;
+    word-break: break-word;
+}
+
+/* Floating chat button */
+#aprilsHelpWidget {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 99990;
+    font-family: inherit;
+}
+.aprils-chat-launcher {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 54px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--teal);
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(0,0,0,.22);
+    animation: aprilsChatFloat 3.2s ease-in-out infinite;
+}
+.aprils-chat-launcher:hover,
+.aprils-chat-launcher:focus-visible {
+    transform: translateY(-2px);
+}
+.aprils-chat-bubble-icon {
+    font-size: 22px;
+}
+.aprils-chat-pulse {
+    position: absolute;
+    inset: -5px;
+    border-radius: inherit;
+    border: 2px solid rgba(197,160,70,.65);
+    animation: aprilsChatPulse 2.1s ease-out infinite;
+    pointer-events: none;
+}
+.aprils-chat-panel {
+    position: absolute;
+    right: 0;
+    bottom: 68px;
+    width: min(360px, calc(100vw - 30px));
+    overflow: hidden;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 18px 55px rgba(0,0,0,.25);
+    opacity: 0;
+    transform: translateY(12px) scale(.97);
+    transition: opacity .22s ease, transform .22s ease;
+}
+.aprils-chat-panel.is-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+.aprils-chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 17px 18px;
+    background: var(--teal);
+    color: #fff;
+}
+.aprils-chat-header strong {
+    display: block;
+    font-size: 17px;
+}
+.aprils-chat-header span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: .9;
+}
+.aprils-chat-header span i {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #67e58d;
+}
+.aprils-chat-close {
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+.aprils-chat-body {
+    padding: 18px;
+}
+.aprils-chat-welcome {
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+}
+.aprils-chat-welcome p {
+    margin: 6px 0 0;
+    line-height: 1.5;
+    font-size: 14px;
+}
+.aprils-chat-actions {
+    display: grid;
+    gap: 9px;
+    margin: 14px 0;
+}
+.aprils-chat-actions a {
+    display: block;
+    padding: 11px 13px;
+    border-radius: 8px;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 800;
+}
+.aprils-chat-whatsapp {
+    background: #168c4b;
+    color: #fff;
+}
+.aprils-chat-email {
+    background: #fff;
+    color: var(--teal-dark);
+    border: 2px solid var(--teal);
+}
+.aprils-chat-label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+}
+#aprilsChatMessage {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 78px;
+    padding: 11px 12px;
+    border: 1px solid #cfcfcf;
+    border-radius: 8px;
+    font: inherit;
+}
+.aprils-chat-send {
+    width: 100%;
+    margin-top: 9px;
+    padding: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--gold);
+    color: #111;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+}
+.aprils-chat-note {
+    display: block;
+    margin-top: 9px;
+    color: #666;
+    font-size: 11px;
+    line-height: 1.45;
+}
+@keyframes aprilsChatPulse {
+    0% { transform: scale(.96); opacity: .8; }
+    70%, 100% { transform: scale(1.08); opacity: 0; }
+}
+@keyframes aprilsChatFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+@media (max-width: 600px) {
+    #aprilsHelpWidget {
+        right: 14px;
+        bottom: 14px;
+    }
+    .aprils-chat-launcher {
+        min-height: 50px;
+        padding: 0 15px;
+    }
+    .aprils-chat-panel {
+        bottom: 62px;
+        width: min(360px, calc(100vw - 28px));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .aprils-chat-launcher,
+    .aprils-chat-pulse {
+        animation: none !important;
+    }
+    .aprils-chat-panel,
+    .aprils-email-fallback,
+    .aprils-email-fallback-card {
+        transition: none !important;
+    }
+}
