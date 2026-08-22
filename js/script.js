@@ -6,7 +6,7 @@
 /* =========================================================
    APRILS SIGNATURE - MAIN JAVASCRIPT
 ========================================================= */
-m,/l/
+
 
 /* =========================================================
    SUPABASE
@@ -809,151 +809,11 @@ function setupQuoteForm() {
     }
 
     /*
-       Size / Measurements
-       -------------------
-       A separate field is maintained for each selected service so entering
-       a second service never overwrites the first service's size/measurements.
+       Size, measurements and quantity fields are intentionally kept inside
+       each service's own detail section in quotes.html. Older versions also
+       injected duplicate fields here; that caused duplicate inputs and could
+       make the admin “View Full” record miss the value the visitor entered.
     */
-    let sizeContainer = document.getElementById("serviceSizeContainer");
-
-    if (!sizeContainer) {
-        sizeContainer = document.createElement("div");
-        sizeContainer.id = "serviceSizeContainer";
-        sizeContainer.className = "service-size-container";
-
-        sizeContainer.innerHTML = `
-            <h3 class="service-size-heading">Size (UK) / Measurements</h3>
-
-            <div class="form-group service-size-field"
-                 data-size-service="Streetwear"
-                 style="display:none">
-                <label for="streetwearSize">
-                    Streetwear — Size (UK) / Measurements
-                </label>
-                <input
-                    type="text"
-                    id="streetwearSize"
-                    name="streetwearSize"
-                    placeholder="Size 12 (UK) or provide your measurements"
-                    autocomplete="off"
-                >
-            </div>
-
-            <div class="form-group service-size-field"
-                 data-size-service="Ladies Wear"
-                 style="display:none">
-                <label for="ladiesWearSize">
-                    Ladies Wear — Size (UK) / Measurements
-                </label>
-                <input
-                    type="text"
-                    id="ladiesWearSize"
-                    name="ladiesWearSize"
-                    placeholder="Size 12 (UK) or provide your measurements"
-                    autocomplete="off"
-                >
-            </div>
-
-            <div class="form-group service-size-field"
-                 data-size-service="Kids Wear"
-                 style="display:none">
-                <label for="kidsWearSize">
-                    Kids Wear — Size (UK) / Measurements
-                </label>
-                <input
-                    type="text"
-                    id="kidsWearSize"
-                    name="kidsWearSize"
-                    placeholder="Size 12 (UK) or provide your measurements"
-                    autocomplete="off"
-                >
-            </div>
-
-            <div class="form-group service-size-field"
-                 data-size-service="Embellishment Services"
-                 style="display:none">
-                <label for="embellishmentSize">
-                    Embellishment Services — Size (UK) / Measurements
-                </label>
-                <input
-                    type="text"
-                    id="embellishmentSize"
-                    name="embellishmentSize"
-                    placeholder="Size 12 (UK) or provide your measurements"
-                    autocomplete="off"
-                >
-            </div>
-        `;
-
-        serviceSection.appendChild(sizeContainer);
-    }
-
-    /*
-       Quantity fields for non-streetwear services. Streetwear already has
-       individual quantity inputs. Ladies Wear, Kids Wear and Embellishment
-       Services each get one quantity field so every selected service can be
-       quoted correctly.
-    */
-    let quantityContainer = document.getElementById("serviceQuantityContainer");
-    if (!quantityContainer) {
-        quantityContainer = document.createElement("div");
-        quantityContainer.id = "serviceQuantityContainer";
-        quantityContainer.className = "service-quantity-container";
-        quantityContainer.innerHTML = `
-            <h3 class="service-size-heading">Quantity</h3>
-            <div class="quantity-row service-quantity-field" data-quantity-service="Ladies Wear" style="display:none">
-                <div class="form-group"><label for="ladiesWearQuantity">Ladies Wear — Quantity</label><input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" step="1" value="1"></div>
-            </div>
-            <div class="quantity-row service-quantity-field" data-quantity-service="Kids Wear" style="display:none">
-                <div class="form-group"><label for="kidsWearQuantity">Kids Wear — Quantity</label><input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" step="1" value="1"></div>
-            </div>
-            <div class="quantity-row service-quantity-field" data-quantity-service="Embellishment Services" style="display:none">
-                <div class="form-group"><label for="embellishmentQuantity">Embellishment Services — Quantity</label><input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" step="1" value="1"></div>
-            </div>`;
-        serviceSection.appendChild(quantityContainer);
-    }
-
-    /*
-       Extra detail fields for services that do not have a dedicated
-       product-selection panel.
-    */
-    let extraDetails = document.getElementById("additionalServiceDetails");
-
-    if (!extraDetails) {
-        extraDetails = document.createElement("div");
-        extraDetails.id = "additionalServiceDetails";
-        extraDetails.className = "additional-service-details";
-
-        extraDetails.innerHTML = `
-            <div class="form-group"
-                 data-service-detail="Ladies Wear"
-                 style="display:none">
-                <label for="ladiesWearDetails">
-                    Ladies Wear — Specify Request
-                </label>
-                <textarea
-                    id="ladiesWearDetails"
-                    name="ladiesWearDetails"
-                    placeholder="Tell us what ladies wear you need, quantity, design or other details."
-                ></textarea>
-            </div>
-
-            <div class="form-group"
-                 data-service-detail="Kids Wear"
-                 style="display:none">
-                <label for="kidsWearDetails">
-                    Kids Wear — Specify Request
-                </label>
-                <textarea
-                    id="kidsWearDetails"
-                    name="kidsWearDetails"
-                    placeholder="Tell us what kids wear you need, quantity, design or other details."
-                ></textarea>
-            </div>
-`;
-
-        serviceSection.appendChild(extraDetails);
-    }
 
     function updateServiceSections() {
         const selected = Array.from(
@@ -1064,11 +924,9 @@ async function loadPublicStreetwearProducts() {
         const slug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
         container.innerHTML = streetwear.map(row => {
             const id = "product_" + slug(row.name);
-            const price = row.price !== null && row.price !== undefined && row.price !== ""
-                ? `<small class="product-public-price">GHS ${Number(row.price).toFixed(2)}</small>` : "";
             return `<div class="quantity-row">
                 <div class="form-group">
-                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)} ${price}</label>
+                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)}</label>
                     <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
                 </div>
             </div>`;
@@ -1167,8 +1025,16 @@ function setupMediaInteractions() {
 async function loadPublicFeaturedCollection() {
     if (!document.body.classList.contains("home-page")) return;
     const rows = await loadPublicRows("gallery_items");
+    let featuredOrder = new Map();
+    try {
+        const supabase = await waitForSupabase();
+        if (supabase) {
+            const settings = await supabase.from("settings").select("setting_key,setting_value").like("setting_key","featured_order_%");
+            if (!settings.error) (settings.data || []).forEach(r => featuredOrder.set(String(r.setting_key).replace("featured_order_", ""), Number(r.setting_value) || 9999));
+        }
+    } catch (_) {}
     const featured = rows.filter(row => row.featured && row.image_url)
-        .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999) ||
+        .sort((a,b)=>(featuredOrder.get(String(a.id)) ?? Number(a.display_order||9999))-(featuredOrder.get(String(b.id)) ?? Number(b.display_order||9999)) ||
             String(a.title||"").localeCompare(String(b.title||"")));
     if (!featured.length) return;
 
@@ -1331,6 +1197,15 @@ async function loadPublicTraining() {
     const rows = await loadPublicRows("training_programs");
     if (!rows.length) return;
 
+    const supabase = await waitForSupabase();
+    let publicPrices = {};
+    if (supabase) {
+        const settingsResult = await supabase.from("settings").select("setting_key,setting_value").like("setting_key", "public_training_price_%");
+        if (!settingsResult.error) {
+            (settingsResult.data || []).forEach(r => { try { const x = JSON.parse(r.setting_value || "{}"); if (x.name) publicPrices[String(x.name).trim().toLowerCase()] = x.price; } catch (_) {} });
+        }
+    }
+
     const grid = document.querySelector(".training-section .training-grid");
     if (!grid) return;
 
@@ -1338,9 +1213,8 @@ async function loadPublicTraining() {
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
-            ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
-            
+            ${publicPrices[String(row.title || "").trim().toLowerCase()] !== undefined && publicPrices[String(row.title || "").trim().toLowerCase()] !== null && publicPrices[String(row.title || "").trim().toLowerCase()] !== "" ? `<p class="service-public-price"><strong>Price:</strong> GHS ${Number(publicPrices[String(row.title || "").trim().toLowerCase()]).toFixed(2)}</p>` : ""}
         </article>
     `).join("");
 }
