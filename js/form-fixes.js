@@ -187,12 +187,26 @@ PUBLIC FORM FIXES
                     submittedFrom: window.location.href
                 };
 
+                Array.from(form.querySelectorAll('input[data-streetwear-product="true"]')).forEach(function(input) {
+                    const raw = String(data.get(input.name) || "").trim();
+                    if (raw !== "" && Number(raw) > 0) {
+                        details.streetwear[input.name] = {
+                            quantity: raw,
+                            product: input.getAttribute("data-product-name") || input.name
+                        };
+                    }
+                });
+
+                // Keep compatibility with older/static product fields if the database catalogue
+                // has not loaded yet.
                 [
                     "jerseys", "hoodies", "joggers", "tshirts", "poloShirts",
                     "sweatshirts", "sweatpants", "ladiesTankTops", "mensTankTops",
                     "varsityJackets", "cargoPants", "cargoSkirts", "joggerShorts",
-                    "hoodiesJoggersSet", "tshirtsShortsSet", "sweatshirtsShortsSet"
+                    "hoodiesJoggersSet", "tshirtsShortsSet", "tshirtSweatpantsSet",
+                    "sweatshirtsShortsSet", "sweatshirtsSweatpantsSet"
                 ].forEach(function(name) {
+                    if (form.querySelector('input[name="' + name + '"][data-streetwear-product="true"]')) return;
                     const raw = String(data.get(name) || "").trim();
                     if (raw !== "" && Number(raw) > 0) details.streetwear[name] = raw;
                 });

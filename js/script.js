@@ -81,6 +81,7 @@ function waitForSupabase() {
 
 function normalizeEmailLinks() {
     const fallbackEmail = "info@aprilssignature.com";
+    const gmailComposeBase = "https://mail.google.com/mail/?view=cm&fs=1&tf=1";
 
     document.querySelectorAll("a").forEach(function (link) {
         const text = (link.textContent || "").trim();
@@ -88,11 +89,174 @@ function normalizeEmailLinks() {
         const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
 
         if (match || /^mailto:/i.test(href) || /mail\.google\.com/i.test(href) || /gmail\.com/i.test(href)) {
-            const email = match ? match[0] : (href.match(/[?&]to=([^&]+)/i)?.[1] || fallbackEmail);
-            link.setAttribute("href", "mailto:" + decodeURIComponent(email));
+            const email = (match ? match[0] : (href.match(/[?&]to=([^&]+)/i)?.[1] || fallbackEmail)).trim();
+            link.dataset.aprilsEmail = email;
+            link.href = "mailto:" + encodeURIComponent(email);
             link.removeAttribute("target");
             link.removeAttribute("rel");
+            link.setAttribute("aria-label", "Email Aprils Signature");
+
+            // A mailto link is the correct universal standard. If the device/browser
+            // has no mail handler, offer Gmail as a web fallback instead of silently failing.
+            link.addEventListener("click", function (event) {
+                if (link.dataset.emailFallbackBusy === "1") return;
+                event.preventDefault();
+                link.dataset.emailFallbackBusy = "1";
+
+                const mailto = "mailto:" + email;
+                const gmail = gmailComposeBase + "&to=" + encodeURIComponent(email);
+
+                let fallbackTimer = window.setTimeout(function () {
+                    showEmailFallback(email, gmail);
+                    link.dataset.emailFallbackBusy = "0";
+                }, 1200);
+
+                const cleanup = function () {
+                    window.clearTimeout(fallbackTimer);
+                    window.removeEventListener("blur", cleanup);
+                    window.setTimeout(function () {
+                        link.dataset.emailFallbackBusy = "0";
+                    }, 100);
+                };
+
+                window.addEventListener("blur", cleanup);
+                window.location.href = mailto;
+            }, { once: false });
         }
+    });
+}
+
+function showEmailFallback(email, gmailURL) {
+    let modal = document.getElementById("aprilsEmailFallback");
+    if (modal) {
+        modal.classList.add("is-open");
+        return;
+    }
+
+    modal = document.createElement("div");
+    modal.id = "aprilsEmailFallback";
+    modal.className = "aprils-email-fallback";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.innerHTML = `
+        <div class="aprils-email-fallback-card">
+            <button type="button" class="aprils-email-close" aria-label="Close">&times;</button>
+            <div class="aprils-email-icon" aria-hidden="true">✉</div>
+            <h3>Choose how to email us</h3>
+            <p>Your device did not open an email app automatically. You can use Gmail in your browser or copy our email address.</p>
+            <a class="aprils-email-gmail" href="${gmailURL}" target="_blank" rel="noopener noreferrer">Open Gmail</a>
+            <button type="button" class="aprils-email-copy">Copy ${escapeHTML(email)}</button>
+            <p class="aprils-email-small">Email: <strong>${escapeHTML(email)}</strong></p>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    requestAnimationFrame(function () {
+        modal.classList.add("is-open");
+    });
+
+    const close = function () {
+        modal.classList.remove("is-open");
+        window.setTimeout(function () { modal.remove(); }, 220);
+    };
+
+    modal.querySelector(".aprils-email-close").addEventListener("click", close);
+    modal.addEventListener("click", function (event) {
+        if (event.target === modal) close();
+    });
+
+    modal.querySelector(".aprils-email-copy").addEventListener("click", async function () {
+        try {
+            await navigator.clipboard.writeText(email);
+            this.textContent = "Email copied ✓";
+        } catch (_) {
+            window.prompt("Copy this email address:", email);
+        }
+    });
+}
+
+/* =========================================================
+   SITE-WIDE HELP / CHAT POPUP
+========================================================= */
+
+function setupHelpChat() {
+    if (document.getElementById("aprilsHelpWidget")) return;
+
+    const whatsappNumber = "233592983027";
+    const widget = document.createElement("div");
+    widget.id = "aprilsHelpWidget";
+    widget.innerHTML = `
+        <button type="button" class="aprils-chat-launcher" aria-label="Open Aprils Signature help chat" aria-expanded="false">
+            <span class="aprils-chat-pulse" aria-hidden="true"></span>
+            <span class="aprils-chat-bubble-icon" aria-hidden="true">💬</span>
+            <span class="aprils-chat-launcher-text">Need help?</span>
+        </button>
+
+        <section class="aprils-chat-panel" aria-label="Aprils Signature help chat" hidden>
+            <div class="aprils-chat-header">
+                <div>
+                    <strong>Aprils Signature</strong>
+                    <span><i></i> Usually responds on WhatsApp</span>
+                </div>
+                <button type="button" class="aprils-chat-close" aria-label="Close chat">&times;</button>
+            </div>
+
+            <div class="aprils-chat-body">
+                <div class="aprils-chat-welcome">
+                    <strong>Hello! 👋</strong>
+                    <p>Need help with an order, training, sizing or our services? Send us a message and we'll help you.</p>
+                </div>
+                <div class="aprils-chat-actions">
+                    <a href="https://wa.me/${whatsappNumber}" target="_blank" rel="noopener noreferrer" class="aprils-chat-whatsapp">Chat with us on WhatsApp</a>
+                    <a href="mailto:info@aprilssignature.com" class="aprils-chat-email">Email us</a>
+                </div>
+                <label class="aprils-chat-label" for="aprilsChatMessage">Quick message</label>
+                <textarea id="aprilsChatMessage" rows="3" maxlength="500" placeholder="Type your message here..."></textarea>
+                <button type="button" class="aprils-chat-send">Send message on WhatsApp</button>
+                <small class="aprils-chat-note">This is a direct WhatsApp chat, so you can continue the conversation privately.</small>
+            </div>
+        </section>
+    `;
+
+    document.body.appendChild(widget);
+
+    const launcher = widget.querySelector(".aprils-chat-launcher");
+    const panel = widget.querySelector(".aprils-chat-panel");
+    const close = widget.querySelector(".aprils-chat-close");
+    const message = widget.querySelector("#aprilsChatMessage");
+    const send = widget.querySelector(".aprils-chat-send");
+
+    function openChat() {
+        panel.hidden = false;
+        requestAnimationFrame(function () { panel.classList.add("is-open"); });
+        launcher.setAttribute("aria-expanded", "true");
+        window.setTimeout(function () { message.focus(); }, 180);
+    }
+
+    function closeChat() {
+        panel.classList.remove("is-open");
+        launcher.setAttribute("aria-expanded", "false");
+        window.setTimeout(function () { panel.hidden = true; }, 220);
+    }
+
+    launcher.addEventListener("click", function () {
+        if (panel.hidden) openChat();
+        else closeChat();
+    });
+
+    close.addEventListener("click", closeChat);
+
+    send.addEventListener("click", function () {
+        const text = message.value.trim();
+        const greeting = text
+            ? text
+            : "Hello Aprils Signature, I need some help with your website/services.";
+        const url = "https://wa.me/" + whatsappNumber + "?text=" + encodeURIComponent(greeting);
+        window.open(url, "_blank", "noopener,noreferrer");
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !panel.hidden) closeChat();
     });
 }
 
@@ -868,6 +1032,52 @@ function setupQuoteForm() {
     updateServiceSections();
 }
 
+
+/* =========================================================
+   PUBLIC QUOTE — STREETWEAR PRODUCT CATALOGUE
+========================================================= */
+
+async function loadPublicStreetwearProducts() {
+    const container = document.getElementById("streetwearProductsDynamic");
+    if (!container) return;
+
+    try {
+        const supabase = await waitForSupabase();
+        if (!supabase) return;
+        const result = await supabase.from("settings")
+            .select("setting_key,setting_value")
+            .like("setting_key","product_%");
+        if (result.error) return;
+
+        const products = (result.data || []).map(row => {
+            try { return {...JSON.parse(row.setting_value || "{}"), setting_key:row.setting_key}; }
+            catch (_) { return null; }
+        }).filter(row => row && row.name && row.active !== false);
+
+        const streetwear = products
+            .filter(row => String(row.category || "").toLowerCase() === "streetwear")
+            .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999) ||
+                String(a.name).localeCompare(String(b.name)));
+
+        if (!streetwear.length) return;
+
+        const slug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+        container.innerHTML = streetwear.map(row => {
+            const id = "product_" + slug(row.name);
+            const price = row.price !== null && row.price !== undefined && row.price !== ""
+                ? `<small class="product-public-price">GHS ${Number(row.price).toFixed(2)}</small>` : "";
+            return `<div class="quantity-row">
+                <div class="form-group">
+                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)} ${price}</label>
+                    <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
+                </div>
+            </div>`;
+        }).join("");
+    } catch (error) {
+        console.warn("Public streetwear catalogue unavailable:", error);
+    }
+}
+
 /* =========================================================
    PUBLIC SITE — DATABASE-LINKED CONTENT
    Falls back to the existing static HTML when a table has
@@ -953,6 +1163,44 @@ function setupMediaInteractions() {
     });
 }
 
+
+async function loadPublicFeaturedCollection() {
+    if (!document.body.classList.contains("home-page")) return;
+    const rows = await loadPublicRows("gallery_items");
+    const featured = rows.filter(row => row.featured && row.image_url)
+        .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999) ||
+            String(a.title||"").localeCompare(String(b.title||"")));
+    if (!featured.length) return;
+
+    const main = document.querySelector("main");
+    if (!main) return;
+    const existing = main.querySelector(".featured-collection");
+    if (!existing) return;
+
+    existing.innerHTML = `
+        <div class="container">
+            <div class="section-heading">
+                <p class="eyebrow">Selected Work</p>
+                <h2>Featured Collection</h2>
+            </div>
+            <div class="featured-grid">
+                ${featured.map(row => {
+                    const media = /\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url || "")
+                        ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(row.image_url)}" type="video/mp4"></video></div>`
+                        : `<div class="featured-video"><img src="${escapeHTML(row.image_url)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
+                    return `<article class="featured-card">
+                        ${media}
+                        ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
+                        ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
+                        ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
+                    </article>`;
+                }).join("")}
+            </div>
+            <div class="section-button"><a href="gallery.html" class="btn btn-primary">View Full Gallery</a></div>
+        </div>`;
+    setupMediaInteractions();
+}
+
 async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
 
@@ -1014,6 +1262,7 @@ async function loadPublicGallery() {
                                     : `<img src="${escapeHTML(row.image_url)}" alt="${escapeHTML(row.title || category)}">`}
                             </div>
                             ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
+                            ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
                             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
                         </article>
                     `).join("")}
@@ -1421,6 +1670,7 @@ function start() {
 
     setupMobileMenu();
     normalizeEmailLinks();
+    setupHelpChat();
 
     setupCopyright();
 
@@ -1433,6 +1683,8 @@ function start() {
     setupEnquiryForm();
 
     setupQuoteForm();
+    loadPublicStreetwearProducts();
+    loadPublicFeaturedCollection();
 
     setupPublicDatabaseContent();
 
