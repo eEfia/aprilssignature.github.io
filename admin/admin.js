@@ -86,6 +86,38 @@ async function countRows(table) {
     return result.count || 0;
 }
 
+async function cleanupExactDuplicates() {
+    // Remove only exact-content duplicates. The first/oldest row is kept.
+    // This prevents repeated saves/imports from creating visible duplicates.
+    const configs = [
+        ["settings", ["setting_key", "setting_value"]],
+        ["gallery_collections", ["name"]],
+        ["gallery_items", ["title", "image_url", "category"]],
+        ["training_programs", ["title", "duration", "category", "description"]],
+        ["testimonials", ["customer_name", "testimonial"]],
+        ["faqs", ["question", "answer"]],
+        ["site_content", ["content_key", "content_value"]],
+        ["policies", ["policy_key", "content"]],
+        ["admin_services", ["title", "category", "description"]]
+    ];
+    for (const [table, fields] of configs) {
+        try {
+            let q = db.from(table).select("id," + fields.join(","));
+            const result = await q;
+            if (result.error || !result.data?.length) continue;
+            const seen = new Map(); const duplicateIds=[];
+            for (const row of result.data) {
+                const key = fields.map(f => String(row[f] ?? "").trim().toLowerCase()).join("\\u0000");
+                if (seen.has(key)) duplicateIds.push(row.id); else seen.set(key, row.id);
+            }
+            if (duplicateIds.length) {
+                const del = await db.from(table).delete().in("id", duplicateIds);
+                if (del.error) console.warn("Duplicate cleanup failed for", table, del.error.message);
+            }
+        } catch (e) { console.warn("Duplicate cleanup skipped for", table, e); }
+    }
+}
+
 async function checkSession() {
     if (!db) return;
     const result = await db.auth.getSession();
@@ -95,6 +127,7 @@ async function checkSession() {
     if (result.data.session) {
         login.style.display = "none";
         await seedInitialPublicContent();
+        await cleanupExactDuplicates();
         await loadDashboard();
     } else {
         login.style.display = "flex";
@@ -399,6 +432,16 @@ async function loadGallery() {
     });
 
     await renderGalleryCategorySelect(document.getElementById("galleryCategory")?.value || "");
+    renderHomepageFeaturedMedia(rows);
+}
+
+function renderHomepageFeaturedMedia(rows) {
+    const box=document.getElementById("homepageFeaturedList"); if(!box)return;
+    const featured=(rows||[]).filter(r=>r.featured && r.active!==false).sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.title||"").localeCompare(String(b.title||"")));
+    box.innerHTML=featured.length?`<table><thead><tr><th>Media</th><th>Title</th><th>Collection</th><th>Order</th><th>Actions</th></tr></thead><tbody>${featured.map(r=>`<tr><td>${r.image_url?(/\.(mp4|webm|ogg)(\?|$)/i.test(r.image_url)?`<video src="${escapeHTML(resolveAdminMediaUrl(r.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover"></video>`:`<img src="${escapeHTML(resolveAdminMediaUrl(r.image_url))}" style="width:90px;height:70px;object-fit:cover">`):"—"}</td><td>${escapeHTML(r.title||"")}</td><td>${escapeHTML(r.category||"")}</td><td><input type="number" min="1" value="${escapeHTML(r.display_order??1)}" data-featured-order="${escapeHTML(r.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-featured-edit="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-featured-delete="${escapeHTML(r.id)}">Delete</button> <button type="button" class="secondary" data-featured-save="${escapeHTML(r.id)}">Save Order</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No homepage featured media yet. Use “Add Gallery Item” above and tick “Show in Featured Collection”.</div>`;
+    box.querySelectorAll("[data-featured-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.featuredSave;const input=box.querySelector(`[data-featured-order="${id}"]`);const key="featured_order_"+id;const r=await safeSettingUpsert(key,String(Number(input?.value)||1));if(r.error)message("Featured media order could not be saved: "+r.error.message,"error");else{message("Homepage featured order saved.","success");await loadGallery();}});
+    box.querySelectorAll("[data-featured-edit]").forEach(b=>b.onclick=()=>{const r=featured.find(x=>String(x.id)===String(b.dataset.featuredEdit));if(r)editGallery(r);});
+    box.querySelectorAll("[data-featured-delete]").forEach(b=>b.onclick=()=>deleteGallery(b.dataset.featuredDelete));
 }
 
 async function addGalleryCollection() {
@@ -706,48 +749,14 @@ async function getProducts() {
 }
 
 async function loadProducts() {
-    const list=document.getElementById("adminProductsList");
-    if (!list) return;
+    const list=document.getElementById("adminProductsList"); if(!list)return;
     const rows=await getProducts();
-    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||"")) ||
-        Number(a.display_order||9999)-Number(b.display_order||9999) ||
-        String(a.name||"").localeCompare(String(b.name||"")));
-
-    list.innerHTML=rows.length ? `
-        <table>
-            <thead><tr><th>Product</th><th>Category</th><th>Public Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead>
-            <tbody>${rows.map(row=>`<tr>
-                <td>${escapeHTML(row.name)}</td>
-                <td>${escapeHTML(row.category||"")}</td>
-                <td>${row.price!==null && row.price!==undefined && row.price!=="" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
-                <td>${escapeHTML(row.display_order??1)}</td>
-                <td>${row.active!==false ? "Yes":"No"}</td>
-                <td>
-                    <button type="button" class="secondary" data-edit-product="${escapeHTML(row.id)}">Edit</button>
-                    <button type="button" class="danger" data-delete-product="${escapeHTML(row.id)}">Delete</button>
-                </td>
-            </tr>`).join("")}</tbody>
-        </table>` : `<div class="empty">No products have been added yet.</div>`;
-
-    list.querySelectorAll("[data-edit-product]").forEach(btn=>btn.onclick=()=>{
-        const row=rows.find(r=>String(r.id)===String(btn.dataset.editProduct)); if(!row)return;
-        document.getElementById("adminProductId").value=row.id;
-        document.getElementById("adminProductTitle").value=row.name||"";
-        document.getElementById("adminProductCategory").value=row.category||"Streetwear";
-        document.getElementById("adminProductPrice").value=row.price??"";
-        document.getElementById("adminProductOrder").value=row.display_order??1;
-        document.getElementById("adminProductNotes").value=row.notes||"";
-        document.getElementById("adminProductActive").checked=row.active!==false;
-        document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});
-    });
-
-    list.querySelectorAll("[data-delete-product]").forEach(btn=>btn.onclick=async()=>{
-        const row=rows.find(r=>String(r.id)===String(btn.dataset.deleteProduct)); if(!row)return;
-        if(!confirm(`Delete "${row.name}" from the product catalogue?`))return;
-        const r=await db.from("settings").delete().eq("id",btn.dataset.deleteProduct);
-        if(r.error){message("Product could not be deleted: "+r.error.message,"error");return;}
-        message("Product deleted.","success"); await loadProducts();
-    });
+    const settings=await getRows("settings"); const invoiceMap=new Map();
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.name||"").localeCompare(String(b.name||"")));
+    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??""; document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));message("Product / service deleted.","success");await loadProducts();});
 }
 
 function setupProductForm() {
@@ -758,8 +767,12 @@ function setupProductForm() {
         const id=document.getElementById("adminProductId").value.trim();
         const name=document.getElementById("adminProductTitle").value.trim();
         const category=document.getElementById("adminProductCategory").value.trim();
-        const priceValue=document.getElementById("adminProductPrice").value;
-        const payload={name,category,price:priceValue===""?null:Number(priceValue),
+        const publicPriceValue=document.getElementById("adminProductPublicPrice").value;
+        const invoicePriceValue=document.getElementById("adminProductInvoicePrice").value;
+        const publicPrice = publicPriceValue === "" ? null : Number(publicPriceValue);
+        const invoicePrice = invoicePriceValue === "" ? null : Number(invoicePriceValue);
+        const payload={name,category,
+            public_price: publicPrice,
             notes:document.getElementById("adminProductNotes").value.trim(),
             display_order:Number(document.getElementById("adminProductOrder").value)||1,
             active:document.getElementById("adminProductActive").checked};
@@ -767,13 +780,18 @@ function setupProductForm() {
         try{
             const key=productKeyFromName(name);
             if(id){
-                const old=await db.from("settings").select("setting_key").eq("id",id).maybeSingle();
+                const old=await db.from("settings").select("setting_key,setting_value").eq("id",id).maybeSingle();
                 if(old.error)throw old.error;
+                let oldItem={}; try { oldItem=JSON.parse(old.data?.setting_value||"{}"); } catch(_) {}
                 await safeSettingUpsert(old.data?.setting_key||key,JSON.stringify(payload));
                 if(old.data?.setting_key && old.data.setting_key!==key) await db.from("settings").delete().eq("setting_key",key);
             }else{
                 await safeSettingUpsert(key,JSON.stringify(payload));
             }
+            const invoiceKey = invoiceStorageKey(name);
+            if (id && oldItem?.name && String(oldItem.name).trim().toLowerCase() !== String(name).trim().toLowerCase()) { await db.from("settings").delete().eq("setting_key", invoiceStorageKey(oldItem.name)); }
+            if (invoicePrice === null) { await db.from("settings").delete().eq("setting_key", invoiceKey); }
+            else { await safeSettingUpsert(invoiceKey, JSON.stringify({name,category,price:invoicePrice,notes:payload.notes,active:payload.active})); }
             form.reset();
             document.getElementById("adminProductId").value="";
             document.getElementById("adminProductActive").checked=true;
@@ -790,250 +808,59 @@ function setupProductForm() {
 async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
-
-    let result = await db.from("admin_services").select("*").order("created_at", { ascending: false });
-    if (result.error && /created_at/i.test(result.error.message || "")) {
-        result = await db.from("admin_services").select("*");
-    }
-    if (result.error) throw result.error;
-
-    const rows = result.data || [];
-
     section.innerHTML = `
-        <h2>Products &amp; Services</h2>
-        <p class="intro">Manage products, public catalogue prices and services. Internal invoice pricing is kept separately below in the Invoice Pricing section.</p>
-
+        <h2>Products / Services &amp; Training</h2>
+        <p class="intro">Manage the products/services visitors can choose and the training programmes. Public prices are optional and appear on the public website when entered. Invoice prices are separate and remain admin-only.</p>
         <div class="form-card">
-            <h3 style="color:#008c95;margin-bottom:10px;">Products</h3>
-            <p class="intro">Products are grouped by category. Edit or delete existing products, or add a new product.</p>
+            <h3 style="color:#008c95;margin-bottom:10px;">Products / Services</h3>
+            <p class="intro">Add, edit, delete, rename and reorder the product/service choices used by the public request form.</p>
             <form id="adminProductForm">
                 <input type="hidden" id="adminProductId">
                 <div class="form-grid">
-                    <div class="form-group"><label>Product Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Hoodies"></div>
+                    <div class="form-group"><label>Product / Service Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Custom Hoodie"></div>
                     <div class="form-group"><label>Category</label><select id="adminProductCategory"><option>Streetwear</option><option>Ladies Wear</option><option>Kids Wear</option><option>Other Products</option></select></div>
-                    <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPrice" min="0" step="0.01" placeholder="e.g. 450.00"></div>
+                    <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
+                    <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
                 </div>
-                <div class="form-group"><label>Product Details / Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Describe the product or option."></textarea></div>
-                <label class="checkbox"><input type="checkbox" id="adminProductActive" checked> Active</label><br>
-                <button class="primary" type="submit">Save Product</button>
+                <div class="form-group"><label>Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional internal note."></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="adminProductActive" checked> Active / Available for selection</label><br>
+                <button class="primary" type="submit">Save Product / Service</button>
                 <button class="secondary" type="button" id="adminProductCancel">Cancel</button>
             </form>
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
-
-        <div class="form-card">
-            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
-            <p class="intro">Add, edit and remove the services displayed on the public website.</p>
-            <form id="adminServiceForm">
-                <input type="hidden" id="adminServiceId">
+        <div class="form-card" style="margin-top:20px;">
+            <h3 style="color:#008c95;margin-bottom:10px;">Training</h3>
+            <p class="intro">Add, edit, delete and price training programmes. Public prices are optional and will appear on the public Training page when entered. Invoice prices are separate and admin-only.</p>
+            <form id="trainingForm">
+                <input type="hidden" id="trainingId">
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>Service Name</label>
-                        <input type="text" id="adminServiceTitle" required placeholder="Service name">
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <input type="text" id="adminServiceCategory" placeholder="Category">
-                    </div>
+                    <div class="form-group"><label>Programme Name</label><input id="trainingTitle" required></div>
+                    <div class="form-group"><label>Duration</label><input id="trainingDuration"></div>
+                    <div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional public price"></div>
+                    <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice rate"></div>
+                    <div class="form-group"><label>Category</label><input id="trainingCategory"></div>
                 </div>
-
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea id="adminServiceDescription" rows="5" placeholder="Describe this service"></textarea>
-
-                <div class="form-group">
-                    <label>Price (GHS)</label>
-                    <input type="number" id="adminServicePrice" min="0" step="0.01" placeholder="e.g. 900.00">
-                </div>
-                </div>
-
-                <label class="checkbox">
-                    <input type="checkbox" id="adminServiceActive" checked> Active
-                </label>
-                <br>
-                <button class="primary" type="submit">Save Service</button>
-                <button class="secondary" type="button" id="adminServiceCancel">Cancel</button>
+                <div class="form-group"><label>Description</label><textarea id="trainingDescription"></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label><br>
+                <button class="primary" type="submit">Save Training Programme</button>
+                <button type="button" class="secondary" id="trainingCancel">Cancel</button>
             </form>
         </div>
-
-        <div id="adminServicesList" class="table-wrap"></div>
-    `;
-
-    await loadProducts();
-    setupProductForm();
-    renderServices(rows);
-    setupServiceForm();
-
-    makeCategorySelect("adminServiceCategory", await getServiceCategories(), "", "+ Add New Category");
+        <div id="trainingList" class="table-wrap"></div>`;
+    await loadProducts(); setupProductForm(); await loadTraining(); setupTrainingForm();
 }
-
-function renderServices(rows) {
-    const list = document.getElementById("adminServicesList");
-    if (!list) return;
-
-    list.innerHTML = rows.length ? `
-        <table>
-            <thead><tr>
-                <th>Service</th><th>Category</th><th>Description</th><th>Price (GHS)</th><th>Active</th><th>Actions</th>
-            </tr></thead>
-            <tbody>
-                ${rows.map(row => `
-                    <tr>
-                        <td>${escapeHTML(row.title)}</td>
-                        <td>${escapeHTML(row.category)}</td>
-                        <td>${escapeHTML(row.description)}</td>
-                        <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
-                        <td>${row.active ? "Yes" : "No"}</td>
-                        <td>
-                            <button type="button" class="secondary" data-edit-service="${row.id}">Edit</button>
-                            <button type="button" class="danger" data-delete-service="${row.id}">Delete</button>
-                        </td>
-                    </tr>
-                `).join("")}
-            </tbody>
-        </table>
-    ` : `<div class="empty">No services have been added yet.</div>`;
-
-    list.querySelectorAll("[data-edit-service]").forEach(button => {
-        button.onclick = () => {
-            const row = rows.find(item => String(item.id) === String(button.dataset.editService));
-            if (!row) return;
-
-            document.getElementById("adminServiceId").value = row.id;
-            document.getElementById("adminServiceTitle").value = row.title || "";
-            makeCategorySelect("adminServiceCategory", [...new Set([...DEFAULT_SERVICE_CATEGORIES, ...(rows.map(r => r.category).filter(Boolean))])], row.category || "", "+ Add New Category");
-            document.getElementById("adminServiceDescription").value = row.description || "";
-            document.getElementById("adminServicePrice").value = row.price ?? "";
-            document.getElementById("adminServiceActive").checked = row.active !== false;
-            document.getElementById("services").scrollIntoView({ behavior: "smooth", block: "start" });
-        };
-    });
-
-    list.querySelectorAll("[data-delete-service]").forEach(button => {
-        button.onclick = async () => {
-            const row = rows.find(item => String(item.id) === String(button.dataset.deleteService));
-            if (!row || !confirm(`Delete "${row.title}"?`)) return;
-
-            const result = await db.from("admin_services").delete().eq("id", button.dataset.deleteService);
-            if (result.error) {
-                message("Service could not be deleted: " + result.error.message, "error");
-                return;
-            }
-
-            message("Service deleted.", "success");
-            await loadServices();
-        };
-    });
-}
-
-function setupServiceForm() {
-    const form = document.getElementById("adminServiceForm");
-    if (!form || form.dataset.bound) return;
-    form.dataset.bound = "1";
-
-    form.addEventListener("submit", async event => {
-        event.preventDefault();
-
-        const id = document.getElementById("adminServiceId").value.trim();
-        const payload = {
-            title: document.getElementById("adminServiceTitle").value.trim(),
-            category: document.getElementById("adminServiceCategory").value.trim(),
-            description: document.getElementById("adminServiceDescription").value.trim(),
-            price: document.getElementById("adminServicePrice").value === "" ? null : Number(document.getElementById("adminServicePrice").value),
-            active: document.getElementById("adminServiceActive").checked,
-            updated_at: new Date().toISOString()
-        };
-
-        if (!payload.title) {
-            message("Please enter a service name.", "error");
-            return;
-        }
-
-        try {
-            if (!id) {
-                const duplicate = await db.from("admin_services").select("id").ilike("title",payload.title).limit(1);
-                if (duplicate.error) throw duplicate.error;
-                if (duplicate.data?.length) {
-                    message("A service with that name already exists. Edit the existing service instead.","error");
-                    return;
-                }
-            }
-            const result = id
-                ? await db.from("admin_services").update(payload).eq("id", id)
-                : await db.from("admin_services").insert(payload);
-
-            if (result.error) throw result.error;
-
-            form.reset();
-            document.getElementById("adminServiceId").value = "";
-            document.getElementById("adminServiceActive").checked = true;
-            message("Service saved successfully.", "success");
-            await loadServices();
-        } catch (error) {
-            console.error(error);
-            message("Service could not be saved: " + error.message, "error");
-        }
-    });
-
-    document.getElementById("adminServiceCancel")?.addEventListener("click", () => {
-        form.reset();
-        document.getElementById("adminServiceId").value = "";
-        document.getElementById("adminServiceActive").checked = true;
-    });
-}
-
-/* =========================================================
-   TRAINING
-========================================================= */
 
 async function loadTraining() {
-    const list = document.getElementById("trainingList");
-    if (!list) return;
-
-    const rows = await getRows("training_programs");
-
-    list.innerHTML = `
-        <div class="admin-actions">
-            <button type="button" class="primary" id="newTrainingButton">+ Add Training Programme / Class</button>
-        </div>
-        ${rows.length ? `
-        <table>
-            <thead><tr>
-                <th>Programme/Class</th><th>Duration</th><th>Price (GHS)</th><th>Category</th><th>Active</th><th>Actions</th>
-            </tr></thead>
-            <tbody>
-                ${rows.map(row => `
-                    <tr>
-                        <td>${escapeHTML(row.title)}</td>
-                        <td>${escapeHTML(row.duration)}</td>
-                        <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
-                        <td>${escapeHTML(row.category)}</td>
-                        <td>${row.active ? "Yes" : "No"}</td>
-                        <td>
-                            <button type="button" class="secondary" data-edit-training="${row.id}">Edit</button>
-                            <button type="button" class="danger" data-delete-training="${row.id}">Delete</button>
-                        </td>
-                    </tr>
-                `).join("")}
-            </tbody>
-        </table>` : `<div class="empty">No training programmes yet.</div>`}
-    `;
-
-    document.getElementById("newTrainingButton").onclick = newTraining;
-
-    list.querySelectorAll("[data-edit-training]").forEach(button => {
-        button.onclick = () => {
-            const row = rows.find(item => String(item.id) === String(button.dataset.editTraining));
-            if (row) editTraining(row);
-        };
-    });
-
-    list.querySelectorAll("[data-delete-training]").forEach(button => {
-        button.onclick = () => deleteTraining(button.dataset.deleteTraining);
-    });
-
-    makeCategorySelect("trainingCategory", await getTrainingCategories(), document.getElementById("trainingCategory")?.value || "", "+ Add New Category");
+    const list=document.getElementById("trainingList"); if(!list)return;
+    const rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
+    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
 function newTraining() {
@@ -1050,7 +877,7 @@ function editTraining(row) {
     document.getElementById("trainingId").value = row.id;
     document.getElementById("trainingTitle").value = row.title || "";
     document.getElementById("trainingDuration").value = row.duration || "";
-    document.getElementById("trainingPrice").value = row.price ?? "";
+    document.getElementById("trainingPublicPrice").value = ""; document.getElementById("trainingPrice").value = "";
     makeCategorySelect("trainingCategory", DEFAULT_TRAINING_CATEGORIES, row.category || "", "+ Add New Category");
     document.getElementById("trainingDescription").value = row.description || "";
     document.getElementById("trainingActive").checked = row.active !== false;
@@ -1080,10 +907,13 @@ function setupTrainingForm() {
         event.preventDefault();
 
         const id = document.getElementById("trainingId").value.trim();
+        let oldTrainingTitle = "";
+        if (id) { const oldRow = await db.from("training_programs").select("title").eq("id", id).maybeSingle(); if (!oldRow.error) oldTrainingTitle = oldRow.data?.title || ""; }
+        const trainingPublicPrice = document.getElementById("trainingPublicPrice").value === "" ? null : Number(document.getElementById("trainingPublicPrice").value);
+        const trainingPrice = document.getElementById("trainingPrice").value === "" ? null : Number(document.getElementById("trainingPrice").value);
         const payload = {
             title: document.getElementById("trainingTitle").value.trim(),
             duration: document.getElementById("trainingDuration").value.trim(),
-            price: document.getElementById("trainingPrice").value === "" ? null : Number(document.getElementById("trainingPrice").value),
             category: document.getElementById("trainingCategory").value.trim(),
             description: document.getElementById("trainingDescription").value.trim(),
             active: document.getElementById("trainingActive").checked,
@@ -1104,6 +934,13 @@ function setupTrainingForm() {
                 : await db.from("training_programs").insert(payload);
 
             if (result.error) throw result.error;
+            const trainingInvoiceKey = invoiceStorageKey("Training - " + payload.title);
+            if (oldTrainingTitle && oldTrainingTitle !== payload.title) { await db.from("settings").delete().eq("setting_key", invoiceStorageKey("Training - " + oldTrainingTitle)); await db.from("settings").delete().eq("setting_key", "public_training_price_" + contentSlug(oldTrainingTitle)); }
+            const trainingPublicKey = "public_training_price_" + contentSlug(payload.title);
+            if (trainingPublicPrice === null) await db.from("settings").delete().eq("setting_key", trainingPublicKey);
+            else await safeSettingUpsert(trainingPublicKey, JSON.stringify({name:payload.title,category:payload.category||"Training",price:trainingPublicPrice,notes:payload.duration||"",active:payload.active}));
+            if (trainingPrice === null) await db.from("settings").delete().eq("setting_key", trainingInvoiceKey);
+            else await safeSettingUpsert(trainingInvoiceKey, JSON.stringify({name:payload.title,category:payload.category||"Training",price:trainingPrice,notes:payload.duration||"",active:payload.active}));
 
             form.reset();
             document.getElementById("trainingId").value = "";
@@ -2213,9 +2050,7 @@ async function loadInvoicePricing() {
 
 async function loadInvoicePaymentDetails() {
     const rows=await getRows("settings"); const values={};
-    rows.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_")).forEach(r=>{
-        if(values[r.setting_key]===undefined) values[r.setting_key]=r.setting_value||"";
-    });
+    rows.filter(r=>["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||""))).forEach(r=>{ values[r.setting_key]=r.setting_value||""; });
     const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
     Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
 }
