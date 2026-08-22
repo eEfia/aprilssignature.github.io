@@ -266,6 +266,12 @@ async function renderGalleryCategorySelect(currentValue = "") {
             if (!cleanName) return;
 
             try {
+                const duplicate = await db.from("gallery_collections").select("id").ilike("name", cleanName).limit(1);
+                if (duplicate.error) throw duplicate.error;
+                if (duplicate.data?.length) {
+                    message("That collection already exists.", "error");
+                    return;
+                }
                 const current = await db.from("gallery_collections").select("display_order").order("display_order", { ascending: false }).limit(1);
                 const nextOrder = (current.data?.[0]?.display_order || 0) + 1;
                 const result = await db.from("gallery_collections").insert({ name: cleanName, active: true, display_order: nextOrder });
@@ -273,6 +279,7 @@ async function renderGalleryCategorySelect(currentValue = "") {
 
                 await renderGalleryCategorySelect(cleanName);
                 message("Collection added.", "success");
+                await loadGallery();
             } catch (error) {
                 console.error(error);
                 message("Collection could not be added. You can still use the new name after saving the gallery item.", "error");
@@ -294,6 +301,9 @@ async function loadGallery() {
     if (!list) return;
 
     const rows = await getRows("gallery_items");
+    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||"")) ||
+        Number(a.display_order||9999)-Number(b.display_order||9999) ||
+        String(a.title||"").localeCompare(String(b.title||"")));
 
     list.innerHTML = `
         <div class="admin-actions">
@@ -341,8 +351,39 @@ async function loadGallery() {
         const collectionBox = document.getElementById("galleryCollectionOrderList");
         if (!collectionResult.error && collectionBox) {
             const collections = collectionResult.data || [];
-            collectionBox.innerHTML = collections.length ? `<strong>Collection Order</strong><table><thead><tr><th>Collection</th><th>Order</th><th>Save</th></tr></thead><tbody>${collections.map(c=>`<tr><td>${escapeHTML(c.name||"")}</td><td><input type="number" min="1" value="${escapeHTML(c.display_order??1)}" data-collection-order="${escapeHTML(c.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-save-collection-order="${escapeHTML(c.id)}">Save Order</button></td></tr>`).join("")}</tbody></table>` : `<strong>Collection Order</strong><div class="empty">No collections yet.</div>`;
-            collectionBox.querySelectorAll("[data-save-collection-order]").forEach(btn=>btn.onclick=async()=>{const id=btn.dataset.saveCollectionOrder;const input=collectionBox.querySelector(`[data-collection-order="${id}"]`);const value=Number(input?.value)||1;const r=await db.from("gallery_collections").update({display_order:value}).eq("id",id);if(r.error)message("Collection order could not be saved: "+r.error.message,"error");else{message("Collection order saved.","success");await loadGallery();}});
+            collectionBox.innerHTML = collections.length ? `<strong>Collection Order</strong><table><thead><tr><th>Collection</th><th>Order</th><th>Save Order</th><th>Edit</th><th>Delete</th></tr></thead><tbody>${collections.map(c=>`<tr><td>${escapeHTML(c.name||"")}</td><td><input type="number" min="1" value="${escapeHTML(c.display_order??1)}" data-collection-order="${escapeHTML(c.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-save-collection-order="${escapeHTML(c.id)}">Save Order</button></td><td><button type="button" class="secondary" data-edit-collection="${escapeHTML(c.id)}">Edit</button></td><td><button type="button" class="danger" data-delete-collection="${escapeHTML(c.id)}">Delete</button></td></tr>`).join("")}</tbody></table>` : `<strong>Collection Order</strong><div class="empty">No collections yet.</div>`;
+            collectionBox.querySelectorAll("[data-save-collection-order]").forEach(btn=>btn.onclick=async()=>{
+                const id=btn.dataset.saveCollectionOrder;
+                const input=collectionBox.querySelector(`[data-collection-order="${id}"]`);
+                const value=Number(input?.value)||1;
+                const r=await db.from("gallery_collections").update({display_order:value}).eq("id",id);
+                if(r.error) message("Collection order could not be saved: "+r.error.message,"error");
+                else { message("Collection order saved.","success"); await loadGallery(); }
+            });
+            collectionBox.querySelectorAll("[data-edit-collection]").forEach(btn=>btn.onclick=async()=>{
+                const id=btn.dataset.editCollection;
+                const row=collections.find(c=>String(c.id)===String(id));
+                if(!row)return;
+                const next=window.prompt("Change collection name:",row.name||"");
+                if(next===null)return;
+                const name=next.trim();
+                if(!name || name===row.name)return;
+                const duplicate=collections.find(c=>String(c.id)!==String(id) && String(c.name||"").trim().toLowerCase()===name.toLowerCase());
+                if(duplicate){message("A collection with that name already exists.","error");return;}
+                const r=await db.from("gallery_collections").update({name}).eq("id",id);
+                if(r.error){message("Collection name could not be changed: "+r.error.message,"error");return;}
+                const moved=await db.from("gallery_items").update({category:name}).eq("category",row.name);
+                if(moved.error){console.warn("Gallery items could not all be renamed:",moved.error);}
+                message("Collection name updated.","success"); await loadGallery();
+            });
+            collectionBox.querySelectorAll("[data-delete-collection]").forEach(btn=>btn.onclick=async()=>{
+                const id=btn.dataset.deleteCollection;
+                const row=collections.find(c=>String(c.id)===String(id));
+                if(!row || !confirm(`Delete collection "${row.name}"? Gallery items will remain but will no longer be tied to this collection.`))return;
+                const r=await db.from("gallery_collections").delete().eq("id",id);
+                if(r.error){message("Collection could not be deleted: "+r.error.message,"error");return;}
+                message("Collection deleted.","success"); await loadGallery();
+            });
         }
     } catch(error) { console.warn("Gallery collection ordering unavailable:",error); }
 
@@ -363,22 +404,32 @@ async function loadGallery() {
 async function addGalleryCollection() {
     const name = window.prompt("Enter the new collection name:");
     if (!name) return;
-
     const cleanName = name.trim();
     if (!cleanName) return;
 
     try {
-        const current = await db.from("gallery_collections").select("display_order").order("display_order", { ascending: false }).limit(1);
-                const nextOrder = (current.data?.[0]?.display_order || 0) + 1;
-                const result = await db.from("gallery_collections").insert({ name: cleanName, active: true, display_order: nextOrder });
+        const duplicate = await db.from("gallery_collections").select("id").ilike("name",cleanName).limit(1);
+        if (duplicate.error) throw duplicate.error;
+        if (duplicate.data?.length) {
+            message("That collection already exists.","error");
+            return;
+        }
+        const current = await db.from("gallery_collections").select("display_order")
+            .order("display_order", { ascending: false }).limit(1);
+        const nextOrder = (current.data?.[0]?.display_order || 0) + 1;
+        const result = await db.from("gallery_collections").insert({
+            name: cleanName, active: true, display_order: nextOrder
+        });
         if (result.error) throw result.error;
         await renderGalleryCategorySelect(cleanName);
         message("Collection added.", "success");
+        await loadGallery();
     } catch (error) {
         console.error(error);
-        message("Collection could not be added. Check the gallery_collections table and its permissions.", "error");
+        message("Collection could not be added: " + error.message, "error");
     }
 }
+
 
 function newGalleryItem() {
     const form = document.getElementById("galleryForm");
@@ -446,7 +497,7 @@ function setupGalleryForm() {
         try {
             let result;
             if (id) {
-                result = await db.from("gallery_items").update(data).eq("id", id);
+                result = await db.from("gallery_items").update(data).eq("id", id).select("id").single();
             } else {
                 // Do not create a second database record for the same media in the same collection.
                 const existing = await db.from("gallery_items")
@@ -458,7 +509,7 @@ function setupGalleryForm() {
                 if (existing.data?.length) {
                     result = await db.from("gallery_items").update(data).eq("id", existing.data[0].id);
                 } else {
-                    result = await db.from("gallery_items").insert(data);
+                    result = await db.from("gallery_items").insert(data).select("id").single();
                 }
             }
 
@@ -563,6 +614,179 @@ async function getTrainingCategories() {
    SERVICES
 ========================================================= */
 
+
+/* =========================================================
+   PRODUCTS CATALOGUE
+   Stored in settings so no extra database table is required.
+========================================================= */
+
+const DEFAULT_PRODUCTS = [
+    ["Streetwear","Jerseys",1],
+    ["Streetwear","Hoodies",2],
+    ["Streetwear","Joggers — Super Thick Cutting Joggers",3],
+    ["Streetwear","Joggers — Everyday Wear Type",4],
+    ["Streetwear","T-shirts",5],
+    ["Streetwear","Polo Shirts",6],
+    ["Streetwear","Sweatshirts",7],
+    ["Streetwear","Sweatpants",8],
+    ["Streetwear","Ladies Tank Tops",9],
+    ["Streetwear","Men's Tank Tops",10],
+    ["Streetwear","Varsity Jackets",11],
+    ["Streetwear","Cargo Pants",12],
+    ["Streetwear","Cargo Skirts",13],
+    ["Streetwear","Jogger Shorts",14],
+    ["Streetwear","Hoodies & Joggers Set",15],
+    ["Streetwear","T-shirts & Shorts Set",16],
+    ["Streetwear","T-shirt & Sweatpants Set",17],
+    ["Streetwear","Sweatshirts & Shorts Set",18],
+    ["Streetwear","Sweatshirts & Sweatpants Set",19]
+];
+
+function productKeyFromName(name) {
+    return "product_" + String(name || "").toLowerCase().trim()
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+}
+
+async function safeSettingUpsert(key, value) {
+    const now = new Date().toISOString();
+    const existing = await db.from("settings").select("id").eq("setting_key", key).order("id", {ascending:true});
+    if (existing.error) throw existing.error;
+    const ids = (existing.data || []).map(r => r.id);
+    let result;
+    if (ids.length) {
+        result = await db.from("settings").update({setting_value:value, updated_at:now}).eq("id", ids[0]);
+        if (result.error) throw result.error;
+        if (ids.length > 1) {
+            const dup = await db.from("settings").delete().in("id", ids.slice(1));
+            if (dup.error) console.warn("Duplicate setting cleanup failed:", dup.error);
+        }
+    } else {
+        result = await db.from("settings").insert({setting_key:key, setting_value:value, updated_at:now});
+        if (result.error) throw result.error;
+    }
+    return result;
+}
+
+async function seedDefaultProducts() {
+    try {
+        const marker = await db.from("settings").select("id").eq("setting_key","products_catalogue_seeded").limit(1);
+        if (marker.error) return;
+        if (marker.data?.length) return;
+        for (const [category,name,order] of DEFAULT_PRODUCTS) {
+            const key = productKeyFromName(name);
+            const existing = await db.from("settings").select("id").eq("setting_key",key).limit(1);
+            if (existing.error || existing.data?.length) continue;
+            await db.from("settings").insert({
+                setting_key:key,
+                setting_value:JSON.stringify({name,category,price:null,notes:"",display_order:order,active:true}),
+                updated_at:new Date().toISOString()
+            });
+        }
+        await db.from("settings").insert({
+            setting_key:"products_catalogue_seeded",
+            setting_value:"true",
+            updated_at:new Date().toISOString()
+        });
+    } catch (e) {
+        console.warn("Product catalogue seed unavailable:", e);
+    }
+}
+
+
+async function getProducts() {
+    await seedDefaultProducts();
+    const result = await db.from("settings").select("id,setting_key,setting_value,updated_at")
+        .like("setting_key","product_%").order("updated_at",{ascending:true});
+    if (result.error) throw result.error;
+    return (result.data || []).map(row => {
+        let item={};
+        try { item=JSON.parse(row.setting_value || "{}"); } catch (_) {}
+        return {...item,id:row.id,setting_key:row.setting_key};
+    }).filter(row => row.name);
+}
+
+async function loadProducts() {
+    const list=document.getElementById("adminProductsList");
+    if (!list) return;
+    const rows=await getProducts();
+    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||"")) ||
+        Number(a.display_order||9999)-Number(b.display_order||9999) ||
+        String(a.name||"").localeCompare(String(b.name||"")));
+
+    list.innerHTML=rows.length ? `
+        <table>
+            <thead><tr><th>Product</th><th>Category</th><th>Public Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody>${rows.map(row=>`<tr>
+                <td>${escapeHTML(row.name)}</td>
+                <td>${escapeHTML(row.category||"")}</td>
+                <td>${row.price!==null && row.price!==undefined && row.price!=="" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
+                <td>${escapeHTML(row.display_order??1)}</td>
+                <td>${row.active!==false ? "Yes":"No"}</td>
+                <td>
+                    <button type="button" class="secondary" data-edit-product="${escapeHTML(row.id)}">Edit</button>
+                    <button type="button" class="danger" data-delete-product="${escapeHTML(row.id)}">Delete</button>
+                </td>
+            </tr>`).join("")}</tbody>
+        </table>` : `<div class="empty">No products have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-product]").forEach(btn=>btn.onclick=()=>{
+        const row=rows.find(r=>String(r.id)===String(btn.dataset.editProduct)); if(!row)return;
+        document.getElementById("adminProductId").value=row.id;
+        document.getElementById("adminProductTitle").value=row.name||"";
+        document.getElementById("adminProductCategory").value=row.category||"Streetwear";
+        document.getElementById("adminProductPrice").value=row.price??"";
+        document.getElementById("adminProductOrder").value=row.display_order??1;
+        document.getElementById("adminProductNotes").value=row.notes||"";
+        document.getElementById("adminProductActive").checked=row.active!==false;
+        document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});
+    });
+
+    list.querySelectorAll("[data-delete-product]").forEach(btn=>btn.onclick=async()=>{
+        const row=rows.find(r=>String(r.id)===String(btn.dataset.deleteProduct)); if(!row)return;
+        if(!confirm(`Delete "${row.name}" from the product catalogue?`))return;
+        const r=await db.from("settings").delete().eq("id",btn.dataset.deleteProduct);
+        if(r.error){message("Product could not be deleted: "+r.error.message,"error");return;}
+        message("Product deleted.","success"); await loadProducts();
+    });
+}
+
+function setupProductForm() {
+    const form=document.getElementById("adminProductForm"); if(!form || form.dataset.bound)return;
+    form.dataset.bound="1";
+    form.addEventListener("submit",async e=>{
+        e.preventDefault();
+        const id=document.getElementById("adminProductId").value.trim();
+        const name=document.getElementById("adminProductTitle").value.trim();
+        const category=document.getElementById("adminProductCategory").value.trim();
+        const priceValue=document.getElementById("adminProductPrice").value;
+        const payload={name,category,price:priceValue===""?null:Number(priceValue),
+            notes:document.getElementById("adminProductNotes").value.trim(),
+            display_order:Number(document.getElementById("adminProductOrder").value)||1,
+            active:document.getElementById("adminProductActive").checked};
+        if(!name){message("Please enter a product name.","error");return;}
+        try{
+            const key=productKeyFromName(name);
+            if(id){
+                const old=await db.from("settings").select("setting_key").eq("id",id).maybeSingle();
+                if(old.error)throw old.error;
+                await safeSettingUpsert(old.data?.setting_key||key,JSON.stringify(payload));
+                if(old.data?.setting_key && old.data.setting_key!==key) await db.from("settings").delete().eq("setting_key",key);
+            }else{
+                await safeSettingUpsert(key,JSON.stringify(payload));
+            }
+            form.reset();
+            document.getElementById("adminProductId").value="";
+            document.getElementById("adminProductActive").checked=true;
+            message("Product saved successfully.","success");
+            await loadProducts();
+        }catch(error){console.error(error);message("Product could not be saved: "+error.message,"error");}
+    });
+    document.getElementById("adminProductCancel")?.addEventListener("click",()=>{
+        form.reset(); document.getElementById("adminProductId").value="";
+        document.getElementById("adminProductActive").checked=true;
+    });
+}
+
 async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
@@ -576,10 +800,31 @@ async function loadServices() {
     const rows = result.data || [];
 
     section.innerHTML = `
-        <h2>Services</h2>
-        <p class="intro">Add, edit and remove the services displayed on the website.</p>
+        <h2>Products &amp; Services</h2>
+        <p class="intro">Manage products, public catalogue prices and services. Internal invoice pricing is kept separately below in the Invoice Pricing section.</p>
 
         <div class="form-card">
+            <h3 style="color:#008c95;margin-bottom:10px;">Products</h3>
+            <p class="intro">Products are grouped by category. Edit or delete existing products, or add a new product.</p>
+            <form id="adminProductForm">
+                <input type="hidden" id="adminProductId">
+                <div class="form-grid">
+                    <div class="form-group"><label>Product Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Hoodies"></div>
+                    <div class="form-group"><label>Category</label><select id="adminProductCategory"><option>Streetwear</option><option>Ladies Wear</option><option>Kids Wear</option><option>Other Products</option></select></div>
+                    <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPrice" min="0" step="0.01" placeholder="e.g. 450.00"></div>
+                    <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
+                </div>
+                <div class="form-group"><label>Product Details / Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Describe the product or option."></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="adminProductActive" checked> Active</label><br>
+                <button class="primary" type="submit">Save Product</button>
+                <button class="secondary" type="button" id="adminProductCancel">Cancel</button>
+            </form>
+        </div>
+        <div id="adminProductsList" class="table-wrap"></div>
+
+        <div class="form-card">
+            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
+            <p class="intro">Add, edit and remove the services displayed on the public website.</p>
             <form id="adminServiceForm">
                 <input type="hidden" id="adminServiceId">
                 <div class="form-grid">
@@ -615,6 +860,8 @@ async function loadServices() {
         <div id="adminServicesList" class="table-wrap"></div>
     `;
 
+    await loadProducts();
+    setupProductForm();
     renderServices(rows);
     setupServiceForm();
 
@@ -704,6 +951,14 @@ function setupServiceForm() {
         }
 
         try {
+            if (!id) {
+                const duplicate = await db.from("admin_services").select("id").ilike("title",payload.title).limit(1);
+                if (duplicate.error) throw duplicate.error;
+                if (duplicate.data?.length) {
+                    message("A service with that name already exists. Edit the existing service instead.","error");
+                    return;
+                }
+            }
             const result = id
                 ? await db.from("admin_services").update(payload).eq("id", id)
                 : await db.from("admin_services").insert(payload);
@@ -836,6 +1091,14 @@ function setupTrainingForm() {
         };
 
         try {
+            if (!id) {
+                const duplicate = await db.from("training_programs").select("id").ilike("title",payload.title).eq("duration",payload.duration).limit(1);
+                if (duplicate.error) throw duplicate.error;
+                if (duplicate.data?.length) {
+                    message("That training programme already exists. Edit the existing one instead.","error");
+                    return;
+                }
+            }
             const result = id
                 ? await db.from("training_programs").update(payload).eq("id", id)
                 : await db.from("training_programs").insert(payload);
@@ -1709,11 +1972,7 @@ async function setHiddenContentKey(key, hidden) {
     const storage = contentSlug(key);
     if (!storage) return;
     if (hidden) {
-        await db.from("settings").upsert({
-            setting_key: "hidden_content_" + storage,
-            setting_value: "true",
-            updated_at: new Date().toISOString()
-        }, { onConflict: "setting_key" });
+        await safeSettingUpsert("hidden_content_" + storage, "true");
     } else {
         await db.from("settings").delete().eq("setting_key", "hidden_content_" + storage);
     }
@@ -1954,15 +2213,29 @@ async function loadInvoicePricing() {
 
 async function loadInvoicePaymentDetails() {
     const rows=await getRows("settings"); const values={};
-    rows.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_")).forEach(r=>values[r.setting_key]=r.setting_value||"");
+    rows.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_")).forEach(r=>{
+        if(values[r.setting_key]===undefined) values[r.setting_key]=r.setting_value||"";
+    });
     const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
     Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
 }
 function setupInvoicePaymentForm(){
     const form=document.getElementById("invoicePaymentForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{e.preventDefault();const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};try{for(const [id,key] of Object.entries(map)){const value=document.getElementById(id)?.value.trim()||"";const r=await db.from("settings").upsert({setting_key:key,setting_value:value,updated_at:new Date().toISOString()},{onConflict:"setting_key"});if(r.error)throw r.error;}message("Invoice payment details saved.","success");}catch(error){message("Invoice payment details could not be saved: "+error.message,"error");}});
+    form.addEventListener("submit",async e=>{
+        e.preventDefault();
+        const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
+        try{
+            for(const [id,key] of Object.entries(map)){
+                const value=document.getElementById(id)?.value.trim()||"";
+                await safeSettingUpsert(key,value);
+            }
+            message("Invoice payment details saved.","success");
+            await loadInvoicePaymentDetails();
+        }catch(error){message("Invoice payment details could not be saved: "+error.message,"error");}
+    });
     loadInvoicePaymentDetails();
 }
+
 
 function setupInvoiceForm() {
     const form = document.getElementById("invoiceForm");
@@ -1991,13 +2264,13 @@ function setupInvoiceForm() {
         };
 
         try {
-            let result;
+            await safeSettingUpsert(payload.setting_key, payload.setting_value);
             if (id) {
-                result = await db.from("settings").update(payload).eq("id", id);
-            } else {
-                result = await db.from("settings").upsert(payload, { onConflict: "setting_key" });
+                const oldRow = await db.from("settings").select("setting_key").eq("id",id).maybeSingle();
+                if (!oldRow.error && oldRow.data?.setting_key && oldRow.data.setting_key !== payload.setting_key) {
+                    await db.from("settings").delete().eq("id",id);
+                }
             }
-            if (result.error) throw result.error;
 
             form.reset();
             document.getElementById("invoiceId").value = "";
@@ -2153,7 +2426,7 @@ function setupWebsiteLinksForm() {
 }
 
 async function loadSocial(){const rows=await getRows("settings"),sr=rows.filter(r=>String(r.setting_key||"").toLowerCase().startsWith("social_")),list=document.getElementById("socialList");if(!list)return;list.innerHTML=sr.length?`<table><thead><tr><th>Platform</th><th>Link / Number</th><th>Actions</th></tr></thead><tbody>${sr.map(r=>`<tr><td>${escapeHTML(String(r.setting_key).replace(/^social_/i,"").replace(/_/g," "))}</td><td>${escapeHTML(r.setting_value||"")}</td><td><button type="button" class="secondary" data-edit-social="${r.id}">Edit</button> <button type="button" class="danger" data-delete-social="${r.id}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No social links have been added yet.</div>`;list.querySelectorAll("[data-edit-social]").forEach(b=>b.onclick=()=>{const r=sr.find(x=>String(x.id)===String(b.dataset.editSocial));if(!r)return;document.getElementById("socialId").value=r.id||"";const p=String(r.setting_key||"").replace(/^social_/i,"").replace(/_/g," ");document.getElementById("socialPlatform").value=["TikTok","Instagram","Facebook","WhatsApp","Other"].includes(p)?p:"Other";document.getElementById("socialUrl").value=r.setting_value||"";document.getElementById("socialForm").scrollIntoView({behavior:"smooth",block:"start"});});list.querySelectorAll("[data-delete-social]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this social link?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteSocial);if(r.error){message("Social link could not be deleted.","error");return;}message("Social link deleted.","success");await loadSocial();});}
-function setupSocialForm(){const f=document.getElementById("socialForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";f.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("socialId").value.trim(),p=document.getElementById("socialPlatform").value.trim(),v=document.getElementById("socialUrl").value.trim(),k="social_"+p.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");try{const r=id?await db.from("settings").update({setting_key:k,setting_value:v,updated_at:new Date().toISOString()}).eq("id",id):await db.from("settings").upsert({setting_key:k,setting_value:v,updated_at:new Date().toISOString()},{onConflict:"setting_key"});if(r.error)throw r.error;f.reset();document.getElementById("socialId").value="";message("Social link saved.","success");await loadSocial();}catch(err){console.error(err);message("Social link could not be saved: "+err.message,"error");}});document.getElementById("socialCancel")?.addEventListener("click",()=>{f.reset();document.getElementById("socialId").value="";});}
+function setupSocialForm(){const f=document.getElementById("socialForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";f.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("socialId").value.trim(),p=document.getElementById("socialPlatform").value.trim(),v=document.getElementById("socialUrl").value.trim(),k="social_"+p.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");try{let r;if(id){r=await db.from("settings").update({setting_key:k,setting_value:v,updated_at:new Date().toISOString()}).eq("id",id);if(r.error)throw r.error;}else{await safeSettingUpsert(k,v);}f.reset();document.getElementById("socialId").value="";message("Social link saved.","success");await loadSocial();}catch(err){console.error(err);message("Social link could not be saved: "+err.message,"error");}});document.getElementById("socialCancel")?.addEventListener("click",()=>{f.reset();document.getElementById("socialId").value="";});}
 
 async function loadContact() {
     try {
@@ -2212,15 +2485,7 @@ async function getSettingValue(key) {
 }
 
 async function saveSettingValue(key, value) {
-    const result = await db.from("settings").upsert(
-        {
-            setting_key: key,
-            setting_value: value,
-            updated_at: new Date().toISOString()
-        },
-        { onConflict: "setting_key" }
-    );
-    if (result.error) throw result.error;
+    await safeSettingUpsert(key, value);
 }
 
 async function getLogoLibrary() {
@@ -2532,7 +2797,8 @@ function setupSettingsForm() {
             if (id) {
                 result = await db.from("settings").update({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() }).eq("id", id);
             } else {
-                result = await db.from("settings").upsert({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() }, { onConflict: "setting_key" });
+                await safeSettingUpsert(key, value);
+                result = { error: null };
             }
 
             if (result.error) throw result.error;
@@ -2581,6 +2847,14 @@ const INITIAL_GALLERY_ITEMS = [
     ["Graphic T-Shirts","Embellishment Projects","videos/video (5).mp4"]
 ];
 
+const INITIAL_GALLERY_COLLECTIONS = [
+    ["Streetwear Collection",1],
+    ["Rhinestone Embellishment",2],
+    ["Fashion Creations",3],
+    ["Featured Collection",4],
+    ["Embellishment Projects",5]
+];
+
 const INITIAL_SERVICES = [
     ["Streetwear","Streetwear","We produce plain and customised unisex streetwear pieces, including Jerseys, Hoodies, Joggers, T-shirts, Sweatshirts, Sweatpants, Varsity Jackets, Cargo Pants, Cargo Skirts and more."],
     ["Ladies Wear","Ladies Wear","We create Custom & Made-to-Order ladies wear designed according to individual styles, preferences and occasions."],
@@ -2601,12 +2875,26 @@ const INITIAL_FAQS = [
 
 async function seedInitialPublicContent() {
     try {
+        const collections = await db.from("gallery_collections").select("id,name");
+        if (!collections.error) {
+            const existing = new Set((collections.data || []).map(r => String(r.name || "").trim().toLowerCase()));
+            const missing = INITIAL_GALLERY_COLLECTIONS
+                .filter(([name]) => !existing.has(name.toLowerCase()))
+                .map(([name, display_order]) => ({name, display_order, active:true}));
+            if (missing.length) {
+                const result = await db.from("gallery_collections").insert(missing);
+                if (result.error) console.warn("Gallery collections initial import skipped:", result.error);
+            }
+        }
+    } catch (e) { console.warn("Gallery collections initial import unavailable:", e); }
+
+    try {
         const gallery = await db.from("gallery_items").select("id,title,image_url");
         if (!gallery.error) {
             const existing = new Set((gallery.data || []).map(r => `${r.title || ""}\u0000${r.image_url || ""}`));
             const missing = INITIAL_GALLERY_ITEMS
-                .filter(([title, , image_url]) => !existing.has(`${title}\u0000${image_url}`))
-                .map(([title, category, image_url]) => ({ title, category, image_url, featured: category === "Featured Collection", active: true }));
+                .map(([title, category, image_url], index) => ({ title, category, image_url, featured: category === "Featured Collection", active: true, display_order: index + 1 }))
+                .filter(row => !existing.has(`${row.title}\u0000${row.image_url}`));
             if (missing.length) {
                 const result = await db.from("gallery_items").insert(missing);
                 if (result.error) console.warn("Gallery initial import skipped:", result.error);
