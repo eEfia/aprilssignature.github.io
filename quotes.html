@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-mkkxx
+
     <title>Order / Request a Quote | Aprils Signature</title>
 
     <meta
@@ -562,8 +562,8 @@ mkkxx
     <p>Select the streetwear products you need and enter quantities. Streetwear size / measurements are collected here only.</p>
 
     <div class="form-group">
-        <label for="streetwearSize">Streetwear Size / Measurements</label>
-        <textarea id="streetwearSize" name="streetwearSize" placeholder="Enter the size or measurements for the selected streetwear items."></textarea>
+        <label for="streetwearSize">Streetwear Size (UK) / Measurements</label>
+        <textarea id="streetwearSize" name="streetwearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
     </div>
 
     <div id="streetwearProductsDynamic">
@@ -697,12 +697,12 @@ mkkxx
 <section class="form-section hidden-section" id="ladiesWearSection">
     <h2>Ladies Wear Details</h2>
     <div class="form-group">
-        <label for="ladiesWearQuantity">Quantity</label>
-        <input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1">
+        <label for="ladiesWearSize">Size (UK) / Measurements</label>
+        <textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
     </div>
     <div class="form-group">
-        <label for="ladiesWearSize">Size / Measurements</label>
-        <textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Enter size or measurements."></textarea>
+        <label for="ladiesWearQuantity">Quantity</label>
+        <input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1">
     </div>
     <div class="form-group">
         <label for="ladiesWearDetails">Details / Style Request</label>
@@ -714,12 +714,12 @@ mkkxx
 <section class="form-section hidden-section" id="kidsWearSection">
     <h2>Kids Wear Details</h2>
     <div class="form-group">
-        <label for="kidsWearQuantity">Quantity</label>
-        <input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1">
+        <label for="kidsWearSize">Age / Size (UK) / Measurements</label>
+        <textarea id="kidsWearSize" name="kidsWearSize" placeholder="Example: Age 12, Size 12 (UK), or provide measurements."></textarea>
     </div>
     <div class="form-group">
-        <label for="kidsWearSize">Age / Size / Measurements</label>
-        <textarea id="kidsWearSize" name="kidsWearSize" placeholder="Enter age, size or measurements (for example: Age 12)."></textarea>
+        <label for="kidsWearQuantity">Quantity</label>
+        <input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1">
     </div>
     <div class="form-group">
         <label for="kidsWearDetails">Details / Style Request</label>
@@ -734,19 +734,8 @@ mkkxx
     id="embellishmentSection"
 >
 
-    <h2>
-        Embellishment Services Selection
-    </h2>
-
-    <div class="form-group">
-        <label for="embellishmentQuantity">Quantity</label>
-        <input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" value="1">
-    </div>
-
-    <div class="form-group">
-        <label for="embellishmentSize">Size / Measurements</label>
-        <textarea id="embellishmentSize" name="embellishmentSize" placeholder="Enter size or measurements where applicable."></textarea>
-    </div>
+    <h2>Embellishment Services Selection</h2>
+    <p class="field-help">Select the embellishment service first, then enter the size/measurements and quantity.</p>
 
     <div class="product-options">
 
@@ -816,8 +805,18 @@ mkkxx
 
     </div>
 
+    <div class="form-group">
+        <label for="embellishmentSize">Size (UK) / Measurements</label>
+        <textarea id="embellishmentSize" name="embellishmentSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
+    </div>
 
-    <div class="form-group hidden-section" id="embellishmentOtherWrap" style="display:none;">
+    <div class="form-group">
+        <label for="embellishmentQuantity">Quantity</label>
+        <input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" value="1">
+    </div>
+
+
+<div class="form-group hidden-section" id="embellishmentOtherWrap" style="display:none;">
 
         <label for="embellishmentOther">
             Specify Your Request
