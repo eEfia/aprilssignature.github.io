@@ -162,6 +162,24 @@ PUBLIC FORM FIXES
                     }
                 }
 
+                const embellishmentDetails = {};
+                form.querySelectorAll('input[name="embellishment[]"]:checked').forEach(function(input) {
+                    const key = input.getAttribute("data-embellishment-key") || input.value;
+                    const prefix = key;
+                    const size = String(data.get(prefix + "Size") || "").trim();
+                    const quantity = String(data.get(prefix + "Quantity") || "").trim();
+                    const colour = String(data.get(prefix + "Colour") || "").trim();
+                    const request = String(data.get(prefix + "Details") || "").trim() || (key === "others" ? String(data.get("embellishmentOther") || "").trim() : "");
+                    if (size || quantity || colour || request) {
+                        embellishmentDetails[input.value] = {
+                            size,
+                            quantity: quantity || "1",
+                            colour,
+                            details: request
+                        };
+                    }
+                });
+
                 const details = {
                     selectedServices: services,
                     streetwear: {},
@@ -174,13 +192,17 @@ PUBLIC FORM FIXES
                     serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     streetwearSize: String(data.get("streetwearSize") || "").trim(),
+                    streetwearColour: String(data.get("streetwearColour") || "").trim(),
                     ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
+                    ladiesWearColour: String(data.get("ladiesWearColour") || "").trim(),
                     kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
+                    kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
                     embellishmentSize: String(data.get("embellishmentSize") || "").trim(),
                     ladiesWearQuantity: String(data.get("ladiesWearQuantity") || "0").trim(),
                     kidsWearQuantity: String(data.get("kidsWearQuantity") || "0").trim(),
                     embellishmentQuantity: String(data.get("embellishmentQuantity") || "0").trim(),
                     embellishmentItems: data.getAll("embellishment[]").filter(Boolean),
+                    embellishmentDetails,
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
                     inspiration: Array.from(document.getElementById("inspiration")?.files || []).map(file => file.name),

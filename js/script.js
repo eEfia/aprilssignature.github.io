@@ -874,6 +874,7 @@ function setupQuoteForm() {
                 otherInput.required = showEmbellishment && otherSelected;
                 if (!otherSelected) otherInput.value = "";
             }
+            if (typeof updateEmbellishmentDetailFields === "function") updateEmbellishmentDetailFields();
         }
     }
 
@@ -885,11 +886,27 @@ function setupQuoteForm() {
         input.addEventListener("change", updateServiceSections);
     });
 
+    function updateEmbellishmentDetailFields() {
+        form.querySelectorAll(".embellishment-detail-field").forEach(function (field) {
+            const key = field.getAttribute("data-embellishment-detail");
+            const checkbox = Array.from(form.querySelectorAll('input[name="embellishment[]"]'))
+                .find(input => input.getAttribute("data-embellishment-key") === key);
+            const section = document.getElementById("embellishmentSection");
+            const visible = !!checkbox && checkbox.checked && !!section && section.style.display !== "none";
+            field.style.display = visible ? "block" : "none";
+        });
+    }
+
+    form.querySelectorAll('input[name="embellishment[]"]').forEach(function (input) {
+        input.addEventListener("change", updateEmbellishmentDetailFields);
+    });
+
     form.addEventListener("reset", function () {
         window.setTimeout(updateServiceSections, 0);
     });
 
     updateServiceSections();
+    updateEmbellishmentDetailFields();
 }
 
 
