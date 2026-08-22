@@ -3081,3 +3081,23 @@ table td {
         transition: none !important;
     }
 }
+
+
+/* Quote form: individual embellishment details */
+.embellishment-detail-field{
+    grid-column:1/-1;
+    margin:0 0 16px 0;
+    padding:18px;
+    border-left:4px solid var(--teal, #0f7775);
+    background:var(--teal-light, #e9f5f4);
+}
+.embellishment-detail-field .form-group:last-child{
+    margin-bottom:0;
+}
+
+
+/* Professional manual invoice builder */
+#manualInvoiceModal .table-wrap table, #manualInvoiceModal .table-wrap th, #manualInvoiceModal .table-wrap td { border: 1.5px solid #9b9b9b; }
+#manualInvoiceModal .table-wrap th { border-bottom: 2px solid #075957; }
+#manualInvoiceModal .form-card, #manualInvoiceModal .notice { border: 1.5px solid #b7b7b7; }
+#manualInvoiceModal .submission-modal-header { border-bottom: 2px solid #075957; }
