@@ -78,6 +78,24 @@ function waitForSupabase() {
    MOBILE MENU
 ========================================================= */
 
+
+function normalizeEmailLinks() {
+    const fallbackEmail = "info@aprilssignature.com";
+
+    document.querySelectorAll("a").forEach(function (link) {
+        const text = (link.textContent || "").trim();
+        const href = String(link.getAttribute("href") || "");
+        const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+
+        if (match || /^mailto:/i.test(href) || /mail\.google\.com/i.test(href) || /gmail\.com/i.test(href)) {
+            const email = match ? match[0] : (href.match(/[?&]to=([^&]+)/i)?.[1] || fallbackEmail);
+            link.setAttribute("href", "mailto:" + decodeURIComponent(email));
+            link.removeAttribute("target");
+            link.removeAttribute("rel");
+        }
+    });
+}
+
 function setupMobileMenu() {
 
     const button =
@@ -591,521 +609,264 @@ function setupEnquiryForm() {
 
 function setupQuoteForm() {
 
-    const form =
-        document.getElementById("quoteForm");
-
-    if (!form) {
-        return;
-    }
-
+    const form = document.getElementById("quoteForm");
+    if (!form || form.dataset.quoteUiBound === "1") return;
+    form.dataset.quoteUiBound = "1";
 
     /*
-       Convert the existing service radio buttons
-       into checkboxes so one customer can select
-       multiple services in ONE request.
+       Service Selection
+       -----------------
+       The form supports multiple services in one request. Older HTML
+       versions used name="service"; newer versions use services[].
+       Normalize both so the page remains compatible.
     */
-
-    const serviceInputs =
-        form.querySelectorAll(
-            'input[name="service"]'
-        );
-
+    const serviceInputs = form.querySelectorAll(
+        'input[name="service"], input[name="services[]"]'
+    );
 
     serviceInputs.forEach(function (input) {
-
         input.type = "checkbox";
-
         input.name = "services[]";
-
         input.required = false;
-
     });
 
+    const serviceContainer = form.querySelector(".service-options");
+    const serviceSection = serviceContainer
+        ? serviceContainer.closest(".form-section")
+        : null;
 
-    const serviceContainer =
-        form.querySelector(".service-options");
+    if (!serviceContainer || !serviceSection) return;
 
-
-    if (serviceContainer) {
-
-        const note =
-            document.createElement("p");
-
-        note.textContent =
-            "You can select more than one service.";
-
-        note.style.marginTop = "12px";
-        note.style.fontSize = "14px";
-        note.style.color = "#555";
-
+    if (!serviceContainer.querySelector(".multi-service-note")) {
+        const note = document.createElement("p");
+        note.className = "multi-service-note";
+        note.textContent = "You can select more than one service.";
         serviceContainer.appendChild(note);
-
     }
 
+    /*
+       Size / Measurements
+       -------------------
+       A separate field is maintained for each selected service so entering
+       a second service never overwrites the first service's size/measurements.
+    */
+    let sizeContainer = document.getElementById("serviceSizeContainer");
+
+    if (!sizeContainer) {
+        sizeContainer = document.createElement("div");
+        sizeContainer.id = "serviceSizeContainer";
+        sizeContainer.className = "service-size-container";
+
+        sizeContainer.innerHTML = `
+            <h3 class="service-size-heading">Size (UK) / Measurements</h3>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Streetwear"
+                 style="display:none">
+                <label for="streetwearSize">
+                    Streetwear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="streetwearSize"
+                    name="streetwearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Ladies Wear"
+                 style="display:none">
+                <label for="ladiesWearSize">
+                    Ladies Wear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="ladiesWearSize"
+                    name="ladiesWearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Kids Wear"
+                 style="display:none">
+                <label for="kidsWearSize">
+                    Kids Wear — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="kidsWearSize"
+                    name="kidsWearSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+
+            <div class="form-group service-size-field"
+                 data-size-service="Embellishment Services"
+                 style="display:none">
+                <label for="embellishmentSize">
+                    Embellishment Services — Size (UK) / Measurements
+                </label>
+                <input
+                    type="text"
+                    id="embellishmentSize"
+                    name="embellishmentSize"
+                    placeholder="Size 12 (UK) or provide your measurements"
+                    autocomplete="off"
+                >
+            </div>
+        `;
+
+        serviceSection.appendChild(sizeContainer);
+    }
 
     /*
-       Add extra detail boxes for services
-       that currently do not have their own
-       detailed selection section.
+       Quantity fields for non-streetwear services. Streetwear already has
+       individual quantity inputs. Ladies Wear, Kids Wear and Embellishment
+       Services each get one quantity field so every selected service can be
+       quoted correctly.
     */
+    let quantityContainer = document.getElementById("serviceQuantityContainer");
+    if (!quantityContainer) {
+        quantityContainer = document.createElement("div");
+        quantityContainer.id = "serviceQuantityContainer";
+        quantityContainer.className = "service-quantity-container";
+        quantityContainer.innerHTML = `
+            <h3 class="service-size-heading">Quantity</h3>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Ladies Wear" style="display:none">
+                <div class="form-group"><label for="ladiesWearQuantity">Ladies Wear — Quantity</label><input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" step="1" value="1"></div>
+            </div>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Kids Wear" style="display:none">
+                <div class="form-group"><label for="kidsWearQuantity">Kids Wear — Quantity</label><input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" step="1" value="1"></div>
+            </div>
+            <div class="quantity-row service-quantity-field" data-quantity-service="Embellishment Services" style="display:none">
+                <div class="form-group"><label for="embellishmentQuantity">Embellishment Services — Quantity</label><input type="number" id="embellishmentQuantity" name="embellishmentQuantity" min="1" step="1" value="1"></div>
+            </div>`;
+        serviceSection.appendChild(quantityContainer);
+    }
 
-    const serviceSection =
-        serviceContainer?.closest(
-            ".form-section"
-        );
+    /*
+       Extra detail fields for services that do not have a dedicated
+       product-selection panel.
+    */
+    let extraDetails = document.getElementById("additionalServiceDetails");
 
+    if (!extraDetails) {
+        extraDetails = document.createElement("div");
+        extraDetails.id = "additionalServiceDetails";
+        extraDetails.className = "additional-service-details";
 
-    if (serviceSection) {
-
-        const extra =
-            document.createElement("div");
-
-        extra.id =
-            "additionalServiceDetails";
-
-        extra.style.marginTop = "25px";
-
-
-        extra.innerHTML = `
-
-            <div
-                class="form-group"
-                data-service-detail="Ladies Wear"
-                style="display:none"
-            >
-                <label>
+        extraDetails.innerHTML = `
+            <div class="form-group"
+                 data-service-detail="Ladies Wear"
+                 style="display:none">
+                <label for="ladiesWearDetails">
                     Ladies Wear — Specify Request
                 </label>
-
                 <textarea
+                    id="ladiesWearDetails"
                     name="ladiesWearDetails"
                     placeholder="Tell us what ladies wear you need, quantity, design or other details."
                 ></textarea>
             </div>
 
-
-            <div
-                class="form-group"
-                data-service-detail="Kids Wear"
-                style="display:none"
-            >
-                <label>
+            <div class="form-group"
+                 data-service-detail="Kids Wear"
+                 style="display:none">
+                <label for="kidsWearDetails">
                     Kids Wear — Specify Request
                 </label>
-
                 <textarea
+                    id="kidsWearDetails"
                     name="kidsWearDetails"
                     placeholder="Tell us what kids wear you need, quantity, design or other details."
                 ></textarea>
             </div>
+`;
 
-
-            <div
-                class="form-group"
-                data-service-detail="Practical Fashion Training"
-                style="display:none"
-            >
-                <label>
-                    Training Request
-                </label>
-
-                <textarea
-                    name="trainingDetails"
-                    placeholder="Please specify the training/class you are interested in."
-                ></textarea>
-            </div>
-
-        `;
-
-        serviceSection.appendChild(extra);
-
+        serviceSection.appendChild(extraDetails);
     }
-
 
     function updateServiceSections() {
+        const selected = Array.from(
+            form.querySelectorAll('input[name="services[]"]:checked')
+        ).map(input => input.value);
 
-        const selected = [];
-
-        form.querySelectorAll(
-            'input[name="services[]"]:checked'
-        ).forEach(function (input) {
-
-            selected.push(input.value);
-
+        form.querySelectorAll(".service-size-field").forEach(function (field) {
+            const serviceName = field.getAttribute("data-size-service");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
+            /*
+               Do NOT clear another service's size simply because another
+               service was selected. Each service keeps its own value.
+            */
         });
 
-
-        form.querySelectorAll(
-            "[data-service-detail]"
-        ).forEach(function (box) {
-
-            box.style.display =
-                selected.includes(
-                    box.getAttribute(
-                        "data-service-detail"
-                    )
-                )
-                    ? "block"
-                    : "none";
-
+        form.querySelectorAll("[data-service-detail]").forEach(function (field) {
+            const serviceName = field.getAttribute("data-service-detail");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
         });
 
+        form.querySelectorAll(".service-quantity-field").forEach(function (field) {
+            const serviceName = field.getAttribute("data-quantity-service");
+            field.style.display = selected.includes(serviceName) ? "block" : "none";
+        });
 
-        const streetwear =
-            document.getElementById(
-                "streetwearSection"
-            );
-
-        const embellishment =
-            document.getElementById(
-                "embellishmentSection"
-            );
-
-
+        const streetwear = document.getElementById("streetwearSection");
         if (streetwear) {
-
-            streetwear.style.display =
-                selected.includes("Streetwear")
-                    ? "block"
-                    : "none";
-
+            streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
         }
 
+        const ladiesWear = document.getElementById("ladiesWearSection");
+        if (ladiesWear) ladiesWear.style.display = selected.includes("Ladies Wear") ? "block" : "none";
 
+        const kidsWear = document.getElementById("kidsWearSection");
+        if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
+
+        const serviceOtherWrap = document.getElementById("serviceOtherWrap");
+        const serviceOtherInput = document.getElementById("serviceOther");
+        const otherServiceSelected = selected.includes("Others");
+        if (serviceOtherWrap) serviceOtherWrap.style.display = otherServiceSelected ? "block" : "none";
+        if (serviceOtherInput) {
+            serviceOtherInput.required = otherServiceSelected;
+            if (!otherServiceSelected) serviceOtherInput.value = "";
+        }
+
+        const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
+            const showEmbellishment = selected.includes("Embellishment Services");
+            embellishment.style.display = showEmbellishment ? "block" : "none";
 
-            embellishment.style.display =
-                selected.includes(
-                    "Embellishment Services"
-                )
-                    ? "block"
-                    : "none";
+            const otherWrap = document.getElementById("embellishmentOtherWrap");
+            const otherInput = document.getElementById("embellishmentOther");
+            const otherSelected = Array.from(embellishment.querySelectorAll('input[name="embellishment[]"]'))
+                .some(input => input.checked && input.value === "Others");
 
+            if (otherWrap) otherWrap.style.display = showEmbellishment && otherSelected ? "block" : "none";
+            if (otherInput) {
+                otherInput.required = showEmbellishment && otherSelected;
+                if (!otherSelected) otherInput.value = "";
+            }
         }
-
     }
 
-
     serviceInputs.forEach(function (input) {
-
-        input.addEventListener(
-            "change",
-            updateServiceSections
-        );
-
+        input.addEventListener("change", updateServiceSections);
     });
 
-
-    /*
-       CAPTURE PHASE
-
-       The old quote page has an older submit
-       handler inside quotes.html.
-
-       This handler catches the submission
-       first so the old handler cannot create
-       a duplicate/broken submission.
-    */
-
-    form.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-
-            const message =
-                document.getElementById(
-                    "quoteFormMessage"
-                );
-
-
-            const button =
-                document.getElementById(
-                    "quoteSubmitButton"
-                );
-
-
-            const selectedServices =
-                Array.from(
-                    form.querySelectorAll(
-                        'input[name="services[]"]:checked, input[name="service"]:checked'
-                    )
-                ).map(function (input) {
-
-                    return input.value;
-
-                });
-
-
-            if (!selectedServices.length) {
-
-                showFormMessage(
-                    message,
-                    "Please select at least one service.",
-                    false
-                );
-
-                return;
-
-            }
-
-
-            if (button) {
-
-                button.disabled = true;
-
-                button.textContent =
-                    "Submitting...";
-
-            }
-
-
-            try {
-
-                const supabase =
-                    await waitForSupabase();
-
-
-                if (!supabase) {
-
-                    throw new Error(
-                        "Supabase unavailable."
-                    );
-
-                }
-
-
-                const data =
-                    new FormData(form);
-
-
-                const get =
-                    function (name) {
-
-                        return String(
-                            data.get(name) || ""
-                        ).trim();
-
-                    };
-
-
-                const streetwearItems = {};
-
-                [
-                    "jerseys",
-                    "hoodies",
-                    "joggers",
-                    "tshirts",
-                    "poloShirts",
-                    "sweatshirts",
-                    "sweatpants",
-                    "ladiesTankTops",
-                    "mensTankTops",
-                    "varsityJackets",
-                    "cargoPants",
-                    "cargoSkirts",
-                    "joggerShorts",
-                    "hoodiesJoggersSet",
-                    "tshirtsShortsSet",
-                    "sweatshirtsShortsSet"
-                ].forEach(function (name) {
-
-                    streetwearItems[name] =
-                        get(name);
-
-                });
-
-
-                const embellishment =
-                    data.getAll(
-                        "embellishment[]"
-                    );
-
-
-                const requestDetails = {
-
-                    selectedServices:
-                        selectedServices,
-
-                    streetwear:
-                        streetwearItems,
-
-                    streetwearOther:
-                        get("streetwearOther"),
-
-                    ladiesWear:
-                        get("ladiesWearDetails"),
-
-                    kidsWear:
-                        get("kidsWearDetails"),
-
-                    training:
-                        get("trainingDetails"),
-
-                    embellishment:
-                        embellishment,
-
-                    embellishmentOther:
-                        get("embellishmentOther"),
-
-                    additionalDetails:
-                        get("additionalDetails"),
-
-                    agreement:
-                        get("agreement"),
-
-                    mockups:
-                        Array.from(
-                            document.getElementById(
-                                "mockups"
-                            )?.files || []
-                        ).map(function (file) {
-
-                            return file.name;
-
-                        }),
-
-                    inspiration:
-                        Array.from(
-                            document.getElementById(
-                                "inspiration"
-                            )?.files || []
-                        ).map(function (file) {
-
-                            return file.name;
-
-                        }),
-
-                    submittedFrom:
-                        window.location.href
-
-                };
-
-
-                const payload = {
-
-                    full_name:
-                        get("fullName"),
-
-                    phone:
-                        get("phone"),
-
-                    whatsapp:
-                        get("whatsapp"),
-
-                    location:
-                        get("location"),
-
-                    email:
-                        get("email"),
-
-                    service:
-                        selectedServices.join(", "),
-
-                    journey:
-                        JSON.stringify(
-                            requestDetails
-                        )
-
-                };
-
-
-                if (!payload.full_name) {
-                    throw new Error(
-                        "Full name is required."
-                    );
-                }
-
-
-                if (!payload.phone) {
-                    throw new Error(
-                        "Phone number is required."
-                    );
-                }
-
-
-                if (!payload.location) {
-                    throw new Error(
-                        "Location is required."
-                    );
-
-
-                }
-
-
-                const result =
-                    await supabase
-                        .from("quote_requests")
-                        .insert([payload]);
-
-
-                if (result.error) {
-
-                    console.error(
-                        "QUOTE ERROR:",
-                        result.error
-                    );
-
-                    throw result.error;
-
-                }
-
-
-                showFormMessage(
-                    message,
-                    "Thank you! Your order / quote request has been received successfully. Aprils Signature will review your request and contact you shortly regarding your quotation.",
-                    true
-                );
-
-
-                form.reset();
-
-                updateServiceSections();
-
-
-                window.scrollTo({
-                    top: 0,
-                    behavior: "smooth"
-                });
-
-
-            } catch (error) {
-
-                console.error(
-                    "QUOTE SUBMISSION ERROR:",
-                    error
-                );
-
-
-                showFormMessage(
-                    message,
-                    "We could not submit your request right now. Please try again. If the problem continues, contact Aprils Signature directly.",
-                    false
-                );
-
-
-            } finally {
-
-                if (button) {
-
-                    button.disabled = false;
-
-                    button.textContent =
-                        "Submit Order / Request a Quote";
-
-                }
-
-            }
-
-        },
-        true
-    );
-
+    form.querySelectorAll('input[name="embellishment[]"]').forEach(function (input) {
+        input.addEventListener("change", updateServiceSections);
+    });
+
+    form.addEventListener("reset", function () {
+        window.setTimeout(updateServiceSections, 0);
+    });
+
+    updateServiceSections();
 }
-
-
 
 /* =========================================================
    PUBLIC SITE — DATABASE-LINKED CONTENT
@@ -1118,13 +879,12 @@ async function loadPublicRows(table) {
     if (!supabase) return [];
     const result = await supabase
         .from(table)
-        .select("*")
-        .eq("active", true);
+        .select("*");
     if (result.error) {
-        console.warn("Public content table unavailable:", table, result.error);
+        console.error("PUBLIC SUPABASE READ FAILED:", table, result.error);
         return [];
     }
-    return result.data || [];
+    return (result.data || []).filter(row => row.active !== false);
 }
 
 function ensureLightbox() {
@@ -1204,11 +964,14 @@ async function loadPublicGallery() {
 
     const activeRows = [];
     const seenMedia = new Set();
-    rows.forEach(row => {
-        const key = String(row.image_url || "").trim().toLowerCase();
-        if (!key || seenMedia.has(key)) return;
-        seenMedia.add(key);
-        activeRows.push(row);
+    rows.filter(row => row.image_url && row.active !== false).forEach(row => {
+        const normalizedUrl = String(row.image_url).trim().replace(/\s+/g, " ");
+        const normalizedCategory = String(row.category || "Gallery").trim().toLowerCase();
+        const key = `${normalizedCategory}\u0000${normalizedUrl}`;
+        if (!seenMedia.has(key)) {
+            seenMedia.add(key);
+            activeRows.push(row);
+        }
     });
     if (!activeRows.length) return;
 
@@ -1227,9 +990,16 @@ async function loadPublicGallery() {
         groups[category].push(row);
     });
 
+    const collectionOrder = new Map();
+    try {
+        const collections = await loadPublicRows("gallery_collections");
+        collections.forEach(row => collectionOrder.set(String(row.name || ""), Number(row.display_order ?? 9999)));
+    } catch (_) {}
+
     const fragment = document.createDocumentFragment();
 
-    Object.keys(groups).sort().forEach(category => {
+    Object.keys(groups).sort((a,b) => (collectionOrder.get(a) ?? 9999) - (collectionOrder.get(b) ?? 9999) || a.localeCompare(b)).forEach(category => {
+        groups[category].sort((a,b) => Number(a.display_order ?? 9999) - Number(b.display_order ?? 9999) || String(a.title || "").localeCompare(String(b.title || "")));
         const section = document.createElement("section");
         section.className = "full-gallery";
         section.innerHTML = `
@@ -1295,6 +1065,7 @@ async function loadPublicServices() {
             <div class="container">
                 <h2>${escapeHTML(row.title)}</h2>
                 ${row.category ? `<p class="eyebrow">${escapeHTML(row.category)}</p>` : ""}
+                ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="service-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
                 <p>${escapeHTML(row.description || "")}</p>
                 <a href="quotes.html" class="button">Order / Request a Quote</a>
             </div>
@@ -1308,8 +1079,7 @@ async function loadPublicServices() {
 async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
-    const rows = (await loadPublicRows("training_programs"))
-        .filter(row => !/kids\s+holiday\s+class/i.test(String(row.title || "")));
+    const rows = await loadPublicRows("training_programs");
     if (!rows.length) return;
 
     const grid = document.querySelector(".training-section .training-grid");
@@ -1319,6 +1089,7 @@ async function loadPublicTraining() {
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
             ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
+            ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
             ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
             
         </article>
@@ -1359,12 +1130,119 @@ async function loadPublicFAQs() {
 }
 
 
+
+function getPublicPageKey() {
+    const classes = Array.from(document.body.classList);
+    const found = classes.find(c => c.endsWith("-page"));
+    return found ? found.replace(/-page$/, "") : "home";
+}
+
+function contentKeySlug(value) {
+    return String(value || "").trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 80);
+}
+
+function getManagedContentContainer(page) {
+    let container = document.querySelector(".admin-managed-content");
+    if (!container) {
+        container = document.createElement("section");
+        container.className = "admin-managed-content";
+        const inner = document.createElement("div");
+        inner.className = "container";
+        container.appendChild(inner);
+
+        const main = document.querySelector("main");
+        const intro = main?.querySelector(".page-intro");
+        if (main && intro) intro.after(container);
+        else if (main) main.appendChild(container);
+    }
+    return container.querySelector(".container") || container;
+}
+
+function renderDynamicManagedContent(rows, page) {
+    const dynamic = rows
+        .map(row => ({ row, parts: String(row.content_key || "").split("::") }))
+        .filter(item => item.parts[0] === "dynamic" && (item.parts[1] === page || item.parts[1] === "all"));
+
+    if (!dynamic.length) return;
+
+    const target = getManagedContentContainer(page);
+    target.innerHTML = "";
+
+    dynamic.forEach(({ row, parts }) => {
+        const type = parts[2] || "paragraph";
+        const name = parts.slice(3).join(" ").replace(/_/g, " ") || "Website Content";
+        const value = String(row.content_value || "");
+
+        if (type === "heading") {
+            const h = document.createElement("h2");
+            h.textContent = value;
+            target.appendChild(h);
+            return;
+        }
+
+        if (type === "notice") {
+            const box = document.createElement("div");
+            box.className = "admin-managed-notice";
+            box.textContent = value;
+            target.appendChild(box);
+            return;
+        }
+
+        if (type === "button") {
+            const parts = value.split("|");
+            const label = (parts[0] || name).trim();
+            const url = (parts[1] || "quotes.html").trim();
+            const a = document.createElement("a");
+            a.className = "button";
+            a.textContent = label;
+            a.href = url;
+            target.appendChild(a);
+            return;
+        }
+
+        const p = document.createElement("p");
+        p.textContent = value;
+        target.appendChild(p);
+    });
+
+    if (target.children.length) {
+        target.parentElement.classList.add("has-admin-content");
+    }
+}
+
 async function loadPublicManagedContent() {
     try {
         const contentRows = await loadPublicRows("site_content");
+        const settings = await loadPublicRows("settings");
+
+        const hidden = new Set(
+            settings
+                .filter(row => String(row.setting_key || "").startsWith("hidden_content_"))
+                .filter(row => String(row.setting_value || "").toLowerCase() === "true")
+                .map(row => String(row.setting_key).replace(/^hidden_content_/, ""))
+        );
+
         const content = {};
         contentRows.forEach(row => {
-            content[String(row.content_key || "").trim().toLowerCase()] = String(row.content_value || "");
+            const key = String(row.content_key || "").trim().toLowerCase();
+            if (!key) return;
+            if (hidden.has(contentKeySlug(key))) return;
+            content[key] = String(row.content_value || "");
+        });
+
+        document.querySelectorAll("[data-content-key]").forEach(function (el) {
+            const key = String(el.getAttribute("data-content-key") || "").trim().toLowerCase();
+            const storage = contentKeySlug(key);
+            if (hidden.has(storage)) {
+                el.style.display = "none";
+                return;
+            }
+            if (content[key] !== undefined) {
+                el.textContent = content[key];
+            }
         });
 
         const setText = (selector, value) => {
@@ -1381,11 +1259,10 @@ async function loadPublicManagedContent() {
         if (document.body.classList.contains("about-page")) {
             setText(".about-section p:first-of-type", content["about page introduction"]);
         }
-    } catch (error) {
-        console.warn("Public website content could not be loaded:", error);
-    }
 
-    try {
+        renderDynamicManagedContent(contentRows.filter(row => !hidden.has(contentKeySlug(row.content_key))), getPublicPageKey());
+
+        /* Contact information is a single managed source used by every public footer. */
         const contact = await loadPublicRows("contact_settings");
         const row = contact[0];
         if (row) {
@@ -1394,10 +1271,21 @@ async function loadPublicManagedContent() {
                 if (text.includes("contact")) {
                     const phone = column.querySelector('a[href^="tel:"]');
                     const whatsapp = column.querySelector('a[href*="wa.me"]');
-                    const email = column.querySelector('a[href^="mailto:"]');
-                    if (phone && row.phone) { phone.textContent = row.phone; phone.href = "tel:" + row.phone.replace(/\s+/g, ""); }
-                    if (whatsapp && row.whatsapp) { whatsapp.textContent = row.whatsapp; whatsapp.href = "https://wa.me/" + row.whatsapp.replace(/\D/g, ""); }
-                    if (email && row.email) { email.textContent = row.email; email.href = "mailto:" + row.email; }
+                    const email = column.querySelector('a[href^="mailto:"], a[href*="mail.google.com"]');
+                    if (phone && row.phone) {
+                        phone.textContent = row.phone;
+                        phone.href = "tel:" + row.phone.replace(/\s+/g, "");
+                    }
+                    if (whatsapp && row.whatsapp) {
+                        whatsapp.textContent = row.whatsapp;
+                        whatsapp.href = "https://wa.me/" + row.whatsapp.replace(/\D/g, "");
+                    }
+                    if (email && row.email) {
+                        email.textContent = row.email;
+                        email.href = "mailto:" + row.email;
+                        email.removeAttribute("target");
+                        email.removeAttribute("rel");
+                    }
                     const address = column.querySelector("p:last-of-type");
                     if (address && row.address) {
                         const strong = address.querySelector("strong");
@@ -1410,65 +1298,48 @@ async function loadPublicManagedContent() {
                 }
             });
         }
-    } catch (error) {
-        console.warn("Public contact settings could not be loaded:", error);
-    }
 
-    try {
-        const settings = await loadPublicRows("settings");
-        const settingsMap = {};
-        settings.forEach(row => {
-            settingsMap[String(row.setting_key || "").toLowerCase()] = String(row.setting_value || "");
+        /* Managed public navigation and future links. */
+        const links = settings
+            .filter(row => String(row.setting_key || "").startsWith("site_link_"))
+            .map(row => {
+                try { return { ...JSON.parse(row.setting_value || "{}"), id: row.id }; }
+                catch (_) { return null; }
+            })
+            .filter(Boolean)
+            .filter(item => item.active !== false)
+            .sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
+
+        const headerLinks = links.filter(item => (item.location || "header") === "header");
+        const nav = document.querySelector(".main-navigation");
+        if (nav && headerLinks.length) {
+            nav.innerHTML = headerLinks.map(item => {
+                const url = String(item.url || "").trim();
+                return `<a href="${escapeHTML(url)}">${escapeHTML(item.label || "")}</a>`;
+            }).join("");
+        }
+
+        const footerLinks = links.filter(item => item.location === "footer");
+        if (footerLinks.length) {
+            let footer = document.querySelector(".footer-managed-links");
+            if (!footer) {
+                footer = document.createElement("div");
+                footer.className = "footer-managed-links";
+                const footerTop = document.querySelector(".footer-top");
+                if (footerTop) footerTop.appendChild(footer);
+            }
+            footer.innerHTML = footerLinks.map(item => `<a href="${escapeHTML(item.url || "")}">${escapeHTML(item.label || "")}</a>`).join("");
+        }
+
+        document.querySelectorAll("a").forEach(link => {
+            const href = String(link.getAttribute("href") || "");
+            if (/^mailto:/i.test(href)) {
+                link.removeAttribute("target");
+                link.removeAttribute("rel");
+            }
         });
-
-        if (settingsMap.site_title) {
-            document.querySelectorAll(".brand-name").forEach(el => el.textContent = settingsMap.site_title);
-            document.title = settingsMap.site_title + (settingsMap.site_tagline ? " | " + settingsMap.site_tagline : "");
-        }
-        if (settingsMap.site_tagline) {
-            document.querySelectorAll(".brand-tagline").forEach(el => el.textContent = settingsMap.site_tagline);
-        }
-        if (settingsMap.google_review_url) {
-            document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
-                if ((link.textContent || "").toLowerCase().includes("review")) link.href = settingsMap.google_review_url;
-            });
-        }
-        if (settingsMap.google_maps_url) {
-            document.querySelectorAll('.footer-social a').forEach(link => {
-                const img = link.querySelector("img");
-                if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = settingsMap.google_maps_url;
-            });
-        }
-
-        const socials = settings.filter(row => String(row.setting_key || "").toLowerCase().startsWith("social_"));
-        if (socials.length) {
-            const map = {};
-            socials.forEach(row => map[String(row.setting_key).replace(/^social_/i, "").toLowerCase()] = row.setting_value || "");
-            document.querySelectorAll(".footer-social a").forEach(link => {
-                const img = link.querySelector("img");
-                const platform = String(img?.alt || link.textContent || "").trim().toLowerCase().replace(/\s+/g, "");
-                const url = map[platform];
-                if (url) {
-                    link.href = url;
-                    link.target = "_blank";
-                    link.rel = "noopener noreferrer";
-                }
-            });
-
-            if (map.review) {
-                document.querySelectorAll('a[href*="g.page"], a[href*="google.com/maps"]').forEach(link => {
-                    if ((link.textContent || "").toLowerCase().includes("review")) link.href = map.review;
-                });
-            }
-            if (map.maps) {
-                document.querySelectorAll('.footer-social a').forEach(link => {
-                    const img = link.querySelector("img");
-                    if (String(img?.alt || "").toLowerCase().includes("find us")) link.href = map.maps;
-                });
-            }
-        }
     } catch (error) {
-        console.warn("Public social links could not be loaded:", error);
+        console.warn("Public website content could not be loaded:", error);
     }
 
     try {
@@ -1496,6 +1367,39 @@ async function loadPublicManagedContent() {
     }
 }
 
+async function loadPublicLogoSetting() {
+    try {
+        const settings = await loadPublicRows("settings");
+        const logoSetting = settings.find(row =>
+            String(row.setting_key || "").toLowerCase() === "site_logo_data"
+        );
+        const removeSetting = settings.find(row =>
+            String(row.setting_key || "").toLowerCase() === "site_logo_removed"
+        );
+
+        const logos = document.querySelectorAll(".brand-logo");
+        if (!logos.length) return;
+
+        if (String(removeSetting?.setting_value || "").toLowerCase() === "true") {
+            logos.forEach(img => {
+                img.style.display = "none";
+                img.setAttribute("aria-hidden", "true");
+            });
+            return;
+        }
+
+        if (logoSetting?.setting_value) {
+            logos.forEach(img => {
+                img.src = logoSetting.setting_value;
+                img.style.display = "";
+                img.removeAttribute("aria-hidden");
+            });
+        }
+    } catch (error) {
+        console.warn("Public logo setting could not be loaded:", error);
+    }
+}
+
 async function setupPublicDatabaseContent() {
     await Promise.all([
         loadPublicGallery(),
@@ -1503,7 +1407,8 @@ async function setupPublicDatabaseContent() {
         loadPublicTraining(),
         loadPublicTestimonials(),
         loadPublicFAQs(),
-        loadPublicManagedContent()
+        loadPublicManagedContent(),
+        loadPublicLogoSetting()
     ]);
     setupMediaInteractions();
 }
@@ -1515,6 +1420,7 @@ async function setupPublicDatabaseContent() {
 function start() {
 
     setupMobileMenu();
+    normalizeEmailLinks();
 
     setupCopyright();
 
