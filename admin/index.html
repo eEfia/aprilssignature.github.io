@@ -557,6 +557,12 @@ data-section="gallery"
 Gallery &amp; Media
 </button>
 
+<button
+data-section="homepage"
+>
+Homepage Featured Collection
+</button>
+
 
 <button
 data-section="services"
@@ -586,6 +592,12 @@ Invoice Pricing
 data-section="links"
 >
 Website Links
+</button>
+
+<button
+data-section="discounts"
+>
+Return Customer Discount
 </button>
 <button
 data-section="testimonials"
@@ -642,26 +654,6 @@ Dashboard Overview
 Welcome to the Aprils Signature Admin Dashboard.
 </p>
 
-<div class="form-card" style="margin:18px 0 24px;">
-<h3 style="margin-top:0;color:#075957;">Customer Direct Links</h3>
-<p class="intro">Send these links directly to customers. They open the requested form page immediately instead of making the customer search through the website.</p>
-<div class="form-grid">
-<div class="form-group">
-<label>Order / Request a Quote</label>
-<div style="display:flex;gap:8px;flex-wrap:wrap;">
-<button type="button" class="primary" id="shareOrderFormLink">Share Order Form Link</button>
-<button type="button" class="secondary" id="copyOrderFormLink">Copy Link</button>
-</div>
-</div>
-<div class="form-group">
-<label>Training Registration</label>
-<div style="display:flex;gap:8px;flex-wrap:wrap;">
-<button type="button" class="primary" id="shareTrainingFormLink">Share Training Link</button>
-<button type="button" class="secondary" id="copyTrainingFormLink">Copy Link</button>
-</div>
-</div>
-</div>
-</div>
 
 <div class="cards">
 
@@ -981,18 +973,6 @@ id="galleryList"
 class="table-wrap"
 ></div>
 
-<div class="form-card" style="margin-top:20px;">
-<h3 style="color:#008c95;margin-bottom:10px;">Gallery Media Order &amp; Featured Collection</h3>
-<p class="intro">Use this separate section to control the order of every gallery image/video and the order of items shown in the Featured Collection on the public homepage. Changes made here are saved directly to the website database.</p>
-<div id="galleryMediaOrderList" class="table-wrap"></div>
-</div>
-
-<div class="form-card" style="margin-top:20px;">
-<h3 style="color:#008c95;margin-bottom:10px;">Collection Order</h3>
-<p class="intro">Change the order of the gallery collections shown on the public Gallery page.</p>
-<div id="galleryCollectionOrderList" class="table-wrap"></div>
-</div>
-
 </section>
 
 
@@ -1000,6 +980,35 @@ class="table-wrap"
 <!-- =====================================================
 SERVICES
 ===================================================== -->
+
+<section id="homepage" class="section">
+<h2>Homepage Featured Collection</h2>
+<p class="intro">This section is completely separate from Gallery &amp; Media. Add, edit, delete and reorder homepage images or videos here without changing the public gallery.</p>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Homepage Collection Name</h3>
+<form id="homepageCollectionNameForm">
+<div class="form-grid">
+<div class="form-group"><label for="homepageCollectionName">Collection Name</label><input id="homepageCollectionName" placeholder="Featured Collection"></div>
+</div>
+<button class="primary" type="submit">Save Collection Name</button>
+</form>
+</div>
+<div class="form-card">
+<form id="homepageMediaForm">
+<input type="hidden" id="homepageMediaId">
+<div class="form-grid">
+<div class="form-group"><label for="homepageMediaTitle">Title</label><input id="homepageMediaTitle" required placeholder="e.g. New Featured Collection"></div>
+<div class="form-group"><label for="homepageMediaUrl">Image / Video URL</label><input id="homepageMediaUrl" required placeholder="https://... or videos/video.mp4"></div>
+<div class="form-group"><label for="homepageMediaOrder">Display Order</label><input id="homepageMediaOrder" type="number" min="1" value="1"></div>
+</div>
+<div class="form-group"><label for="homepageMediaDescription">Description</label><textarea id="homepageMediaDescription" placeholder="Optional description to show on the homepage."></textarea></div>
+<label class="checkbox"><input type="checkbox" id="homepageMediaActive" checked> Show on Homepage</label><br>
+<button class="primary" type="submit">Save Homepage Media</button>
+<button type="button" class="secondary" id="homepageMediaCancel">Cancel</button>
+</form>
+</div>
+<div id="homepageMediaList" class="table-wrap"></div>
+</section>
 
 <section
 id="services"
@@ -1471,7 +1480,12 @@ Active
 <div class="form-group"><label for="invoicePaymentNote">Payment Note</label><textarea id="invoicePaymentNote" placeholder="Any payment instruction to appear on invoices."></textarea></div>
 <button class="primary" type="submit">Save Payment Details</button>
 </form>
-<div id="invoicePaymentSaved" style="margin-top:16px;"></div>
+</div>
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Saved Invoice Payment Details</h3>
+<p class="intro">These are the payment details currently saved for future invoices. You can edit them above or clear them below.</p>
+<div id="invoicePaymentSaved"></div>
+<button type="button" class="secondary" id="editInvoicePaymentDetails" style="margin-top:12px;">Edit Saved Payment Details</button> <button type="button" class="danger" id="deleteInvoicePaymentDetails" style="margin-top:12px;">Clear Saved Payment Details</button>
 </div>
 <div id="invoiceList" class="table-wrap"></div>
 </section>
@@ -1518,6 +1532,46 @@ Active
 </div>
 
 <div id="linkList" class="table-wrap"></div>
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Quick Customer Links</h3>
+<p class="intro">Use these direct links when you want to send a customer straight to the correct public page.</p>
+<div class="toolbar">
+<button type="button" class="secondary" data-copy-direct-link="order">Copy Order / Request a Quote Link</button>
+<button type="button" class="secondary" data-copy-direct-link="training">Copy Training Registration Link</button>
+<button type="button" class="secondary" data-copy-direct-link="gallery">Copy Gallery Link</button>
+<button type="button" class="secondary" data-copy-direct-link="discount">Copy Discount Code Link</button>
+</div>
+<div id="directLinksList"></div>
+</div>
+</section>
+
+<!-- =====================================================
+RETURN CUSTOMER DISCOUNT
+===================================================== -->
+<section id="discounts" class="section">
+<h2>Return Customer Discount</h2>
+<p class="intro">Manage the 10% thank-you-card discount without crowding the order or invoice sections. Customers submit their code on a separate page; you verify and mark the redemption here.</p>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Discount Code</h3>
+<form id="discountCodeForm">
+<input type="hidden" id="discountCodeId">
+<div class="form-grid">
+<div class="form-group"><label for="discountCodeValue">Code on Thank-You Card</label><input id="discountCodeValue" required placeholder="Enter the exact code printed on the card"></div>
+<div class="form-group"><label for="discountPercent">Discount Percentage</label><input id="discountPercent" type="number" min="0" max="100" step="1" value="10"></div>
+</div>
+<label class="checkbox"><input type="checkbox" id="discountCodeActive" checked> Active</label>
+<br>
+<button class="primary" type="submit">Save Discount Code</button>
+<button type="button" class="secondary" id="discountCodeNew">New Code</button>
+<button type="button" class="secondary" id="discountCodeCancel">Cancel</button>
+</form>
+</div>
+<div id="discountCodeList" class="table-wrap" style="margin-bottom:20px;"></div>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:8px;">Customer Redemptions</h3>
+<p class="intro" style="margin-bottom:12px;">Each submission is recorded. Mark it <strong>Redeemed</strong> only after you have applied the discount to the customer's order/payment.</p>
+<div id="discountRedemptionList" class="table-wrap"></div>
+</div>
 </section>
 
 <!-- =====================================================
@@ -1614,10 +1668,11 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260821"></script>
-<script src="../js/supabase-client.js?v=20260821"></script>
-<script src="admin.js?v=20260821" defer></script>
-<script src="Admin-fixes.js?v=20260821" defer></script>
+<script src="../js/supabase-config.js?v=20260823"></script>
+<script src="../js/supabase-client.js?v=20260823"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="admin.js?v=20260823" defer></script>
+<script src="Admin-fixes.js?v=20260823" defer></script>
 </body>
 
 <style>
@@ -1646,4 +1701,45 @@ You can also remove the current public logo without deleting the original projec
 table, th, td { border: 2px solid #666666 !important; }
 th { border-color: #075957 !important; border-width: 2px !important; }
 .form-card, .table-wrap, .card { border: 2px solid #666666; }
+</style>
+
+<style>
+.submission-modal-actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.receipt-intro{margin:0 0 12px;color:#555}.receipt-payment-banner{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:12px 14px;margin:0 0 16px;border-left:4px solid #0f7775;background:#f4fbfa;border-radius:6px;color:#333}.receipt-payment-banner span{color:#555;font-size:13px}.receipt-live-summary input[readonly]{font-weight:700;background:#f7f7f7}.receipt-paper{background:#fff;max-width:900px;margin:0 auto;padding:36px;border:1px solid #bbb;box-shadow:0 3px 15px rgba(0,0,0,.12)}.receipt-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.receipt-brand-row img{width:90px;height:90px;object-fit:contain}.receipt-brand-row h1{margin:0;color:#0f7775}.receipt-brand-row p{margin:2px 0 0}.receipt-meta{margin-left:auto;text-align:right}.receipt-meta strong{display:block;font-size:20px;color:#0f7775}.receipt-meta span{display:block;margin-top:3px}.receipt-status{margin:22px 0;padding:12px;text-align:center;border:2px solid #0f7775;border-radius:6px;color:#0f7775;font-weight:700;letter-spacing:1px}.receipt-customer{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px;border:1px solid #aaa}.receipt-lines{width:100%;border-collapse:collapse;margin-top:22px}.receipt-lines th,.receipt-lines td{border:1px solid #777;padding:9px;text-align:left}.receipt-lines th{background:#0f7775;color:#fff}.receipt-lines small{display:block;margin-top:4px;color:#555}.receipt-summary{margin:20px 0 0 auto;max-width:330px;text-align:right}.receipt-summary p{margin:6px 0}.receipt-note{margin-top:20px;padding:14px;border:1px solid #aaa}.receipt-footer{text-align:center;margin-top:32px;color:#666;font-size:12px}.receipt-generator-modal .invoice-generator-toolbar h2{color:#0f7775}@media(max-width:700px){.receipt-paper{padding:18px}.receipt-brand-row{flex-wrap:wrap}.receipt-meta{margin-left:0;text-align:left;width:100%}.receipt-customer{grid-template-columns:1fr}.receipt-generator-modal{inset:1vh 1vw;padding:14px}}
+.invoice-generator-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10050}
+.invoice-generator-modal{position:fixed;inset:3vh 3vw;background:#f3f3f3;z-index:10051;overflow:auto;padding:24px;border-radius:10px;box-shadow:0 12px 50px rgba(0,0,0,.35)}
+.invoice-generator-toolbar{position:sticky;top:0;z-index:3;background:#f3f3f3;padding-bottom:15px;border-bottom:2px solid #aaa;margin-bottom:15px}
+.invoice-generator-toolbar h2{color:#0f7775;margin:0 0 12px}
+.invoice-action-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.invoice-generator-editor{background:#fff;padding:18px;border:2px solid #666;margin-bottom:18px}
+.invoice-line-editor{margin-top:15px;padding-top:15px;border-top:1px solid #aaa}
+.invoice-edit-row{display:grid;grid-template-columns:1.2fr 1.5fr .5fr .8fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.invoice-edit-row input{width:100%;padding:9px;border:1.5px solid #777;border-radius:4px}
+.invoice-paper{background:#fff;max-width:900px;margin:0 auto;padding:36px;border:1px solid #bbb;box-shadow:0 3px 15px rgba(0,0,0,.12)}
+.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}
+.invoice-brand-row img{width:90px;height:90px;object-fit:contain}
+.invoice-brand-row h1{margin:0;color:#0f7775}
+.invoice-brand-row p{margin:2px 0 0}
+.invoice-meta{margin-left:auto;text-align:right}
+.invoice-meta strong{display:block;font-size:22px;color:#0f7775}
+.invoice-customer{margin-top:20px;padding:14px;border:1px solid #aaa}
+.invoice-lines{width:100%;border-collapse:collapse;margin-top:22px}
+.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:9px;text-align:left}
+.invoice-lines th{background:#0f7775;color:#fff}
+.invoice-summary{margin:20px 0 0 auto;max-width:330px;text-align:right}
+.invoice-summary p{margin:5px 0}
+.invoice-payment,.invoice-note{margin-top:20px;padding:14px;border:1px solid #aaa}
+@media(max-width:800px){
+ .invoice-generator-modal{inset:1vh 1vw;padding:14px}
+ .invoice-edit-row{grid-template-columns:1fr 1fr}
+ .invoice-paper{padding:18px}
+ .invoice-brand-row{flex-wrap:wrap}
+ .invoice-meta{margin-left:0;text-align:left;width:100%}
+}
+@media print{
+ .invoice-generator-modal,.invoice-generator-backdrop{position:static;display:block}
+ .invoice-generator-editor,.invoice-generator-toolbar{display:none!important}
+ .invoice-paper{box-shadow:none;border:0;max-width:none}
+}
 </style>

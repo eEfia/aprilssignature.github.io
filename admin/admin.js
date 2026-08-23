@@ -116,6 +116,28 @@ async function cleanupExactDuplicates() {
             }
         } catch (e) { console.warn("Duplicate cleanup skipped for", table, e); }
     }
+
+    // Settings keys are intended to be unique in practice. Clean duplicate
+    // records for managed prefixes so editing an item never leaves a second copy.
+    try {
+        const result = await db.from("settings").select("id,setting_key,created_at,updated_at");
+        if (!result.error) {
+            const uniquePrefixes = ["product_","invoice_price_","site_link_","social_","homepage_featured_"];
+            const groups = new Map();
+            (result.data || []).forEach(row => {
+                const key = String(row.setting_key || "");
+                if (!uniquePrefixes.some(prefix => key.startsWith(prefix))) return;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            });
+            for (const group of groups.values()) {
+                if (group.length <= 1) continue;
+                group.sort((a,b) => String(a.created_at || a.updated_at || "").localeCompare(String(b.created_at || b.updated_at || "")));
+                const duplicateIds = group.slice(1).map(r => r.id);
+                if (duplicateIds.length) await db.from("settings").delete().in("id", duplicateIds);
+            }
+        }
+    } catch (e) { console.warn("Managed settings duplicate cleanup skipped:", e); }
 }
 
 async function checkSession() {
@@ -188,19 +210,6 @@ function setupNavigation() {
     });
 }
 
-function setupCustomerDirectLinks() {
-    const orderUrl = () => getPublicPageUrl("quotes.html");
-    const trainingUrl = () => getPublicPageUrl("training.html");
-    const copy = async (url, label) => {
-        try { await navigator.clipboard.writeText(url); message(`${label} copied to the clipboard.`, "success"); }
-        catch (_) { window.prompt(`Copy the ${label.toLowerCase()}:`, url); }
-    };
-    document.getElementById("shareOrderFormLink")?.addEventListener("click", () => sharePublicPageLink("Aprils Signature Order / Request a Quote", "quotes.html", "Aprils Signature — Order / Request a Quote\nPlease use this direct form to send your request:"));
-    document.getElementById("shareTrainingFormLink")?.addEventListener("click", () => sharePublicPageLink("Aprils Signature Training Registration", "training.html", "Aprils Signature — Training Registration\nPlease use this direct form to register:"));
-    document.getElementById("copyOrderFormLink")?.addEventListener("click", () => copy(orderUrl(), "Order / Request a Quote link"));
-    document.getElementById("copyTrainingFormLink")?.addEventListener("click", () => copy(trainingUrl(), "Training Registration link"));
-}
-
 async function loadDashboard() {
     const counters = {
         galleryCount: "gallery_items",
@@ -222,11 +231,13 @@ async function loadSection(id) {
     try {
         if (id === "dashboard") await loadDashboard();
         if (id === "gallery") await loadGallery();
+        if (id === "homepage") await loadHomepageMedia();
         if (id === "training") await loadTraining();
         if (id === "registrations") await loadRegistrations();
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "links") await loadWebsiteLinks();
+        if (id === "discounts") await loadDiscounts();
         if (id === "testimonials") await loadTestimonials();
         if (id === "faq") await loadFAQs();
         if (id === "policies") await loadPolicies();
@@ -374,7 +385,7 @@ async function loadGallery() {
                 ${rows.map(row => `
                     <tr>
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
-                        <td>${escapeHTML(row.title)}</td>
+                        <td>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
                         <td>${escapeHTML(row.category)}</td><td>${escapeHTML(row.display_order ?? 1)}</td>
                         <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
@@ -397,7 +408,9 @@ async function loadGallery() {
         const collectionBox = document.getElementById("galleryCollectionOrderList");
         if (!collectionResult.error && collectionBox) {
             const collections = collectionResult.data || [];
-            collectionBox.innerHTML = collections.length ? `<strong>Collection Order</strong><table><thead><tr><th>Collection</th><th>Order</th><th>Save Order</th><th>Edit</th><th>Delete</th></tr></thead><tbody>${collections.map(c=>`<tr><td>${escapeHTML(c.name||"")}</td><td><input type="number" min="1" value="${escapeHTML(c.display_order??1)}" data-collection-order="${escapeHTML(c.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-save-collection-order="${escapeHTML(c.id)}">Save Order</button></td><td><button type="button" class="secondary" data-edit-collection="${escapeHTML(c.id)}">Edit</button></td><td><button type="button" class="danger" data-delete-collection="${escapeHTML(c.id)}">Delete</button></td></tr>`).join("")}</tbody></table>` : `<strong>Collection Order</strong><div class="empty">No collections yet.</div>`;
+            collectionBox.innerHTML = collections.length ? `<strong>Collection Order</strong><table><thead><tr><th>Collection</th><th>Order</th><th>Move</th><th>Save Order</th><th>Edit</th><th>Delete</th></tr></thead><tbody>${collections.map(c=>`<tr><td>${escapeHTML(c.name||"")}</td><td><input type="number" min="1" value="${escapeHTML(c.display_order??1)}" data-collection-order="${escapeHTML(c.id)}" style="max-width:90px"></td>
+<td><button type="button" class="secondary" data-move-collection="${escapeHTML(c.id)}" data-direction="-1">↑</button> <button type="button" class="secondary" data-move-collection="${escapeHTML(c.id)}" data-direction="1">↓</button></td>
+<td><button type="button" class="secondary" data-save-collection-order="${escapeHTML(c.id)}">Save Order</button></td><td><button type="button" class="secondary" data-edit-collection="${escapeHTML(c.id)}">Edit</button></td><td><button type="button" class="danger" data-delete-collection="${escapeHTML(c.id)}">Delete</button></td></tr>`).join("")}</tbody></table>` : `<strong>Collection Order</strong><div class="empty">No collections yet.</div>`;
             collectionBox.querySelectorAll("[data-save-collection-order]").forEach(btn=>btn.onclick=async()=>{
                 const id=btn.dataset.saveCollectionOrder;
                 const input=collectionBox.querySelector(`[data-collection-order="${id}"]`);
@@ -406,6 +419,31 @@ async function loadGallery() {
                 if(r.error) message("Collection order could not be saved: "+r.error.message,"error");
                 else { message("Collection order saved.","success"); await loadGallery(); }
             });
+            collectionBox.querySelectorAll("[data-move-collection]").forEach(btn=>btn.onclick=async()=>{
+                const id = btn.dataset.moveCollection;
+                const direction = Number(btn.dataset.direction) || 0;
+                const index = collections.findIndex(c => String(c.id) === String(id));
+                const targetIndex = index + direction;
+                if (index < 0 || targetIndex < 0 || targetIndex >= collections.length) return;
+
+                const reordered = collections.slice();
+                const [moved] = reordered.splice(index, 1);
+                reordered.splice(targetIndex, 0, moved);
+
+                try {
+                    for (let i = 0; i < reordered.length; i++) {
+                        const result = await db.from("gallery_collections")
+                            .update({display_order: i + 1})
+                            .eq("id", reordered[i].id);
+                        if (result.error) throw result.error;
+                    }
+                    message("Collection order updated.", "success");
+                    await loadGallery();
+                } catch (error) {
+                    message("Collection order could not be changed: " + error.message, "error");
+                }
+            });
+
             collectionBox.querySelectorAll("[data-edit-collection]").forEach(btn=>btn.onclick=async()=>{
                 const id=btn.dataset.editCollection;
                 const row=collections.find(c=>String(c.id)===String(id));
@@ -446,113 +484,6 @@ async function loadGallery() {
 
     await renderGalleryCategorySelect(document.getElementById("galleryCategory")?.value || "");
     renderHomepageFeaturedMedia(rows);
-    renderGalleryMediaOrder(rows);
-}
-
-
-async function renderGalleryMediaOrder(rows) {
-    const box = document.getElementById("galleryMediaOrderList");
-    if (!box) return;
-
-    const mediaRows = [...(rows || [])].sort((a, b) =>
-        Number(a.display_order || 9999) - Number(b.display_order || 9999) ||
-        String(a.category || "").localeCompare(String(b.category || "")) ||
-        String(a.title || "").localeCompare(String(b.title || ""))
-    );
-
-    if (!mediaRows.length) {
-        box.innerHTML = `<div class="empty">No gallery media yet. Add an image or video above.</div>`;
-        return;
-    }
-
-    box.innerHTML = `
-        <div class="admin-actions" style="margin-bottom:14px;">
-            <button type="button" class="primary" id="addMediaFromOrderManager">+ Add New Media</button>
-            <span class="muted" style="align-self:center;">Use this area to manage the homepage Featured Collection and media order.</span>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Preview</th>
-                    <th>Title</th>
-                    <th>Collection</th>
-                    <th>Gallery Order</th>
-                    <th>Featured</th>
-                    <th>Featured Order</th>
-                    <th>Active</th>
-                    <th>Save</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${mediaRows.map(row => {
-                    const media = row.image_url
-                        ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url)
-                            ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted controls playsinline style="width:90px;height:70px;object-fit:cover"></video>`
-                            : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover">`)
-                        : "—";
-                    return `
-                        <tr>
-                            <td>${media}</td>
-                            <td>${escapeHTML(row.title || "")}</td>
-                            <td>${escapeHTML(row.category || "")}</td>
-                            <td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-media-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
-                            <td><input type="checkbox" ${row.featured ? "checked" : ""} data-media-featured="${escapeHTML(row.id)}"></td>
-                            <td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-media-featured-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
-                            <td><input type="checkbox" ${row.active !== false ? "checked" : ""} data-media-active="${escapeHTML(row.id)}"></td>
-                            <td>
-                                <button type="button" class="secondary" data-media-save="${escapeHTML(row.id)}">Save</button>
-                                <button type="button" class="secondary" data-media-edit="${escapeHTML(row.id)}">Edit</button>
-                                <button type="button" class="danger" data-media-delete="${escapeHTML(row.id)}">Delete</button>
-                            </td>
-                        </tr>`;
-                }).join("")}
-            </tbody>
-        </table>
-    `;
-
-    box.querySelectorAll("[data-media-save]").forEach(button => {
-        button.onclick = async () => {
-            const id = button.dataset.mediaSave;
-            const order = Number(box.querySelector(`[data-media-order="${id}"]`)?.value) || 1;
-            const featured = !!box.querySelector(`[data-media-featured="${id}"]`)?.checked;
-            const featuredOrder = Number(box.querySelector(`[data-media-featured-order="${id}"]`)?.value) || order;
-            const active = !!box.querySelector(`[data-media-active="${id}"]`)?.checked;
-
-            try {
-                const result = await db.from("gallery_items")
-                    .update({ display_order: order, featured, active, updated_at: new Date().toISOString() })
-                    .eq("id", id);
-                if (result.error) throw result.error;
-
-                if (featured) {
-                    await safeSettingUpsert("featured_order_" + id, String(featuredOrder));
-                } else {
-                    await db.from("settings").delete().eq("setting_key", "featured_order_" + id);
-                }
-
-                message("Gallery media order and settings saved.", "success");
-                await loadGallery();
-            } catch (error) {
-                console.error(error);
-                message("Gallery media could not be saved: " + error.message, "error");
-            }
-        };
-    });
-
-    box.querySelectorAll("[data-media-edit]").forEach(button => {
-        button.onclick = () => {
-            const row = mediaRows.find(item => String(item.id) === String(button.dataset.mediaEdit));
-            if (row) editGallery(row);
-        };
-    });
-
-    box.querySelectorAll("[data-media-delete]").forEach(button => {
-        button.onclick = () => deleteGallery(button.dataset.mediaDelete);
-    });
-
-    box.querySelector("#addMediaFromOrderManager")?.addEventListener("click", () => {
-        document.getElementById("newGalleryItemButton")?.click();
-    });
 }
 
 function renderHomepageFeaturedMedia(rows) {
@@ -677,6 +608,17 @@ function setupGalleryForm() {
             }
 
             if (result.error) throw result.error;
+
+            // Keep every gallery category represented by a real collection record so
+            // the public page can honour the collection display order.
+            if (data.category) {
+                const collection = await db.from("gallery_collections").select("id").ilike("name", data.category).limit(1);
+                if (!collection.error && !collection.data?.length) {
+                    const maxOrder = await db.from("gallery_collections").select("display_order").order("display_order", {ascending:false}).limit(1);
+                    const nextOrder = Number(maxOrder.data?.[0]?.display_order || 0) + 1;
+                    await db.from("gallery_collections").insert({name:data.category, active:true, display_order:nextOrder});
+                }
+            }
 
             // Clean up exact duplicates created previously, keeping the record just saved.
             const duplicateQuery = db.from("gallery_items")
@@ -873,60 +815,877 @@ async function loadProducts() {
     const rows=await getProducts();
     const settings=await getRows("settings"); const invoiceMap=new Map();
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
-    rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.name||"").localeCompare(String(b.name||"")));
+    rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
     list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??""; document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));message("Product / service deleted.","success");await loadProducts();});
 }
 
 function setupProductForm() {
-    const form=document.getElementById("adminProductForm"); if(!form || form.dataset.bound)return;
-    form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{
-        e.preventDefault();
-        const id=document.getElementById("adminProductId").value.trim();
-        const name=document.getElementById("adminProductTitle").value.trim();
-        const category=document.getElementById("adminProductCategory").value.trim();
-        const publicPriceValue=document.getElementById("adminProductPublicPrice").value;
-        const invoicePriceValue=document.getElementById("adminProductInvoicePrice").value;
+    const form = document.getElementById("adminProductForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("adminProductId").value.trim();
+        const name = document.getElementById("adminProductTitle").value.trim();
+        const category = document.getElementById("adminProductCategory").value.trim();
+        const publicPriceValue = document.getElementById("adminProductPublicPrice").value;
+        const invoicePriceValue = document.getElementById("adminProductInvoicePrice").value;
         const publicPrice = publicPriceValue === "" ? null : Number(publicPriceValue);
         const invoicePrice = invoicePriceValue === "" ? null : Number(invoicePriceValue);
-        const payload={name,category,
+        const payload = {
+            name,
+            category,
             public_price: publicPrice,
-            notes:document.getElementById("adminProductNotes").value.trim(),
-            display_order:Number(document.getElementById("adminProductOrder").value)||1,
-            active:document.getElementById("adminProductActive").checked};
-        if(!name){message("Please enter a product name.","error");return;}
-        try{
-            const key=productKeyFromName(name);
-            let oldItem = {};
-            let oldSettingKey = "";
-            if(id){
-                const old=await db.from("settings").select("setting_key,setting_value").eq("id",id).maybeSingle();
-                if(old.error)throw old.error;
-                oldSettingKey = old.data?.setting_key || "";
-                try { oldItem=JSON.parse(old.data?.setting_value||"{}"); } catch(_) { oldItem={}; }
-                await safeSettingUpsert(oldSettingKey || key,JSON.stringify(payload));
-                if(oldSettingKey && oldSettingKey!==key) await db.from("settings").delete().eq("setting_key",key);
-            }else{
-                await safeSettingUpsert(key,JSON.stringify(payload));
+            notes: document.getElementById("adminProductNotes").value.trim(),
+            display_order: Number(document.getElementById("adminProductOrder").value) || 1,
+            active: document.getElementById("adminProductActive").checked
+        };
+
+        if (!name) {
+            message("Please enter a product name.", "error");
+            return;
+        }
+
+        try {
+            let oldKey = "";
+            let oldName = "";
+
+            if (id) {
+                const old = await db.from("settings").select("setting_key,setting_value").eq("id", id).maybeSingle();
+                if (old.error) throw old.error;
+                oldKey = old.data?.setting_key || "";
+                try {
+                    const oldItem = JSON.parse(old.data?.setting_value || "{}");
+                    oldName = oldItem.name || "";
+                } catch (_) {}
             }
+
+            const newKey = productKeyFromName(name);
+            const sameKeyRows = await db.from("settings").select("id").eq("setting_key", newKey);
+            if (sameKeyRows.error) throw sameKeyRows.error;
+            const conflicting = (sameKeyRows.data || []).some(r => String(r.id) !== String(id));
+            if (conflicting) {
+                message("A product with that name already exists. Edit the existing product instead.", "error");
+                return;
+            }
+
+            if (id && oldKey === newKey) {
+                const updated = await db.from("settings")
+                    .update({setting_value: JSON.stringify(payload), updated_at: new Date().toISOString()})
+                    .eq("id", id);
+                if (updated.error) throw updated.error;
+
+                const duplicateRows = await db.from("settings").select("id").eq("setting_key", newKey);
+                if (!duplicateRows.error) {
+                    const duplicateIds = (duplicateRows.data || [])
+                        .map(r => r.id)
+                        .filter(rowId => String(rowId) !== String(id));
+                    if (duplicateIds.length) await db.from("settings").delete().in("id", duplicateIds);
+                }
+            } else {
+                await safeSettingUpsert(newKey, JSON.stringify(payload));
+                if (oldKey && oldKey !== newKey) {
+                    const oldDelete = await db.from("settings").delete().eq("id", id);
+                    if (oldDelete.error) throw oldDelete.error;
+                }
+            }
+
+            if (oldName && oldName.toLowerCase() !== name.toLowerCase()) {
+                await db.from("settings").delete().eq("setting_key", invoiceStorageKey(oldName));
+            }
+
             const invoiceKey = invoiceStorageKey(name);
-            if (id && oldItem?.name && String(oldItem.name).trim().toLowerCase() !== String(name).trim().toLowerCase()) { await db.from("settings").delete().eq("setting_key", invoiceStorageKey(oldItem.name)); }
-            if (invoicePrice === null) { await db.from("settings").delete().eq("setting_key", invoiceKey); }
-            else { await safeSettingUpsert(invoiceKey, JSON.stringify({name,category,price:invoicePrice,notes:payload.notes,active:payload.active})); }
+            if (invoicePrice === null) {
+                await db.from("settings").delete().eq("setting_key", invoiceKey);
+            } else {
+                await safeSettingUpsert(
+                    invoiceKey,
+                    JSON.stringify({
+                        name,
+                        category,
+                        price: invoicePrice,
+                        notes: payload.notes,
+                        active: payload.active
+                    })
+                );
+            }
+
             form.reset();
-            document.getElementById("adminProductId").value="";
-            document.getElementById("adminProductActive").checked=true;
-            message("Product saved successfully.","success");
+            document.getElementById("adminProductId").value = "";
+            document.getElementById("adminProductActive").checked = true;
+            document.getElementById("adminProductOrder").value = 1;
+            message("Product saved successfully.", "success");
             await loadProducts();
-        }catch(error){console.error(error);message("Product could not be saved: "+error.message,"error");}
+        } catch (error) {
+            console.error(error);
+            message("Product could not be saved: " + error.message, "error");
+        }
     });
-    document.getElementById("adminProductCancel")?.addEventListener("click",()=>{
-        form.reset(); document.getElementById("adminProductId").value="";
-        document.getElementById("adminProductActive").checked=true;
+
+    document.getElementById("adminProductCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("adminProductId").value = "";
+        document.getElementById("adminProductActive").checked = true;
+        document.getElementById("adminProductOrder").value = 1;
     });
 }
+
+
+/* =========================================================
+   HOMEPAGE FEATURED MEDIA — SEPARATE FROM GALLERY
+   Stored in settings as homepage_featured_* records.
+========================================================= */
+
+function homepageMediaKey(title) {
+    return "homepage_featured_" + contentSlug(title) + "_" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+}
+
+async function getHomepageMediaRows() {
+    const rows = await getRows("settings");
+    return rows.filter(r => String(r.setting_key || "").startsWith("homepage_featured_"))
+        .map(r => {
+            let item = {};
+            try { item = JSON.parse(r.setting_value || "{}"); } catch (_) {}
+            return { ...item, id: r.id, setting_key: r.setting_key };
+        })
+        .filter(r => r.title && r.url);
+}
+
+async function loadHomepageCollectionName() {
+    const input = document.getElementById("homepageCollectionName");
+    if (!input) return;
+    try {
+        const row = await getSettingValue("homepage_featured_collection_name");
+        input.value = row?.setting_value || "Featured Collection";
+    } catch (_) {
+        input.value = "Featured Collection";
+    }
+}
+
+function setupHomepageCollectionNameForm() {
+    const form = document.getElementById("homepageCollectionNameForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const value = document.getElementById("homepageCollectionName").value.trim() || "Featured Collection";
+        try {
+            await safeSettingUpsert("homepage_featured_collection_name", value);
+            message("Homepage collection name saved.", "success");
+        } catch (error) {
+            message("Homepage collection name could not be saved: " + error.message, "error");
+        }
+    });
+    loadHomepageCollectionName();
+}
+
+async function loadHomepageMedia() {
+    const list = document.getElementById("homepageMediaList");
+    if (!list) return;
+
+    const rows = await getHomepageMediaRows();
+    rows.sort((a,b) => Number(a.order || 9999) - Number(b.order || 9999));
+
+    list.innerHTML = rows.length ? `
+        <table>
+            <thead><tr><th>Media</th><th>Title</th><th>Order</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            ${rows.map(r => `
+                <tr>
+                    <td>${/\.(mp4|webm|ogg)(\?|$)/i.test(r.url || "")
+                        ? `<video src="${escapeHTML(resolveAdminMediaUrl(r.url))}" muted loop autoplay playsinline style="width:110px;height:75px;object-fit:cover"></video>`
+                        : `<img src="${escapeHTML(resolveAdminMediaUrl(r.url))}" alt="" style="width:110px;height:75px;object-fit:cover">`}
+                    </td>
+                    <td>${escapeHTML(r.title)}</td>
+                    <td>${escapeHTML(r.order ?? 1)}</td>
+                    <td>${r.active === false ? "Hidden" : "Visible"}</td>
+                    <td>
+                        <button type="button" class="secondary" data-edit-homepage="${escapeHTML(r.id)}">Edit</button>
+                        <button type="button" class="danger" data-delete-homepage="${escapeHTML(r.id)}">Delete</button>
+                    </td>
+                </tr>`).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No homepage featured media has been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-homepage]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(r => String(r.id) === String(button.dataset.editHomepage));
+            if (!row) return;
+            document.getElementById("homepageMediaId").value = row.id || "";
+            document.getElementById("homepageMediaTitle").value = row.title || "";
+            document.getElementById("homepageMediaUrl").value = row.url || "";
+            document.getElementById("homepageMediaOrder").value = row.order ?? 1;
+            document.getElementById("homepageMediaDescription").value = row.description || "";
+            document.getElementById("homepageMediaActive").checked = row.active !== false;
+            document.getElementById("homepageMediaForm").scrollIntoView({behavior:"smooth",block:"start"});
+        };
+    });
+
+    list.querySelectorAll("[data-delete-homepage]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this homepage featured media?")) return;
+            const result = await db.from("settings").delete().eq("id", button.dataset.deleteHomepage);
+            if (result.error) {
+                message("Homepage media could not be deleted: " + result.error.message, "error");
+                return;
+            }
+            message("Homepage media deleted.", "success");
+            await loadHomepageMedia();
+        };
+    });
+}
+
+function setupHomepageMediaForm() {
+    const form = document.getElementById("homepageMediaForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("homepageMediaId").value.trim();
+        const title = document.getElementById("homepageMediaTitle").value.trim();
+        const url = document.getElementById("homepageMediaUrl").value.trim();
+        const order = Number(document.getElementById("homepageMediaOrder").value) || 1;
+        const description = document.getElementById("homepageMediaDescription").value.trim();
+        const active = document.getElementById("homepageMediaActive").checked;
+
+        if (!title || !url) {
+            message("Please enter a title and image/video URL.", "error");
+            return;
+        }
+
+        const value = JSON.stringify({title, url, order, description, active});
+        try {
+            if (id) {
+                const result = await db.from("settings")
+                    .update({setting_value:value, updated_at:new Date().toISOString()})
+                    .eq("id", id);
+                if (result.error) throw result.error;
+            } else {
+                await safeSettingUpsert(homepageMediaKey(title), value);
+            }
+
+            form.reset();
+            document.getElementById("homepageMediaId").value = "";
+            document.getElementById("homepageMediaOrder").value = 1;
+            document.getElementById("homepageMediaActive").checked = true;
+            message("Homepage featured media saved.", "success");
+            await loadHomepageMedia();
+        } catch (error) {
+            message("Homepage media could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("homepageMediaCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("homepageMediaId").value = "";
+        document.getElementById("homepageMediaOrder").value = 1;
+        document.getElementById("homepageMediaActive").checked = true;
+    });
+}
+
+/* =========================================================
+   QUICK CUSTOMER LINKS
+========================================================= */
+
+function setupDirectCustomerLinks() {
+    const links = {
+        order: new URL("../quotes.html#quoteForm", window.location.href).href,
+        training: new URL("../training.html#training-registration-form", window.location.href).href,
+        gallery: new URL("../gallery.html", window.location.href).href,
+        discount: new URL("../return-customer-discount.html", window.location.href).href
+    };
+
+    const list = document.getElementById("directLinksList");
+    if (list) {
+        list.innerHTML = Object.entries(links).map(([key, url]) =>
+            `<p style="margin:8px 0;"><strong>${key === "order" ? "Order / Request a Quote" : key === "training" ? "Training Registration" : key === "gallery" ? "Gallery" : "Return Customer Discount"}:</strong> <a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a></p>`
+        ).join("");
+    }
+
+    document.querySelectorAll("[data-copy-direct-link]").forEach(button => {
+        button.onclick = async () => {
+            const url = links[button.dataset.copyDirectLink];
+            try {
+                await navigator.clipboard.writeText(url);
+                message("Direct link copied. You can send it to the customer.", "success");
+            } catch (_) {
+                window.prompt("Copy this direct link:", url);
+            }
+        };
+    });
+}
+
+/* =========================================================
+   MANUAL INVOICE GENERATOR
+========================================================= */
+
+function normalizeInvoiceName(value) {
+    return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+async function getInvoicePriceMap() {
+    const rows = await getRows("settings");
+    const map = new Map();
+
+    rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_")).forEach(r => {
+        try {
+            const item = JSON.parse(r.setting_value || "{}");
+            if (item.name) map.set(normalizeInvoiceName(item.name), Number(item.price) || 0);
+        } catch (_) {}
+    });
+
+    return map;
+}
+
+function invoicePriceFor(map, name) {
+    return map.get(normalizeInvoiceName(name)) ?? 0;
+}
+
+function buildInvoiceLinesFromQuote(row, details, priceMap) {
+    const lines = [];
+
+    if (details?.streetwear && typeof details.streetwear === "object") {
+        Object.values(details.streetwear).forEach(item => {
+            if (!item) return;
+            const product = typeof item === "object" ? (item.product || "") : "";
+            const quantity = typeof item === "object" ? Number(item.quantity || 0) : Number(item || 0);
+            if (!product || quantity <= 0) return;
+            lines.push({
+                description: product,
+                quantity,
+                unitPrice: invoicePriceFor(priceMap, product),
+                details: [item.size, item.measurements, item.colour].filter(Boolean).join(" • ")
+            });
+        });
+    }
+
+    const simpleLines = [
+        ["Ladies Wear", details?.ladiesWearQuantity, details?.ladiesWear, details?.ladiesWearSize, details?.ladiesWearColour],
+        ["Kids Wear", details?.kidsWearQuantity, details?.kidsWear, details?.kidsWearSize, details?.kidsWearColour]
+    ];
+    simpleLines.forEach(([name, qty, request, size, colour]) => {
+        const quantity = Number(qty || 0);
+        if (quantity > 0 || request) {
+            lines.push({
+                description: name,
+                quantity: quantity || 1,
+                unitPrice: invoicePriceFor(priceMap, name),
+                details: [size, colour, request].filter(Boolean).join(" • ")
+            });
+        }
+    });
+
+    if (Array.isArray(details?.embellishment)) {
+        details.embellishment.forEach(serviceName => {
+            const item = details.embellishmentDetails?.[serviceName] || {};
+            const legacyQuantity = Number(details.embellishmentQuantity || 0);
+            const quantity = Number(item.quantity || 0) || legacyQuantity;
+            if (quantity <= 0 && !item.details && !details.embellishmentOther) return;
+            lines.push({
+                description: serviceName,
+                quantity: quantity || 1,
+                unitPrice: invoicePriceFor(priceMap, serviceName),
+                details: [item.size || details.embellishmentSize, item.measurements, item.colour, item.details || details.embellishmentOther].filter(Boolean).join(" • ")
+            });
+        });
+    }
+
+    if (details?.training) {
+        lines.push({
+            description: "Practical Fashion Training",
+            quantity: 1,
+            unitPrice: invoicePriceFor(priceMap, "Training - Practical Fashion Training") || invoicePriceFor(priceMap, "Practical Fashion Training"),
+            details: details.training
+        });
+    }
+
+    return lines;
+}
+
+async function openInvoiceGenerator(row, details) {
+    const priceMap = await getInvoicePriceMap();
+    const paymentRows = await getRows("settings");
+    const payment = {};
+    paymentRows.filter(r => /^invoice_payment_/.test(String(r.setting_key || ""))).forEach(r => payment[r.setting_key] = r.setting_value || "");
+
+    let modal = document.getElementById("invoiceGeneratorModal");
+    let backdrop = document.getElementById("invoiceGeneratorBackdrop");
+    if (!modal) {
+        backdrop = document.createElement("div");
+        backdrop.id = "invoiceGeneratorBackdrop";
+        backdrop.className = "invoice-generator-backdrop";
+        backdrop.onclick = closeInvoiceGenerator;
+        document.body.appendChild(backdrop);
+
+        modal = document.createElement("div");
+        modal.id = "invoiceGeneratorModal";
+        modal.className = "invoice-generator-modal";
+        document.body.appendChild(modal);
+    }
+
+    const invoiceNumber = "AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase();
+    const detailsLines = buildInvoiceLinesFromQuote(row, details, priceMap);
+
+    modal.innerHTML = `
+        <div class="invoice-generator-toolbar">
+            <button type="button" class="submission-modal-close" onclick="closeInvoiceGenerator()" aria-label="Close">&times;</button>
+            <h2>Generate Invoice</h2>
+            <div class="invoice-action-buttons">
+                <button type="button" class="primary" id="invoiceDownloadPdf">Download PDF</button>
+                <button type="button" class="primary" id="invoiceSharePdf">Share PDF</button>
+                <button type="button" class="secondary" id="invoicePrint">Print</button>
+                <button type="button" class="secondary" id="invoiceWhatsApp">WhatsApp</button>
+                <button type="button" class="secondary" id="invoiceEmail">Email</button>
+                <button type="button" class="primary" id="generateReceiptFromInvoice">Generate Receipt</button>
+            </div>
+        </div>
+        <div class="invoice-generator-editor">
+            <div class="form-grid">
+                <div class="form-group"><label>Invoice Number</label><input id="generatedInvoiceNumber" value="${escapeHTML(invoiceNumber)}"></div>
+                <div class="form-group"><label>Invoice Date</label><input id="generatedInvoiceDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+                <div class="form-group"><label>Due Date</label><input id="generatedInvoiceDueDate" type="date"></div>
+                <div class="form-group"><label>Deposit / Payment %</label><input id="generatedInvoiceDeposit" type="number" min="0" max="100" step="1" value="75"></div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Customer Name</label><input id="generatedInvoiceCustomer" value="${escapeHTML(row.full_name || "")}"></div>
+                <div class="form-group"><label>Phone / WhatsApp</label><input id="generatedInvoicePhone" value="${escapeHTML(row.whatsapp || row.phone || "")}"></div>
+                <div class="form-group"><label>Email</label><input id="generatedInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
+                <div class="form-group"><label>Location / Address</label><input id="generatedInvoiceAddress" value="${escapeHTML(row.location || "")}"></div>
+            </div>
+            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
+        </div>
+        <div id="generatedInvoicePreview"></div>
+    `;
+
+    const preview = modal.querySelector("#generatedInvoicePreview");
+    function renderInvoice() {
+        const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit").value) || 0));
+        const discount = Number(document.getElementById("generatedInvoiceDiscount")?.value || 0);
+        const lines = Array.from(modal.querySelectorAll("#invoiceLineRows .invoice-edit-row")).map(rowEl => ({
+            description: rowEl.querySelector(".invoice-line-description")?.value || "",
+            quantity: Number(rowEl.querySelector(".invoice-line-qty")?.value || 0),
+            unitPrice: Number(rowEl.querySelector(".invoice-line-price")?.value || 0),
+            details: rowEl.querySelector(".invoice-line-details")?.value || ""
+        }));
+        const subtotal = lines.reduce((sum, l) => sum + (l.quantity * l.unitPrice), 0);
+        const total = Math.max(0, subtotal - discount);
+        const deposit = total * depositPercent / 100;
+        const balance = total - deposit;
+
+        const logoSrc = new URL("../icons/Aprils Signature logo.jpeg", window.location.href).href;
+        preview.innerHTML = `
+            <div class="invoice-paper" id="invoicePaper">
+                <div class="invoice-brand-row">
+                    <img src="${escapeHTML(logoSrc)}" alt="Aprils Signature logo">
+                    <div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div>
+                    <div class="invoice-meta"><strong>INVOICE</strong><span>${escapeHTML(document.getElementById("generatedInvoiceNumber").value)}</span><span>${escapeHTML(document.getElementById("generatedInvoiceDate").value)}</span></div>
+                </div>
+                <div class="invoice-customer"><div><strong>Bill To</strong><br>${escapeHTML(document.getElementById("generatedInvoiceCustomer").value)}<br>${escapeHTML(document.getElementById("generatedInvoicePhone").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceEmail").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceAddress").value)}</div></div>
+                <table class="invoice-lines"><thead><tr><th>Description</th><th>Details</th><th>Qty</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead>
+                <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
+                <div class="invoice-summary">
+                    <p>Subtotal: <strong>GHS ${subtotal.toFixed(2)}</strong></p>
+                    <p>Discount: <strong>GHS ${discount.toFixed(2)}</strong></p>
+                    <p>Grand Total: <strong>GHS ${total.toFixed(2)}</strong></p>
+                    <p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>
+                    <p>Balance: <strong>GHS ${balance.toFixed(2)}</strong></p>
+                </div>
+                <div class="invoice-payment"><strong>Payment Details</strong><br>
+                    ${escapeHTML(payment.invoice_payment_network || "")} ${escapeHTML(payment.invoice_payment_number || "")}<br>
+                    ${escapeHTML(payment.invoice_payment_name || "")}<br>
+                    ${escapeHTML(payment.invoice_payment_note || "")}
+                </div>
+                <div class="invoice-note">${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</div>
+            </div>
+        `;
+    }
+
+    // Build editable line editor immediately above preview.
+    const editor = modal.querySelector(".invoice-generator-editor");
+    const lineEditor = document.createElement("div");
+    lineEditor.className = "invoice-line-editor";
+    lineEditor.innerHTML = `
+        <h3>Invoice Items</h3>
+        <div id="invoiceLineRows"></div>
+        <div class="form-grid">
+            <div class="form-group"><label>Discount (GHS)</label><input id="generatedInvoiceDiscount" type="number" min="0" step="0.01" value="0"></div>
+        </div>
+        <button type="button" class="secondary" id="invoiceAddLine">+ Add Line</button>
+    `;
+    editor.appendChild(lineEditor);
+
+    const lineRows = lineEditor.querySelector("#invoiceLineRows");
+    function addLine(line = {description:"",quantity:1,unitPrice:0,details:""}) {
+        const el = document.createElement("div");
+        el.className = "invoice-edit-row";
+        el.innerHTML = `
+            <input class="invoice-line-description" placeholder="Item / Service" value="${escapeHTML(line.description)}">
+            <input class="invoice-line-details" placeholder="Details" value="${escapeHTML(line.details || "")}">
+            <input class="invoice-line-qty" type="number" min="1" step="1" value="${Number(line.quantity)||1}">
+            <input class="invoice-line-price" type="number" min="0" step="0.01" value="${Number(line.unitPrice)||0}">
+            <button type="button" class="danger">Remove</button>
+        `;
+        el.querySelector("button").onclick = () => { el.remove(); renderInvoice(); };
+        ["input","change"].forEach(evt => el.addEventListener(evt, renderInvoice));
+        lineRows.appendChild(el);
+    }
+    detailsLines.forEach(addLine);
+    if (!detailsLines.length) addLine();
+    lineEditor.querySelector("#invoiceAddLine").onclick = () => { addLine(); renderInvoice(); };
+
+    // First render after all lines exist.
+    ["input","change"].forEach(evt => modal.addEventListener(evt, renderInvoice));
+    renderInvoice();
+
+    modal.querySelector("#invoiceDownloadPdf").onclick = () => generateInvoicePdf(false);
+    modal.querySelector("#invoiceSharePdf").onclick = () => generateInvoicePdf(true);
+    modal.querySelector("#invoicePrint").onclick = () => printGeneratedInvoice();
+    modal.querySelector("#invoiceWhatsApp").onclick = () => shareGeneratedInvoiceWhatsApp();
+    modal.querySelector("#invoiceEmail").onclick = () => shareGeneratedInvoiceEmail();
+    modal.querySelector("#generateReceiptFromInvoice").onclick = () => openReceiptGenerator();
+
+    backdrop.style.display = "block";
+    modal.classList.add("open");
+
+    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, payment };
+}
+
+function closeInvoiceGenerator() {
+    document.getElementById("invoiceGeneratorBackdrop")?.remove();
+    document.getElementById("invoiceGeneratorModal")?.remove();
+    window._aprilsCurrentInvoice = null;
+}
+
+async function generateInvoicePdf(share) {
+    const state = window._aprilsCurrentInvoice;
+    if (!state) return;
+    state.renderInvoice();
+    const paper = document.getElementById("invoicePaper");
+    if (!paper) return;
+
+    if (!window.html2pdf) {
+        printGeneratedInvoice();
+        message("PDF library is unavailable, so the invoice has been opened in print view. Choose Save as PDF there.", "success");
+        return;
+    }
+
+    try {
+        const options = {
+            margin: 0.35,
+            filename: (document.getElementById("generatedInvoiceNumber").value || "Aprils-Signature-Invoice") + ".pdf",
+            image: {type:"jpeg",quality:0.98},
+            html2canvas: {scale:2, useCORS:true},
+            jsPDF: {unit:"in", format:"a4", orientation:"portrait"}
+        };
+        const worker = window.html2pdf().set(options).from(paper);
+        if (share && navigator.share && navigator.canShare) {
+            const blob = await worker.outputPdf("blob");
+            const file = new File([blob], options.filename, {type:"application/pdf"});
+            if (navigator.canShare({files:[file]})) {
+                await navigator.share({title:options.filename, text:"Aprils Signature Invoice", files:[file]});
+                return;
+            }
+        }
+        await worker.save();
+        if (share) message("PDF saved. If your device supports file sharing, use the PDF's Share option to send it through WhatsApp or another app.", "success");
+    } catch (error) {
+        console.error(error);
+        message("The PDF could not be created. Use Print and choose Save as PDF.", "error");
+    }
+}
+
+function getGeneratedInvoiceShareText() {
+    const state = window._aprilsCurrentInvoice;
+    if (!state) return "";
+    state.renderInvoice();
+    const customer = document.getElementById("generatedInvoiceCustomer")?.value || "";
+    const number = document.getElementById("generatedInvoiceNumber")?.value || "";
+    return `Aprils Signature Invoice ${number}\nCustomer: ${customer}\nPlease see the attached invoice PDF for the full details.`;
+}
+
+function shareGeneratedInvoiceWhatsApp() {
+    const text = encodeURIComponent(getGeneratedInvoiceShareText());
+    window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
+}
+
+function shareGeneratedInvoiceEmail() {
+    const subject = encodeURIComponent("Aprils Signature Invoice " + (document.getElementById("generatedInvoiceNumber")?.value || ""));
+    const body = encodeURIComponent(getGeneratedInvoiceShareText());
+    window.location.href = `mailto:${encodeURIComponent(document.getElementById("generatedInvoiceEmail")?.value || "")}?subject=${subject}&body=${body}`;
+}
+
+function printGeneratedInvoice() {
+    const state = window._aprilsCurrentInvoice;
+    if (!state) return;
+    state.renderInvoice();
+    const paper = document.getElementById("invoicePaper");
+    if (!paper) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+        message("Please allow pop-ups for the admin page to print the invoice.", "error");
+        return;
+    }
+    printWindow.document.write(`<html><head><title>Aprils Signature Invoice</title><style>
+        body{font-family:Arial,sans-serif;padding:25px;color:#222}.invoice-paper{max-width:800px;margin:auto}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}</style></head><body>${paper.outerHTML}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 400);
+}
+
+/* =========================================================
+   PROFESSIONAL RECEIPT GENERATOR
+   A receipt is generated manually after payment has actually been received.
+========================================================= */
+
+function getCurrentInvoiceTotals() {
+    const state = window._aprilsCurrentInvoice;
+    if (!state) return { total: 0, paidDue: 0, balance: 0, lines: [] };
+    state.renderInvoice();
+    const rows = Array.from(document.querySelectorAll("#invoiceLineRows .invoice-edit-row"));
+    const lines = rows.map(rowEl => ({
+        description: rowEl.querySelector(".invoice-line-description")?.value || "",
+        quantity: Number(rowEl.querySelector(".invoice-line-qty")?.value || 0),
+        unitPrice: Number(rowEl.querySelector(".invoice-line-price")?.value || 0),
+        details: rowEl.querySelector(".invoice-line-details")?.value || ""
+    })).filter(x => x.description || x.quantity || x.unitPrice);
+    const subtotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+    const discount = Number(document.getElementById("generatedInvoiceDiscount")?.value || 0);
+    const total = Math.max(0, subtotal - discount);
+    const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 0)));
+    return { total, paidDue: total * depositPercent / 100, balance: total * (1 - depositPercent / 100), lines };
+}
+
+function openReceiptGenerator() {
+    const invoiceState = window._aprilsCurrentInvoice;
+    if (!invoiceState) {
+        message("Please generate an invoice first before generating a receipt.", "error");
+        return;
+    }
+
+    const totals = getCurrentInvoiceTotals();
+    let modal = document.getElementById("receiptGeneratorModal");
+    let backdrop = document.getElementById("receiptGeneratorBackdrop");
+    if (!modal) {
+        backdrop = document.createElement("div");
+        backdrop.id = "receiptGeneratorBackdrop";
+        backdrop.className = "invoice-generator-backdrop receipt-generator-backdrop";
+        backdrop.onclick = closeReceiptGenerator;
+        document.body.appendChild(backdrop);
+        modal = document.createElement("div");
+        modal.id = "receiptGeneratorModal";
+        modal.className = "invoice-generator-modal receipt-generator-modal";
+        document.body.appendChild(modal);
+    }
+
+    const receiptNumber = "AS-RC-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase();
+    const invoiceNumber = document.getElementById("generatedInvoiceNumber")?.value || "";
+    const customer = document.getElementById("generatedInvoiceCustomer")?.value || "";
+    const phone = document.getElementById("generatedInvoicePhone")?.value || "";
+    const email = document.getElementById("generatedInvoiceEmail")?.value || "";
+    const invoiceDate = document.getElementById("generatedInvoiceDate")?.value || "";
+    const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 75)));
+    const initialPayment = totals.total * depositPercent / 100;
+
+    modal.innerHTML = `
+        <div class="invoice-generator-toolbar">
+            <button type="button" class="submission-modal-close" onclick="closeReceiptGenerator()" aria-label="Close">&times;</button>
+            <h2>Generate Payment Receipt</h2>
+            <p class="receipt-intro">Record the payment actually received. The receipt automatically shows the amount paid to date, percentage paid, and remaining balance.</p>
+            <div class="invoice-action-buttons">
+                <button type="button" class="primary" id="receiptDownloadPdf">Download PDF</button>
+                <button type="button" class="primary" id="receiptSharePdf">Share PDF</button>
+                <button type="button" class="secondary" id="receiptPrint">Print</button>
+                <button type="button" class="secondary" id="receiptWhatsApp">WhatsApp</button>
+                <button type="button" class="secondary" id="receiptEmail">Email</button>
+            </div>
+        </div>
+        <div class="invoice-generator-editor receipt-editor">
+            <div class="receipt-payment-banner">
+                <strong>Invoice Total: GHS ${totals.total.toFixed(2)}</strong>
+                <span>Initial payment target: ${depositPercent}% (GHS ${initialPayment.toFixed(2)})</span>
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Receipt Number</label><input id="generatedReceiptNumber" value="${escapeHTML(receiptNumber)}"></div>
+                <div class="form-group"><label>Receipt Date</label><input id="generatedReceiptDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+                <div class="form-group"><label>Invoice Number</label><input id="generatedReceiptInvoiceNumber" value="${escapeHTML(invoiceNumber)}" readonly></div>
+                <div class="form-group"><label>Previous Payments (GHS)</label><input id="generatedReceiptPrevious" type="number" min="0" step="0.01" value="0"><small>Enter payments already received before this receipt.</small></div>
+                <div class="form-group"><label>Amount Received Now (GHS)</label><input id="generatedReceiptAmount" type="number" min="0" step="0.01" value="${initialPayment.toFixed(2)}"></div>
+                <div class="form-group"><label>Payment Method</label><select id="generatedReceiptMethod"><option>Mobile Money</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></div>
+                <div class="form-group"><label>Transaction / Reference</label><input id="generatedReceiptReference" placeholder="Optional transaction reference"></div>
+            </div>
+            <div class="form-grid receipt-live-summary">
+                <div class="form-group"><label>Paid To Date</label><input id="generatedReceiptPaidToDate" readonly></div>
+                <div class="form-group"><label>Paid Percentage</label><input id="generatedReceiptPaidPercent" readonly></div>
+                <div class="form-group"><label>Balance Remaining</label><input id="generatedReceiptBalance" readonly></div>
+                <div class="form-group"><label>Payment Status</label><input id="generatedReceiptStatus" readonly></div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group"><label>Customer Name</label><input id="generatedReceiptCustomer" value="${escapeHTML(customer)}"></div>
+                <div class="form-group"><label>Phone / WhatsApp</label><input id="generatedReceiptPhone" value="${escapeHTML(phone)}"></div>
+                <div class="form-group"><label>Email</label><input id="generatedReceiptEmail" value="${escapeHTML(email)}"></div>
+                <div class="form-group"><label>Original Invoice Date</label><input value="${escapeHTML(invoiceDate)}" readonly></div>
+            </div>
+            <div class="form-group"><label>Receipt Note</label><textarea id="generatedReceiptNote">Payment received by Aprils Signature. Thank you for your business.</textarea></div>
+        </div>
+        <div id="generatedReceiptPreview"></div>
+    `;
+
+    const preview = modal.querySelector("#generatedReceiptPreview");
+    function calculatePayment() {
+        const previous = Math.max(0, Number(document.getElementById("generatedReceiptPrevious")?.value || 0));
+        const current = Math.max(0, Number(document.getElementById("generatedReceiptAmount")?.value || 0));
+        const paidToDate = Math.min(totals.total, previous + current);
+        const paidPercent = totals.total > 0 ? (paidToDate / totals.total) * 100 : 0;
+        const balance = Math.max(0, totals.total - paidToDate);
+        let status = "No Payment Recorded";
+        if (current > 0 && paidToDate >= totals.total - 0.005) {
+            status = previous > 0 ? "Balance Payment — Fully Paid" : "Full Payment — Fully Paid";
+        } else if (paidToDate > 0 && previous === 0 && Math.abs(paidToDate - initialPayment) < 0.01) {
+            status = `Initial Payment — ${depositPercent}% Paid`;
+        } else if (paidToDate > 0 && previous > 0) {
+            status = "Part Payment — Balance Outstanding";
+        } else if (paidToDate > 0) {
+            status = "Part Payment — Balance Outstanding";
+        }
+        return { previous, current, paidToDate, paidPercent, balance, status };
+    }
+
+    function renderReceipt() {
+        const payment = calculatePayment();
+        document.getElementById("generatedReceiptPaidToDate").value = `GHS ${payment.paidToDate.toFixed(2)}`;
+        document.getElementById("generatedReceiptPaidPercent").value = `${payment.paidPercent.toFixed(0)}%`;
+        document.getElementById("generatedReceiptBalance").value = `GHS ${payment.balance.toFixed(2)}`;
+        document.getElementById("generatedReceiptStatus").value = payment.status;
+        const logoSrc = new URL("../icons/Aprils Signature logo.jpeg", window.location.href).href;
+        const displayStatus = payment.status.toUpperCase();
+        preview.innerHTML = `
+            <div class="receipt-paper" id="receiptPaper">
+                <div class="receipt-brand-row">
+                    <img src="${escapeHTML(logoSrc)}" alt="Aprils Signature logo">
+                    <div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div>
+                    <div class="receipt-meta"><strong>PAYMENT RECEIPT</strong><span>Receipt No: ${escapeHTML(document.getElementById("generatedReceiptNumber").value)}</span><span>Date: ${escapeHTML(document.getElementById("generatedReceiptDate").value)}</span></div>
+                </div>
+                <div class="receipt-status">${escapeHTML(displayStatus)}</div>
+                <div class="receipt-customer">
+                    <div><strong>Received From</strong><br>${escapeHTML(document.getElementById("generatedReceiptCustomer").value)}<br>${escapeHTML(document.getElementById("generatedReceiptPhone").value)}<br>${escapeHTML(document.getElementById("generatedReceiptEmail").value)}</div>
+                    <div><strong>Reference Invoice</strong><br>${escapeHTML(document.getElementById("generatedReceiptInvoiceNumber").value)}<br><strong>Payment Method</strong><br>${escapeHTML(document.getElementById("generatedReceiptMethod").value)}<br><strong>Transaction Reference</strong><br>${escapeHTML(document.getElementById("generatedReceiptReference").value || "—")}</div>
+                </div>
+                <table class="receipt-lines"><thead><tr><th>Description</th><th>Qty</th><th>Amount (GHS)</th></tr></thead><tbody>
+                    ${totals.lines.map(l => `<tr><td>${escapeHTML(l.description)}${l.details ? `<small>${escapeHTML(l.details)}</small>` : ""}</td><td>${l.quantity}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}
+                </tbody></table>
+                <div class="receipt-summary">
+                    <p>Invoice Total: <strong>GHS ${totals.total.toFixed(2)}</strong></p>
+                    <p>Previous Payments: <strong>GHS ${payment.previous.toFixed(2)}</strong></p>
+                    <p>Payment Received Now: <strong>GHS ${payment.current.toFixed(2)}</strong></p>
+                    <p>Total Paid To Date: <strong>GHS ${payment.paidToDate.toFixed(2)} (${payment.paidPercent.toFixed(0)}%)</strong></p>
+                    <p>Balance Remaining: <strong>GHS ${payment.balance.toFixed(2)} (${Math.max(0,100-payment.paidPercent).toFixed(0)}%)</strong></p>
+                </div>
+                <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
+                <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above. It does not constitute automatic bank or Mobile Money verification.</div>
+            </div>
+        `;
+    }
+
+    ["input","change"].forEach(evt => modal.addEventListener(evt, renderReceipt));
+    renderReceipt();
+    modal.querySelector("#receiptDownloadPdf").onclick = () => generateReceiptPdf(false);
+    modal.querySelector("#receiptSharePdf").onclick = () => generateReceiptPdf(true);
+    modal.querySelector("#receiptPrint").onclick = () => printGeneratedReceipt();
+    modal.querySelector("#receiptWhatsApp").onclick = () => shareGeneratedReceiptWhatsApp();
+    modal.querySelector("#receiptEmail").onclick = () => shareGeneratedReceiptEmail();
+    backdrop.style.display = "block";
+    modal.classList.add("open");
+    window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals, calculatePayment };
+}
+
+function closeReceiptGenerator() {
+    document.getElementById("receiptGeneratorBackdrop")?.remove();
+    document.getElementById("receiptGeneratorModal")?.remove();
+    window._aprilsCurrentReceipt = null;
+}
+
+async function generateReceiptPdf(share) {
+    const state = window._aprilsCurrentReceipt;
+    if (!state) return;
+    state.renderReceipt();
+    const paper = document.getElementById("receiptPaper");
+    if (!paper) return;
+    if (!window.html2pdf) {
+        printGeneratedReceipt();
+        message("PDF library is unavailable, so the receipt has been opened in print view. Choose Save as PDF there.", "success");
+        return;
+    }
+    try {
+        const options = {
+            margin: 0.35,
+            filename: (document.getElementById("generatedReceiptNumber").value || "Aprils-Signature-Receipt") + ".pdf",
+            image: {type:"jpeg",quality:0.98},
+            html2canvas: {scale:2,useCORS:true},
+            jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
+        };
+        const worker = window.html2pdf().set(options).from(paper);
+        if (share && navigator.share && navigator.canShare) {
+            const blob = await worker.outputPdf("blob");
+            const file = new File([blob], options.filename, {type:"application/pdf"});
+            if (navigator.canShare({files:[file]})) {
+                await navigator.share({title:options.filename,text:"Aprils Signature Payment Receipt",files:[file]});
+                return;
+            }
+        }
+        await worker.save();
+        if (share) message("Receipt PDF saved. You can use the PDF's Share option to send it through WhatsApp or another app.", "success");
+    } catch (error) {
+        console.error(error);
+        message("The receipt PDF could not be created. Use Print and choose Save as PDF.", "error");
+    }
+}
+
+function getGeneratedReceiptShareText() {
+    const state = window._aprilsCurrentReceipt;
+    if (!state) return "";
+    state.renderReceipt();
+    const payment = state.calculatePayment ? state.calculatePayment() : {paidToDate:0,paidPercent:0,balance:0};
+    return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nPayment Received Now: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nPaid To Date: GHS ${payment.paidToDate.toFixed(2)} (${payment.paidPercent.toFixed(0)}%)\nBalance: GHS ${payment.balance.toFixed(2)}\nStatus: ${document.getElementById("generatedReceiptStatus")?.value || ""}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
+}
+
+function shareGeneratedReceiptWhatsApp() {
+    window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
+}
+
+function shareGeneratedReceiptEmail() {
+    const subject = encodeURIComponent("Aprils Signature Payment Receipt " + (document.getElementById("generatedReceiptNumber")?.value || ""));
+    const body = encodeURIComponent(getGeneratedReceiptShareText());
+    window.location.href = `mailto:${encodeURIComponent(document.getElementById("generatedReceiptEmail")?.value || "")}?subject=${subject}&body=${body}`;
+}
+
+function printGeneratedReceipt() {
+    const state = window._aprilsCurrentReceipt;
+    if (!state) return;
+    state.renderReceipt();
+    const paper = document.getElementById("receiptPaper");
+    if (!paper) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+        message("Please allow pop-ups for the admin page to print the receipt.", "error");
+        return;
+    }
+    printWindow.document.write(`<html><head><title>Aprils Signature Payment Receipt</title><style>
+        body{font-family:Arial,sans-serif;padding:25px;color:#222}.receipt-paper{max-width:800px;margin:auto}.receipt-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.receipt-brand-row img{width:85px;height:85px;object-fit:contain}.receipt-brand-row h1{color:#0f7775;margin:0}.receipt-meta{margin-left:auto;text-align:right}.receipt-status{margin:25px 0;padding:12px;text-align:center;border:2px solid #0f7775;font-weight:bold;color:#0f7775}.receipt-customer{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px;border:1px solid #aaa}.receipt-lines{width:100%;border-collapse:collapse;margin-top:25px}.receipt-lines th,.receipt-lines td{border:1px solid #777;padding:9px;text-align:left}.receipt-lines th{background:#0f7775;color:#fff}.receipt-lines small{display:block;margin-top:4px;color:#555}.receipt-summary{margin-left:auto;max-width:320px;margin-top:20px;text-align:right}.receipt-note{margin-top:20px;padding:12px;border:1px solid #aaa}.receipt-footer{text-align:center;margin-top:35px;color:#555;font-size:12px}</style></head><body>${paper.outerHTML}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 400);
+}
+
+/* =========================================================
+   END MANUAL INVOICE GENERATOR
+========================================================= */
 
 async function loadServices() {
     const section = document.getElementById("services");
@@ -941,7 +1700,17 @@ async function loadServices() {
                 <input type="hidden" id="adminProductId">
                 <div class="form-grid">
                     <div class="form-group"><label>Product / Service Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Custom Hoodie"></div>
-                    <div class="form-group"><label>Category</label><select id="adminProductCategory"><option>Streetwear</option><option>Ladies Wear</option><option>Kids Wear</option><option>Other Products</option></select></div>
+                    <div class="form-group"><label>Category</label><select id="adminProductCategory">
+<option>Streetwear</option>
+<option>Ladies Wear</option>
+<option>Kids Wear</option>
+<option>Embellishment Services</option>
+<option>Rhinestone Embellishment</option>
+<option>Screen Printing</option>
+<option>Fabric Painting</option>
+<option>Glitter Works</option>
+<option>Other Products</option>
+</select></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
                     <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
@@ -982,7 +1751,7 @@ async function loadTraining() {
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
     list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm")?.scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"start"});});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -1044,13 +1813,16 @@ function setupTrainingForm() {
         };
 
         try {
-            if (!id) {
-                const duplicate = await db.from("training_programs").select("id").ilike("title",payload.title).eq("duration",payload.duration).limit(1);
-                if (duplicate.error) throw duplicate.error;
-                if (duplicate.data?.length) {
-                    message("That training programme already exists. Edit the existing one instead.","error");
-                    return;
-                }
+            const duplicate = await db.from("training_programs")
+                .select("id")
+                .ilike("title", payload.title)
+                .eq("duration", payload.duration)
+                .limit(10);
+            if (duplicate.error) throw duplicate.error;
+            const duplicateOther = (duplicate.data || []).find(r => String(r.id) !== String(id));
+            if (duplicateOther) {
+                message("That training programme already exists. Edit the existing one instead.","error");
+                return;
             }
             const result = id
                 ? await db.from("training_programs").update(payload).eq("id", id)
@@ -1105,8 +1877,6 @@ function humanizeProductName(name) {
         jerseys: "Jerseys",
         hoodies: "Hoodies",
         joggers: "Joggers",
-        joggersSuperThick: "Joggers — Super Thick Cutting Joggers",
-        joggersEveryday: "Joggers — Everyday Wear Type",
         tshirts: "T-shirts",
         poloShirts: "Polo Shirts",
         sweatshirts: "Sweatshirts",
@@ -1119,17 +1889,13 @@ function humanizeProductName(name) {
         joggerShorts: "Jogger Shorts",
         hoodiesJoggersSet: "Hoodies & Joggers Set",
         tshirtsShortsSet: "T-shirts & Shorts Set",
-        sweatshirtsShortsSet: "Sweatshirts & Shorts Set",
-        sweatshirtsSweatpantsSet: "Sweatshirts & Sweatpants Set",
-        tshirtsShortsSet: "T-shirts & Shorts Set",
-        tshirtSweatpantsSet: "T-shirt & Sweatpants Set"
+        sweatshirtsShortsSet: "Sweatshirts & Shorts Set"
     };
     return labels[name] || formatDetailLabel(name);
 }
 
 function buildQuoteDetailRows(row, details) {
     const rows = [];
-
     const add = (label, value) => {
         if (value === undefined || value === null || String(value).trim() === "") return;
         rows.push({ label, value: String(value) });
@@ -1140,7 +1906,6 @@ function buildQuoteDetailRows(row, details) {
     add("WhatsApp", row.whatsapp);
     add("Email", row.email);
     add("Location", row.location);
-    add("Service", row.service);
     if (row.created_at) add("Submitted", new Date(row.created_at).toLocaleString());
 
     const selected = Array.isArray(details.selectedServices)
@@ -1150,64 +1915,46 @@ function buildQuoteDetailRows(row, details) {
     add("Selected Services", selected.join(", "));
 
     if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
-        const items = Object.entries(details.streetwear)
-            .map(([name, value]) => {
-                const quantity = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
-                const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
-                const n = Number(quantity);
-                if (!String(quantity ?? "").trim() || (!Number.isNaN(n) && n <= 0)) return "";
-                return `${product}: ${quantity}`;
-            })
-            .filter(Boolean);
-
-        if (items.length) add("Streetwear Items & Quantities", items.join(" • "));
-    }
-
-    if (selected.includes("Streetwear")) {
-        add("Streetwear Size / Measurements", details.streetwearSize);
-        add("Streetwear Colour", details.streetwearColour);
+        Object.entries(details.streetwear).forEach(([key, item]) => {
+            if (!item) return;
+            const product = typeof item === "object" ? (item.product || humanizeProductName(key)) : humanizeProductName(key);
+            const quantity = typeof item === "object" ? item.quantity : item;
+            const detailText = typeof item === "object"
+                ? [item.size ? `Size: ${item.size}` : "", item.measurements ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : ""].filter(Boolean).join(" • ")
+                : "";
+            add(product, `${quantity}${detailText ? " • " + detailText : ""}`);
+        });
         add("Streetwear Other Request", details.streetwearOther);
     }
 
     if (selected.includes("Ladies Wear")) {
-        add("Ladies Wear Quantity", details.ladiesWearQuantity);
-        add("Ladies Wear Request", details.ladiesWear);
-        add("Ladies Wear Size / Measurements", details.ladiesWearSize);
+        add("Ladies Wear Size (UK)", details.ladiesWearSize);
         add("Ladies Wear Colour", details.ladiesWearColour);
+        add("Ladies Wear Quantity", details.ladiesWearQuantity);
+        add("Ladies Wear Details / Style Request", details.ladiesWear);
     }
 
     if (selected.includes("Kids Wear")) {
-        add("Kids Wear Quantity", details.kidsWearQuantity);
-        add("Kids Wear Request", details.kidsWear);
-        add("Kids Wear Size / Measurements", details.kidsWearSize);
+        add("Kids Wear Size (UK) / Age", details.kidsWearSize);
         add("Kids Wear Colour", details.kidsWearColour);
+        add("Kids Wear Quantity", details.kidsWearQuantity);
+        add("Kids Wear Details / Style Request", details.kidsWear);
     }
 
     if (selected.includes("Embellishment Services")) {
-        const embellishments = Array.isArray(details.embellishment)
-            ? details.embellishment.filter(Boolean)
-            : [];
+        const embellishments = Array.isArray(details.embellishment) ? details.embellishment.filter(Boolean) : [];
         add("Embellishment Services", embellishments.join(", "));
-
-        if (details.embellishmentDetails && typeof details.embellishmentDetails === "object") {
-            Object.entries(details.embellishmentDetails).forEach(([service, info]) => {
-                if (!info || typeof info !== "object") return;
-                add(service + " — Quantity", info.quantity);
-                add(service + " — Size / Measurements", info.size);
-                add(service + " — Colour", info.colour);
-                add(service + " — Details / Style Request", info.details);
-            });
-        } else {
-            add("Embellishment Quantity", details.embellishmentQuantity);
-            add("Embellishment Request", details.embellishmentOther);
-            add("Embellishment Size / Measurements", details.embellishmentSize);
-        }
+        embellishments.forEach(serviceName => {
+            const item = details.embellishmentDetails?.[serviceName] || {};
+            add(`${serviceName} — Size (UK)`, item.size || details.embellishmentSize);
+            add(`${serviceName} — Measurements`, item.measurements);
+            add(`${serviceName} — Colour`, item.colour);
+            add(`${serviceName} — Quantity`, item.quantity || details.embellishmentQuantity);
+            add(`${serviceName} — Details / Style Request`, item.details || details.embellishmentOther);
+        });
     }
 
-    if (selected.includes("Practical Fashion Training")) {
-        add("Training Request", details.training);
-    }
-
+    if (details.training) add("Training Request", details.training);
     add("Other Service Request", details.serviceOther);
     add("Additional Request Details", details.additionalDetails);
 
@@ -1215,7 +1962,6 @@ function buildQuoteDetailRows(row, details) {
         .concat(Array.isArray(details.mockups) ? details.mockups : [])
         .concat(Array.isArray(details.inspiration) ? details.inspiration : [])
         .filter(Boolean);
-
     if (attachmentNames.length) add("Uploaded File Names", attachmentNames.join(", "));
 
     return rows;
@@ -1279,115 +2025,6 @@ async function shareText(title, text) {
     } catch (error) {
         if (error?.name === "AbortError") return;
         try { await navigator.clipboard.writeText(text); message("Details copied to the clipboard. You can paste them into WhatsApp, email or another app.", "success"); } catch (_) { message("Unable to share these details on this device.", "error"); }
-    }
-}
-
-function getPublicPageUrl(fileName) {
-    try {
-        return new URL("../" + fileName, window.location.href).href;
-    } catch (_) {
-        return fileName;
-    }
-}
-
-async function sharePublicPageLink(title, fileName, messageText) {
-    const url = getPublicPageUrl(fileName);
-    const text = messageText ? `${messageText}\n\n${url}` : url;
-    try {
-        if (navigator.share) {
-            await navigator.share({ title, text, url });
-            return;
-        }
-    } catch (error) {
-        if (error?.name === "AbortError") return;
-    }
-    try {
-        await navigator.clipboard.writeText(url);
-        message("The direct page link has been copied. You can paste it into WhatsApp, SMS, email or any other message.", "success");
-    } catch (_) {
-        window.prompt("Copy this direct page link:", url);
-    }
-}
-
-function normalizeWhatsAppNumber(value) {
-    let digits = String(value || "").replace(/[^0-9]/g, "");
-    if (digits.startsWith("00")) digits = digits.slice(2);
-    if (digits.startsWith("0") && digits.length === 10) digits = "233" + digits.slice(1);
-    return digits;
-}
-
-function buildInvoiceShareText(data) {
-    const lines = [
-        "Aprils Signature — Invoice",
-        `Invoice No.: ${data.invoiceNumber}`,
-        `Customer: ${data.customer}`,
-        data.phone ? `Phone: ${data.phone}` : "",
-        data.invoiceDate ? `Date: ${data.invoiceDate}` : "",
-        "",
-        "Items:"
-    ];
-    data.lines.forEach(item => lines.push(`${item.description} — Qty ${item.quantity} × GHS ${item.unitPrice.toFixed(2)} = GHS ${item.amount.toFixed(2)}`));
-    lines.push("", `Total: GHS ${data.subtotal.toFixed(2)}`);
-    if (data.paymentText) lines.push("", "Payment details:", data.paymentText);
-    lines.push("", "Thank you for choosing Aprils Signature.", "Elegance in Every Stitch");
-    return lines.filter((line, index) => !(line === "" && lines[index - 1] === "")).join("\n");
-}
-
-function collectManualInvoiceData() {
-    const modal = document.getElementById("manualInvoiceModal");
-    if (!modal) return null;
-    const body = modal.querySelector(".submission-modal-body");
-    const lines = [];
-    body.querySelectorAll("[data-invoice-row]").forEach(tr => {
-        const description = tr.querySelector(".manual-invoice-description")?.value.trim() || "";
-        const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
-        const unitPrice = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
-        if (description && quantity > 0) lines.push({ description, quantity, unitPrice, amount: quantity * unitPrice });
-    });
-    return {
-        invoiceNumber: body.querySelector("#manualInvoiceNumber")?.value.trim() || "",
-        invoiceDate: body.querySelector("#manualInvoiceDate")?.value || "",
-        customer: body.querySelector("#manualInvoiceCustomer")?.value.trim() || "",
-        phone: body.querySelector("#manualInvoicePhone")?.value.trim() || "",
-        email: body.querySelector("#manualInvoiceEmail")?.value.trim() || "",
-        lines,
-        subtotal: lines.reduce((sum, item) => sum + item.amount, 0),
-        paymentText: document.getElementById("manualInvoicePaymentPreview")?.innerText.replace(/^Payment details that will appear on the invoice\s*/i, "").trim() || ""
-    };
-}
-
-async function shareGeneratedInvoice(mode = "native") {
-    const data = collectManualInvoiceData();
-    if (!data) return;
-    if (!data.lines.length) { message("Add at least one invoice item before sharing the invoice.", "error"); return; }
-    const text = buildInvoiceShareText(data);
-    const number = normalizeWhatsAppNumber(data.phone);
-
-    if (mode === "whatsapp") {
-        if (!number) { message("No valid customer phone number is available for WhatsApp.", "error"); return; }
-        window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
-        return;
-    }
-
-    if (mode === "email") {
-        if (!data.email) { message("No customer email address is available.", "error"); return; }
-        window.location.href = `mailto:${encodeURIComponent(data.email)}?subject=${encodeURIComponent("Aprils Signature Invoice " + data.invoiceNumber)}&body=${encodeURIComponent(text)}`;
-        return;
-    }
-
-    try {
-        if (navigator.share) {
-            await navigator.share({ title: "Aprils Signature Invoice " + data.invoiceNumber, text });
-            return;
-        }
-    } catch (error) {
-        if (error?.name === "AbortError") return;
-    }
-    try {
-        await navigator.clipboard.writeText(text);
-        message("Invoice details copied. You can paste them into WhatsApp, SMS or email.", "success");
-    } catch (_) {
-        window.prompt("Copy the invoice message:", text);
     }
 }
 
@@ -1472,7 +2109,11 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     body.innerHTML = `
         <div class="submission-modal-header">
             <h2>${escapeHTML(title)}</h2>
-            <div class="submission-modal-actions"><button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button><button type="button" class="secondary" id="shareSubmissionDetails">Share</button></div>
+            <div class="submission-modal-actions">
+                <button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button>
+                <button type="button" class="secondary" id="shareSubmissionDetails">Share</button>
+                ${isQuote ? '<button type="button" class="primary" id="generateInvoiceFromOrder">Generate Invoice</button>' : ''}
+            </div>
         </div>
         <div class="submission-fields">${fields || '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>'}</div>
         ${uploadHtml}
@@ -1483,6 +2124,9 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     });
     document.getElementById("shareSubmissionDetails")?.addEventListener("click", () => {
         shareText(title, buildShareText(title, row || {}, detailsText));
+    });
+    document.getElementById("generateInvoiceFromOrder")?.addEventListener("click", () => {
+        openInvoiceGenerator(row || {}, details);
     });
 
     backdrop.style.display = "block";
@@ -1515,7 +2159,6 @@ async function loadRegistrations() {
             <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
             <td>
     <button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button>
-    <button type="button" class="primary" data-generate-training-invoice="${row.id}">Generate Invoice</button>
     <button type="button" class="danger" data-delete-registration="${row.id}">Delete</button>
 </td>
         </tr>`).join("")}
@@ -1526,15 +2169,6 @@ async function loadRegistrations() {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
             if (row) showSubmissionDetails("Training Registration Details", row, row.message || row.request_details || row.details || "");
-        };
-    });
-
-    list.querySelectorAll("[data-generate-training-invoice]").forEach(button => {
-        button.onclick = () => {
-            const row = rows.find(item => String(item.id) === String(button.dataset.generateTrainingInvoice));
-            if (!row) return;
-            const invoiceRow = { ...row, _invoiceType: "training", _invoiceItems: getInvoiceLineItemsFromTraining(row) };
-            showManualInvoiceBuilder(invoiceRow);
         };
     });
 
@@ -1556,450 +2190,56 @@ async function loadRegistrations() {
 
 
 function summarizeQuoteQuantities(row) {
-    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
-    const details = parseSubmissionDetails(detailsText);
-    const streetwear = details?.streetwear;
+    const details = parseSubmissionDetails(row?.journey || row?.request_details || row?.details || row?.message || "");
+    const quantities = [];
 
-    if (!streetwear || typeof streetwear !== "object") return "—";
-
-    const items = Object.entries(streetwear)
-        .map(([name, value]) => {
-            const quantity = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
-            const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
-            const number = Number(quantity);
-            if (!String(quantity ?? "").trim() || (!Number.isNaN(number) && number <= 0)) return "";
-            return `${product}: ${quantity}`;
-        })
-        .filter(Boolean);
-
-    return items.length ? items.join(" • ") : "—";
+    if (details?.streetwear && typeof details.streetwear === "object") {
+        Object.values(details.streetwear).forEach(item => {
+            if (!item) return;
+            const product = typeof item === "object" ? item.product : "";
+            const quantity = typeof item === "object" ? item.quantity : item;
+            if (product && quantity) quantities.push(`${product}: ${quantity}`);
+        });
+    }
+    if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: ${details.ladiesWearQuantity}`);
+    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: ${details.kidsWearQuantity}`);
+    if (details?.embellishmentDetails) {
+        Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
+            if (item?.quantity) quantities.push(`${name}: ${item.quantity}`);
+        });
+    }
+    return quantities.join(" • ") || "—";
 }
+
 
 function summarizeQuoteDetails(row) {
-    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
-    const details = parseSubmissionDetails(detailsText);
+    const details = parseSubmissionDetails(row?.journey || row?.request_details || row?.details || row?.message || "");
     const selected = Array.isArray(details.selectedServices)
         ? details.selectedServices
         : String(row?.service || "").split(",").map(v => v.trim()).filter(Boolean);
+    const parts = [selected.join(", ")];
 
-    const parts = [];
-    if (selected.length) parts.push(selected.join(", "));
-
-    if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
-        const items = Object.entries(details.streetwear)
-            .map(([name, value]) => {
-                const q = value && typeof value === "object" ? (value.quantity ?? value.qty ?? "") : value;
-                const product = value && typeof value === "object" ? (value.product || value.name || humanizeProductName(name)) : humanizeProductName(name);
-                const n = Number(q);
-                if (!String(q ?? "").trim() || (!Number.isNaN(n) && n <= 0)) return "";
-                return `${product}: ${q}`;
-            })
-            .filter(Boolean);
-        if (items.length) parts.push(items.join(" • "));
-        if (details.streetwearSize) parts.push(`Size: ${details.streetwearSize}`);
-        if (details.streetwearColour) parts.push(`Colour: ${details.streetwearColour}`);
+    if (selected.includes("Streetwear") && details.streetwear) {
+        Object.values(details.streetwear).forEach(item => {
+            if (!item) return;
+            const product = typeof item === "object" ? item.product : "";
+            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
+            if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
+        });
     }
-
-    if (selected.includes("Ladies Wear")) {
-        if (details.ladiesWear) parts.push(`Ladies Wear: ${details.ladiesWear}`);
-        if (details.ladiesWearSize) parts.push(`Size: ${details.ladiesWearSize}`);
-        if (details.ladiesWearColour) parts.push(`Colour: ${details.ladiesWearColour}`);
+    if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
+    if (selected.includes("Kids Wear")) parts.push(["Kids Wear", details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
+    if (selected.includes("Embellishment Services") && Array.isArray(details.embellishment)) {
+        details.embellishment.forEach(name => {
+            const item = details.embellishmentDetails?.[name] || {};
+            parts.push(`${name}: ${[item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")}`);
+        });
     }
-
-    if (selected.includes("Kids Wear")) {
-        if (details.kidsWear) parts.push(`Kids Wear: ${details.kidsWear}`);
-        if (details.kidsWearSize) parts.push(`Size: ${details.kidsWearSize}`);
-        if (details.kidsWearColour) parts.push(`Colour: ${details.kidsWearColour}`);
-    }
-
-    if (selected.includes("Embellishment Services")) {
-        if (Array.isArray(details.embellishment) && details.embellishment.length) {
-            parts.push(details.embellishment.join(", "));
-        }
-        if (details.embellishmentOther) parts.push(details.embellishmentOther);
-        if (details.embellishmentSize) parts.push(`Size: ${details.embellishmentSize}`);
-    }
-
-    if (selected.includes("Practical Fashion Training") && details.training) {
-        parts.push(details.training);
-    }
-
     if (details.additionalDetails) parts.push(details.additionalDetails);
 
-    return parts.join(" | ");
+    return parts.filter(Boolean).join(" | ");
 }
 
-
-function quoteDuplicateSignature(row) {
-    return [
-        row.full_name,
-        row.phone,
-        row.whatsapp,
-        row.location,
-        row.email,
-        row.service,
-        row.journey || row.request_details || row.details || row.message || ""
-    ].map(v => String(v ?? "").trim().toLowerCase()).join("\u001f");
-}
-
-function groupDuplicateQuotes(rows) {
-    const groups = new Map();
-
-    rows.forEach(row => {
-        const signature = quoteDuplicateSignature(row);
-        if (!groups.has(signature)) {
-            groups.set(signature, { ...row, _ids: [row.id], _duplicateCount: 1 });
-        } else {
-            const group = groups.get(signature);
-            group._ids.push(row.id);
-            group._duplicateCount += 1;
-        }
-    });
-
-    return Array.from(groups.values());
-}
-
-
-function invoiceNameKey(value) {
-    return String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[–—]/g, "-")
-        .replace(/\s+/g, " ");
-}
-
-function getInvoiceLineItemsFromQuote(row) {
-    const detailsText = row?.journey || row?.request_details || row?.details || row?.message || "";
-    const details = parseSubmissionDetails(detailsText);
-    const selected = Array.isArray(details.selectedServices)
-        ? details.selectedServices
-        : String(row?.service || "").split(",").map(v => v.trim()).filter(Boolean);
-    const items = [];
-
-    const add = (description, quantity = 1, unitPrice = "") => {
-        if (!description) return;
-        const q = Number(quantity);
-        items.push({
-            description: String(description),
-            quantity: Number.isFinite(q) && q > 0 ? q : 1,
-            unitPrice: unitPrice === "" ? "" : Number(unitPrice) || 0
-        });
-    };
-
-    if (details.streetwear && typeof details.streetwear === "object") {
-        Object.entries(details.streetwear).forEach(([key, value]) => {
-            let quantity = value;
-            let product = humanizeProductName(key);
-            if (value && typeof value === "object") {
-                quantity = value.quantity ?? value.qty ?? 1;
-                product = value.product || value.name || product;
-            }
-            const n = Number(quantity);
-            if (String(quantity ?? "").trim() && (Number.isNaN(n) || n > 0)) add(product, n);
-        });
-    }
-
-    if (selected.includes("Ladies Wear")) {
-        add(details.ladiesWear || "Ladies Wear", details.ladiesWearQuantity || 1);
-    }
-    if (selected.includes("Kids Wear")) {
-        add(details.kidsWear || "Kids Wear", details.kidsWearQuantity || 1);
-    }
-
-    if (details.embellishmentDetails && typeof details.embellishmentDetails === "object") {
-        Object.entries(details.embellishmentDetails).forEach(([service, info]) => {
-            if (!info || typeof info !== "object") return;
-            const quantity = Number(info.quantity) > 0 ? Number(info.quantity) : 1;
-            const description = info.details
-                ? `${service} — ${info.details}`
-                : service;
-            add(description, quantity);
-        });
-    } else if (Array.isArray(details.embellishment)) {
-        details.embellishment.filter(Boolean).forEach(service => {
-            add(service, details.embellishmentQuantity || 1);
-        });
-    }
-
-    if (selected.includes("Practical Fashion Training") && details.training) {
-        add(details.training, 1);
-    }
-
-    if (!items.length) {
-        selected.forEach(service => add(service, 1));
-    }
-
-    return items;
-}
-
-async function getInvoicePriceMaps() {
-    const rows = await getRows("settings");
-    const invoice = new Map();
-    const products = new Map();
-
-    rows.forEach(row => {
-        const key = String(row.setting_key || "");
-        let value = {};
-        try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
-
-        if (key.startsWith("invoice_price_") && value.name) {
-            invoice.set(invoiceNameKey(value.name), Number(value.price) || 0);
-        }
-        if (key.startsWith("product_") && value.name && value.public_price !== null && value.public_price !== undefined && value.public_price !== "") {
-            products.set(invoiceNameKey(value.name), Number(value.public_price) || 0);
-        }
-        if (key.startsWith("public_training_price_") && value.name) {
-            products.set(invoiceNameKey(value.name), Number(value.price) || 0);
-        }
-        if (key.startsWith("invoice_price_Training - ")) {
-            const trainingName = String(value.name || "").replace(/^Training - /i, "").trim();
-            if (trainingName) invoice.set(invoiceNameKey(trainingName), Number(value.price) || 0);
-        }
-    });
-
-    return { invoice, products };
-}
-
-async function getSavedInvoicePaymentValues() {
-    const rows = await getRows("settings");
-    const values = {};
-    rows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_"))
-        .forEach(r => { values[r.setting_key] = r.setting_value || ""; });
-    return values;
-}
-
-function getInvoiceLineItemsFromTraining(row) {
-    const detailsText = row?.message || row?.request_details || row?.details || "";
-    let course = String(row?.course || row?.training || "Training Registration").trim();
-    if (!course) course = "Training Registration";
-    return [{ description: course, quantity: 1, unitPrice: "" }];
-}
-
-function showManualInvoiceBuilder(row) {
-    let modal = document.getElementById("manualInvoiceModal");
-    let backdrop = document.getElementById("manualInvoiceBackdrop");
-
-    if (!modal) {
-        backdrop = document.createElement("div");
-        backdrop.id = "manualInvoiceBackdrop";
-        backdrop.className = "submission-modal-backdrop";
-        backdrop.addEventListener("click", closeManualInvoiceBuilder);
-
-        modal = document.createElement("div");
-        modal.id = "manualInvoiceModal";
-        modal.className = "submission-modal";
-        modal.style.maxWidth = "1100px";
-        modal.innerHTML = '<button type="button" class="submission-modal-close" aria-label="Close">&times;</button><div class="submission-modal-body"></div>';
-        modal.querySelector(".submission-modal-close").addEventListener("click", closeManualInvoiceBuilder);
-        document.body.appendChild(modal);
-    }
-
-    const body = modal.querySelector(".submission-modal-body");
-    const detailsText = row.journey || row.request_details || row.details || row.message || "";
-    const isTrainingInvoice = row._invoiceType === "training";
-    const items = Array.isArray(row._invoiceItems) ? row._invoiceItems : getInvoiceLineItemsFromQuote(row);
-    const invoiceNumber = "AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + String(row.id || "").replace(/[^a-zA-Z0-9]/g,"").slice(-6).toUpperCase();
-
-    body.innerHTML = `
-        <div class="submission-modal-header">
-            <h2>${isTrainingInvoice ? "Generate Training Invoice" : "Generate Invoice"}</h2>
-            <div class="submission-modal-actions">
-                <button type="button" class="primary" id="preparePrintableInvoice">Print / Save Invoice as PDF</button>
-                <button type="button" class="primary" id="shareInvoiceNative">Share Invoice</button>
-                <button type="button" class="secondary" id="shareInvoiceWhatsApp">Send via WhatsApp</button>
-                <button type="button" class="secondary" id="shareInvoiceEmail">Send by Email</button>
-                <button type="button" class="secondary" id="closeManualInvoice">Close</button>
-            </div>
-        </div>
-        <div class="form-card" style="box-shadow:none;padding:0;">
-            <div class="form-grid">
-                <div class="form-group"><label>Invoice Number</label><input id="manualInvoiceNumber" value="${escapeHTML(invoiceNumber)}"></div>
-                <div class="form-group"><label>Invoice Date</label><input id="manualInvoiceDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
-                <div class="form-group"><label>Customer Name</label><input id="manualInvoiceCustomer" value="${escapeHTML(row.full_name || "")}"></div>
-                <div class="form-group"><label>Phone</label><input id="manualInvoicePhone" value="${escapeHTML(row.phone || "")}"></div>
-                <div class="form-group"><label>Email</label><input id="manualInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
-                <div class="form-group"><label>Location</label><input id="manualInvoiceLocation" value="${escapeHTML(row.location || "")}"></div>
-            </div>
-            <div class="form-group"><label>Notes / Customer Request</label><textarea id="manualInvoiceNotes" rows="3">${escapeHTML(detailsText && !/^\s*\{/.test(detailsText) ? detailsText : "")}</textarea></div>
-        </div>
-        <div class="table-wrap">
-            <table id="manualInvoiceItemsTable">
-                <thead><tr><th>Description</th><th style="width:110px;">Quantity</th><th style="width:160px;">Unit Price (GHS)</th><th style="width:160px;">Amount (GHS)</th><th></th></tr></thead>
-                <tbody>
-                    ${items.map((item, index) => `
-                        <tr data-invoice-row>
-                            <td><input class="manual-invoice-description" value="${escapeHTML(item.description)}"></td>
-                            <td><input class="manual-invoice-quantity" type="number" min="1" step="1" value="${escapeHTML(item.quantity)}"></td>
-                            <td><input class="manual-invoice-price" type="number" min="0" step="0.01" value="${item.unitPrice === "" ? "" : Number(item.unitPrice).toFixed(2)}"></td>
-                            <td class="manual-invoice-amount">GHS 0.00</td>
-                            <td><button type="button" class="danger manual-invoice-remove">Remove</button></td>
-                        </tr>`).join("")}
-                </tbody>
-                <tfoot>
-                    <tr><th colspan="3" style="text-align:right;">Subtotal</th><th id="manualInvoiceSubtotal">GHS 0.00</th><th></th></tr>
-                </tfoot>
-            </table>
-        </div>
-        <div style="margin-top:12px;">
-            <button type="button" class="secondary" id="manualInvoiceAddItem">+ Add Line Item</button>
-        </div>
-        <div id="manualInvoicePaymentPreview" class="notice" style="margin-top:18px;">Loading saved payment details…</div>
-    `;
-
-    const recalc = () => {
-        let subtotal = 0;
-        body.querySelectorAll("[data-invoice-row]").forEach(tr => {
-            const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
-            const price = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
-            const amount = quantity * price;
-            subtotal += amount;
-            const amountCell = tr.querySelector(".manual-invoice-amount");
-            if (amountCell) amountCell.textContent = "GHS " + amount.toFixed(2);
-        });
-        const subtotalCell = body.querySelector("#manualInvoiceSubtotal");
-        if (subtotalCell) subtotalCell.textContent = "GHS " + subtotal.toFixed(2);
-    };
-
-    const bindRow = tr => {
-        tr.querySelectorAll("input").forEach(input => input.addEventListener("input", recalc));
-        tr.querySelector(".manual-invoice-remove")?.addEventListener("click", () => { tr.remove(); recalc(); });
-    };
-
-    body.querySelectorAll("[data-invoice-row]").forEach(bindRow);
-
-    body.querySelector("#manualInvoiceAddItem")?.addEventListener("click", () => {
-        const tr = document.createElement("tr");
-        tr.setAttribute("data-invoice-row", "");
-        tr.innerHTML = `<td><input class="manual-invoice-description" placeholder="Item / Service"></td><td><input class="manual-invoice-quantity" type="number" min="1" value="1"></td><td><input class="manual-invoice-price" type="number" min="0" step="0.01" placeholder="0.00"></td><td class="manual-invoice-amount">GHS 0.00</td><td><button type="button" class="danger manual-invoice-remove">Remove</button></td>`;
-        body.querySelector("#manualInvoiceItemsTable tbody").appendChild(tr);
-        bindRow(tr);
-        recalc();
-    });
-
-    body.querySelector("#closeManualInvoice")?.addEventListener("click", closeManualInvoiceBuilder);
-    body.querySelector("#preparePrintableInvoice")?.addEventListener("click", () => printManualInvoice(row));
-    body.querySelector("#shareInvoiceNative")?.addEventListener("click", () => shareGeneratedInvoice("native"));
-    body.querySelector("#shareInvoiceWhatsApp")?.addEventListener("click", () => shareGeneratedInvoice("whatsapp"));
-    body.querySelector("#shareInvoiceEmail")?.addEventListener("click", () => shareGeneratedInvoice("email"));
-
-    (async () => {
-        const maps = await getInvoicePriceMaps();
-        body.querySelectorAll("[data-invoice-row]").forEach(tr => {
-            const description = tr.querySelector(".manual-invoice-description")?.value || "";
-            const priceInput = tr.querySelector(".manual-invoice-price");
-            if (priceInput && priceInput.value === "") {
-                const key = invoiceNameKey(description);
-                const price = maps.invoice.get(key) ?? maps.products.get(key);
-                if (price !== undefined) priceInput.value = Number(price).toFixed(2);
-            }
-        });
-        const payment = await getSavedInvoicePaymentValues();
-        const preview = body.querySelector("#manualInvoicePaymentPreview");
-        if (preview) {
-            preview.innerHTML = `
-                <strong>Payment details that will appear on the invoice</strong><br>
-                ${escapeHTML(payment.invoice_payment_network || "")}
-                ${payment.invoice_payment_name ? " — " + escapeHTML(payment.invoice_payment_name) : ""}
-                ${payment.invoice_payment_number ? " — " + escapeHTML(payment.invoice_payment_number) : ""}
-                ${payment.invoice_payment_note ? "<br>" + escapeHTML(payment.invoice_payment_note) : ""}
-            `;
-        }
-        recalc();
-    })();
-
-    backdrop.style.display = "block";
-    modal.classList.add("open");
-}
-
-function closeManualInvoiceBuilder() {
-    document.getElementById("manualInvoiceModal")?.classList.remove("open");
-    const backdrop = document.getElementById("manualInvoiceBackdrop");
-    if (backdrop) backdrop.style.display = "none";
-}
-
-async function printManualInvoice(row) {
-    const modal = document.getElementById("manualInvoiceModal");
-    if (!modal) return;
-
-    const body = modal.querySelector(".submission-modal-body");
-    const payment = await getSavedInvoicePaymentValues();
-    const lines = [];
-
-    body.querySelectorAll("[data-invoice-row]").forEach(tr => {
-        const description = tr.querySelector(".manual-invoice-description")?.value.trim() || "";
-        const quantity = Number(tr.querySelector(".manual-invoice-quantity")?.value) || 0;
-        const unitPrice = Number(tr.querySelector(".manual-invoice-price")?.value) || 0;
-        if (description && quantity > 0) {
-            lines.push({ description, quantity, unitPrice, amount: quantity * unitPrice });
-        }
-    });
-
-    const subtotal = lines.reduce((sum, item) => sum + item.amount, 0);
-    const invoiceNumber = body.querySelector("#manualInvoiceNumber")?.value.trim() || "";
-    const invoiceDate = body.querySelector("#manualInvoiceDate")?.value || "";
-    const customer = body.querySelector("#manualInvoiceCustomer")?.value.trim() || "";
-    const phone = body.querySelector("#manualInvoicePhone")?.value.trim() || "";
-    const email = body.querySelector("#manualInvoiceEmail")?.value.trim() || "";
-    const location = body.querySelector("#manualInvoiceLocation")?.value.trim() || "";
-    const notes = body.querySelector("#manualInvoiceNotes")?.value.trim() || "";
-
-    const win = window.open("", "_blank");
-    if (!win) {
-        message("The invoice window was blocked. Please allow pop-ups for the admin page.", "error");
-        return;
-    }
-
-    const rowsHtml = lines.map(item => `
-        <tr>
-            <td>${escapeHTML(item.description)}</td>
-            <td style="text-align:center">${item.quantity}</td>
-            <td style="text-align:right">GHS ${item.unitPrice.toFixed(2)}</td>
-            <td style="text-align:right">GHS ${item.amount.toFixed(2)}</td>
-        </tr>`).join("");
-
-    win.document.write(`<!doctype html><html><head><title>${escapeHTML(invoiceNumber)}</title>
-        <style>
-            :root{--teal:#075957;--teal2:#0f7775;--gold:#d6a542;--ink:#171717;--line:#b7b7b7;--light:#f5faf9}
-            *{box-sizing:border-box}
-            body{font-family:Arial,Helvetica,sans-serif;color:var(--ink);padding:30px;max-width:920px;margin:auto;background:#fff}
-            .invoice-shell{border:2px solid var(--teal);padding:28px}
-            .brandbar{height:8px;background:var(--gold);margin:-28px -28px 24px}
-            h1{margin:0 0 5px;color:var(--teal);font-size:30px;letter-spacing:.2px}.tagline{font-weight:700}.muted{color:#555}
-            .top{display:flex;justify-content:space-between;gap:30px;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid var(--teal)}
-            .invoice-title{text-align:right}.invoice-title strong{font-size:24px;color:var(--teal);letter-spacing:1px}
-            .billto{border:1.5px solid var(--line);padding:14px 16px;margin-bottom:22px;background:var(--light)}
-            .section-title{font-weight:700;color:var(--teal);text-transform:uppercase;font-size:12px;letter-spacing:.8px;margin-bottom:6px}
-            table{width:100%;border-collapse:collapse;margin-top:10px;border:2px solid var(--teal)}
-            th,td{border:1.5px solid var(--line);padding:11px 12px;text-align:left}
-            th{background:#e9f5f4;color:var(--teal);font-weight:700;border-bottom:2px solid var(--teal)}
-            tbody tr:nth-child(even){background:#fafafa}
-            .totalbox{display:flex;justify-content:flex-end;margin-top:16px}.total{border:2px solid var(--gold);padding:13px 18px;font-size:20px;font-weight:bold;min-width:240px;text-align:right}
-            .payment{margin-top:28px;border:2px solid var(--teal);padding:16px;background:var(--light)}
-            .footer{margin-top:26px;padding-top:15px;border-top:1.5px solid var(--line);text-align:center}
-            .print-btn{margin-top:20px;padding:12px 20px;background:var(--teal);color:#fff;border:0;border-radius:4px;font-weight:700;cursor:pointer}
-            @media print{body{padding:0}.invoice-shell{border:0;padding:0}.brandbar{margin:0 0 20px}.no-print{display:none}}
-        </style></head><body>
-        <div class="invoice-shell"><div class="brandbar"></div>
-        <div class="top">
-            <div><h1>Aprils Signature</h1><div>Elegance in Every Stitch</div><div class="muted">Winneba, Central Region, Ghana</div></div>
-            <div><strong>INVOICE</strong><br>Invoice No: ${escapeHTML(invoiceNumber)}<br>Date: ${escapeHTML(invoiceDate)}</div>
-        </div>
-        <div class="billto"><div class="section-title">Bill To</div><strong>${escapeHTML(customer)}</strong><br>${escapeHTML(phone)}${email ? "<br>" + escapeHTML(email) : ""}${location ? "<br>" + escapeHTML(location) : ""}</div>
-        <table><thead><tr><th>Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>${rowsHtml || "<tr><td colspan='4'>No line items added.</td></tr>"}</tbody></table>
-        <div class="totalbox"><div class="total">Total: GHS ${subtotal.toFixed(2)}</div></div>
-        ${notes ? `<div style="margin-top:22px"><strong>Notes:</strong><br>${escapeHTML(notes).replace(/\n/g,"<br>")}</div>` : ""}
-        <div class="payment"><strong>Payment Details</strong><br>
-            ${escapeHTML(payment.invoice_payment_network || "")}
-            ${payment.invoice_payment_name ? " — " + escapeHTML(payment.invoice_payment_name) : ""}
-            ${payment.invoice_payment_number ? " — " + escapeHTML(payment.invoice_payment_number) : ""}
-            ${payment.invoice_payment_note ? "<br>" + escapeHTML(payment.invoice_payment_note).replace(/\n/g,"<br>") : ""}
-        </div>
-        <div class="footer"><strong>Thank you for choosing Aprils Signature.</strong><div class="muted" style="margin-top:5px">Elegance in Every Stitch</div></div>
-        <button class="no-print print-btn" onclick="window.print()">Print / Save Invoice as PDF</button>
-        </div></body></html>`);
-    win.document.close();
-    win.focus();
-}
 
 async function loadQuotes() {
     const rawRows = await getRows("quote_requests");
@@ -2059,9 +2299,11 @@ async function loadQuotes() {
     });
 
     list.querySelectorAll("[data-generate-invoice]").forEach(button => {
-        button.onclick = () => {
+        button.onclick = async () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.generateInvoice));
-            if (row) showManualInvoiceBuilder(row);
+            if (!row) return;
+            const details = parseSubmissionDetails(row.journey || row.request_details || row.details || row.message || "");
+            await openInvoiceGenerator(row, details);
         };
     });
 
@@ -2311,14 +2553,16 @@ function setupFAQForm() {
 ========================================================= */
 
 async function loadPolicies() {
-    const rows = (await getRows("policies")).sort((a,b)=>{const na=Number((String(a.title||"").match(/^\s*(\d+)/)||[])[1]||9999); const nb=Number((String(b.title||"").match(/^\s*(\d+)/)||[])[1]||9999); return na-nb||String(a.title||"").localeCompare(String(b.title||""));});
+    const rows = await getRows("policies");
+    const policyRank = {payment_policy:1, refund_policy:2, delivery_collection_policy:3, privacy_policy:4};
+    rows.sort((a,b)=>(policyRank[String(a.policy_key||"").toLowerCase()]||99)-(policyRank[String(b.policy_key||"").toLowerCase()]||99));
     const list = document.getElementById("policyList");
     if (!list) return;
 
     list.innerHTML = rows.length ? `
         <table><thead><tr><th>Policy</th><th>Key</th><th>Content</th><th>Actions</th></tr></thead><tbody>
         ${rows.map(row => `<tr>
-            <td>${escapeHTML(row.title)}</td>
+            <td>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
             <td>${escapeHTML(row.policy_key)}</td>
             <td><pre style="white-space:pre-wrap;max-width:550px;font-family:inherit">${escapeHTML(row.content)}</pre></td>
             <td>
@@ -2610,7 +2854,14 @@ function invoiceStorageKey(id) {
 
 async function loadInvoicePricing() {
     const rows = await getRows("settings");
-    const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_"));
+    const invoiceRows = rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_"));
+    const seenInvoiceKeys = new Set();
+    const invoices = invoiceRows.filter(r => {
+        const key = String(r.setting_key || "");
+        if (seenInvoiceKeys.has(key)) return false;
+        seenInvoiceKeys.add(key);
+        return true;
+    });
     const list = document.getElementById("invoiceList");
     if (!list) return;
 
@@ -2670,69 +2921,19 @@ async function loadInvoicePricing() {
 }
 
 async function loadInvoicePaymentDetails() {
-    const rows = await getRows("settings");
-    const values = {};
-    rows
-        .filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key || "")))
-        .forEach(r => { values[r.setting_key] = r.setting_value || ""; });
-
-    const map = {
-        invoicePaymentNumber: "invoice_payment_number",
-        invoicePaymentName: "invoice_payment_name",
-        invoicePaymentNetwork: "invoice_payment_network",
-        invoicePaymentNote: "invoice_payment_note"
-    };
-
-    Object.entries(map).forEach(([id, key]) => {
-        const el = document.getElementById(id);
-        if (el) el.value = values[key] || "";
-    });
-
-    const box = document.getElementById("invoicePaymentSaved");
-    if (!box) return;
-
-    const hasSaved = Object.values(values).some(value => String(value || "").trim() !== "");
-    box.innerHTML = hasSaved ? `
-        <div class="notice" style="margin-top:12px;">
-            <strong>Saved invoice payment details</strong>
-            <table style="margin-top:10px;width:100%;border-collapse:collapse;">
-                <tbody>
-                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Payment Number</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_number || "—")}</td></tr>
-                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Account / MoMo Name</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_name || "—")}</td></tr>
-                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Network / Method</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_network || "—")}</td></tr>
-                    <tr><th style="padding:8px;border:1px solid #ccc;text-align:left;">Payment Note</th><td style="padding:8px;border:1px solid #ccc;">${escapeHTML(values.invoice_payment_note || "—")}</td></tr>
-                </tbody>
-            </table>
-            <div style="margin-top:10px;">
-                <button type="button" class="secondary" id="editSavedInvoicePayment">Edit Saved Details</button>
-                <button type="button" class="danger" id="deleteSavedInvoicePayment">Delete Saved Details</button>
-            </div>
-        </div>
-    ` : `<div class="empty" style="margin-top:12px;">No invoice payment details have been saved yet.</div>`;
-
-    document.getElementById("editSavedInvoicePayment")?.addEventListener("click", () => {
-        document.getElementById("invoicePaymentForm")?.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-
-    document.getElementById("deleteSavedInvoicePayment")?.addEventListener("click", async () => {
-        if (!confirm("Delete the saved invoice payment details?")) return;
-        try {
-            for (const key of Object.values(map)) {
-                const result = await db.from("settings").delete().eq("setting_key", key);
-                if (result.error) throw result.error;
-            }
-            Object.keys(map).forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.value = "";
-            });
-            message("Saved invoice payment details deleted.", "success");
-            await loadInvoicePaymentDetails();
-        } catch (error) {
-            message("Invoice payment details could not be deleted: " + error.message, "error");
-        }
-    });
+    const rows=await getRows("settings"); const values={};
+    rows.filter(r=>["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||""))).forEach(r=>{ values[r.setting_key]=r.setting_value||""; });
+    const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
+    Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
+    const saved = document.getElementById("invoicePaymentSaved");
+    if (saved) {
+        const labels = {invoice_payment_number:"MoMo / Payment Number", invoice_payment_name:"Account / MoMo Name", invoice_payment_network:"Network / Payment Method", invoice_payment_note:"Payment Note"};
+        const entries = Object.entries(labels).filter(([key]) => values[key]);
+        saved.innerHTML = entries.length
+            ? `<table><thead><tr><th>Field</th><th>Saved Value</th></tr></thead><tbody>${entries.map(([key,label])=>`<tr><th>${escapeHTML(label)}</th><td>${escapeHTML(values[key])}</td></tr>`).join("")}</tbody></table>`
+            : `<div class="empty">No invoice payment details have been saved yet.</div>`;
+    }
 }
-
 function setupInvoicePaymentForm(){
     const form=document.getElementById("invoicePaymentForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
     form.addEventListener("submit",async e=>{
@@ -2743,9 +2944,26 @@ function setupInvoicePaymentForm(){
                 const value=document.getElementById(id)?.value.trim()||"";
                 await safeSettingUpsert(key,value);
             }
+            form.reset();
             message("Invoice payment details saved.","success");
             await loadInvoicePaymentDetails();
         }catch(error){message("Invoice payment details could not be saved: "+error.message,"error");}
+    });
+    document.getElementById("editInvoicePaymentDetails")?.addEventListener("click", async () => {
+        await loadInvoicePaymentDetails();
+        document.getElementById("invoicePaymentForm")?.scrollIntoView({behavior:"smooth",block:"start"});
+    });
+    document.getElementById("deleteInvoicePaymentDetails")?.addEventListener("click", async () => {
+        if (!confirm("Clear all saved invoice payment details?")) return;
+        try {
+            const keys = ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"];
+            const result = await db.from("settings").delete().in("setting_key", keys);
+            if (result.error) throw result.error;
+            message("Saved invoice payment details cleared.", "success");
+            await loadInvoicePaymentDetails();
+        } catch (error) {
+            message("Saved invoice payment details could not be cleared: " + error.message, "error");
+        }
     });
     loadInvoicePaymentDetails();
 }
@@ -2762,36 +2980,46 @@ function setupInvoiceForm() {
         const id = document.getElementById("invoiceId").value.trim();
         const name = document.getElementById("invoiceItem").value.trim();
         const category = document.getElementById("invoiceCategory").value.trim();
-        const price = Number(document.getElementById("invoicePrice").value);
+        const priceValue = document.getElementById("invoicePrice").value;
+        const price = Number(priceValue);
         const notes = document.getElementById("invoiceNotes").value.trim();
         const active = document.getElementById("invoiceActive").checked;
 
-        if (!name || Number.isNaN(price)) {
+        if (!name || priceValue === "" || Number.isNaN(price)) {
             message("Please enter an item/service and a valid price.", "error");
             return;
         }
 
-        const payload = {
-            setting_key: invoiceStorageKey(name),
-            setting_value: JSON.stringify({ name, category, price, notes, active }),
-            updated_at: new Date().toISOString()
-        };
-
         try {
-            await safeSettingUpsert(payload.setting_key, payload.setting_value);
+            const key = invoiceStorageKey(name);
+            const value = JSON.stringify({ name, category, price, notes, active });
+
             if (id) {
-                const oldRow = await db.from("settings").select("setting_key").eq("id",id).maybeSingle();
-                if (!oldRow.error && oldRow.data?.setting_key && oldRow.data.setting_key !== payload.setting_key) {
-                    await db.from("settings").delete().eq("id",id);
-                }
+                const current = await db.from("settings").select("id,setting_key").eq("id", id).maybeSingle();
+                if (current.error) throw current.error;
+
+                const result = await db.from("settings")
+                    .update({ setting_key: key, setting_value: value, updated_at: new Date().toISOString() })
+                    .eq("id", id);
+                if (result.error) throw result.error;
+            } else {
+                await safeSettingUpsert(key, value);
+            }
+
+            // Keep exactly one record for this invoice item.
+            const duplicates = await db.from("settings").select("id").eq("setting_key", key).order("id", { ascending: true });
+            if (!duplicates.error && (duplicates.data || []).length > 1) {
+                await db.from("settings").delete().in("id", duplicates.data.slice(1).map(r => r.id));
             }
 
             form.reset();
             document.getElementById("invoiceId").value = "";
             document.getElementById("invoiceActive").checked = true;
-            message("Invoice price saved separately from public pricing.", "success");
+            message("Invoice price saved.", "success");
             await loadInvoicePricing();
+            await loadProducts();
         } catch (error) {
+            console.error(error);
             message("Invoice price could not be saved: " + error.message, "error");
         }
     });
@@ -2808,6 +3036,91 @@ function setupInvoiceForm() {
         document.getElementById("invoiceId").value = "";
         document.getElementById("invoiceActive").checked = true;
     });
+}
+
+
+
+/* =========================================================
+   RETURN CUSTOMER DISCOUNT / THANK-YOU CARD
+========================================================= */
+
+async function loadDiscounts() {
+    const codeBox = document.getElementById("discountCodeList");
+    const redemptionBox = document.getElementById("discountRedemptionList");
+    if (!codeBox || !redemptionBox || !db) return;
+
+    try {
+        const [codesResult, redemptionsResult] = await Promise.all([
+            db.from("discount_codes").select("*").order("created_at", {ascending:false}),
+            db.from("discount_redemptions").select("*").order("created_at", {ascending:false})
+        ]);
+        if (codesResult.error) throw codesResult.error;
+        if (redemptionsResult.error) throw redemptionsResult.error;
+        const codes = codesResult.data || [];
+        const redemptions = redemptionsResult.data || [];
+
+        codeBox.innerHTML = codes.length ? `<table><thead><tr><th>Code</th><th>Discount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${codes.map(r=>`
+            <tr><td><strong>${escapeHTML(r.code)}</strong></td><td>${Number(r.discount_percent||10)}%</td><td>${r.active===false?"Inactive":"Active"}</td><td>
+            <button type="button" class="secondary" data-edit-discount-code="${escapeHTML(r.id)}">Edit</button>
+            <button type="button" class="danger" data-delete-discount-code="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty">No discount codes have been added yet. Add the exact code printed on your thank-you card.</div>`;
+
+        redemptionBox.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Code</th><th>Customer</th><th>Order Amount</th><th>Discount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${redemptions.map(r=>{
+            const pct=Number(r.discount_percent||10), order=Number(r.order_amount||0), amount=Number(r.discount_amount||0);
+            return `<tr><td>${escapeHTML(r.created_at?new Date(r.created_at).toLocaleString():"")}</td><td>${escapeHTML(r.code||"")}</td><td>${escapeHTML(r.full_name||"")}<small style="display:block;color:#666">${escapeHTML(r.phone||"")}</small></td><td>${order?"GHS "+order.toFixed(2):"—"}</td><td>${amount?"GHS "+amount.toFixed(2)+" ("+pct+"%)":"—"}</td><td>${escapeHTML(r.status||"Pending Verification")}</td><td><button type="button" class="secondary" data-redeem-discount="${escapeHTML(r.id)}">${String(r.status||"").toLowerCase()==="redeemed"?"Mark Pending":"Mark Redeemed"}</button><button type="button" class="danger" data-delete-discount-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`;
+        }).join("")}</tbody></table>` : `<div class="empty">No customers have submitted a discount code yet.</div>`;
+
+        codeBox.querySelectorAll("[data-edit-discount-code]").forEach(b=>b.onclick=()=>{
+            const r=codes.find(x=>String(x.id)===String(b.dataset.editDiscountCode)); if(!r)return;
+            document.getElementById("discountCodeId").value=r.id||"";
+            document.getElementById("discountCodeValue").value=r.code||"";
+            document.getElementById("discountPercent").value=Number(r.discount_percent||10);
+            document.getElementById("discountCodeActive").checked=r.active!==false;
+            document.getElementById("discountCodeForm").scrollIntoView({behavior:"smooth",block:"start"});
+        });
+        codeBox.querySelectorAll("[data-delete-discount-code]").forEach(b=>b.onclick=async()=>{
+            if(!confirm("Delete this discount code? Existing redemption records will remain."))return;
+            const r=await db.from("discount_codes").delete().eq("id",b.dataset.deleteDiscountCode);
+            if(r.error)message("Discount code could not be deleted: "+r.error.message,"error"); else {message("Discount code deleted.","success");await loadDiscounts();}
+        });
+        redemptionBox.querySelectorAll("[data-redeem-discount]").forEach(b=>b.onclick=async()=>{
+            const row=redemptions.find(x=>String(x.id)===String(b.dataset.redeemDiscount)); if(!row)return;
+            const next=String(row.status||"").toLowerCase()==="redeemed"?"Pending Verification":"Redeemed";
+            const r=await db.from("discount_redemptions").update({status:next,updated_at:new Date().toISOString()}).eq("id",row.id);
+            if(r.error)message("Redemption status could not be updated: "+r.error.message,"error"); else {message("Discount redemption status updated.","success");await loadDiscounts();}
+        });
+        redemptionBox.querySelectorAll("[data-delete-discount-redemption]").forEach(b=>b.onclick=async()=>{
+            if(!confirm("Delete this redemption record?"))return;
+            const r=await db.from("discount_redemptions").delete().eq("id",b.dataset.deleteDiscountRedemption);
+            if(r.error)message("Redemption could not be deleted: "+r.error.message,"error"); else {message("Redemption record deleted.","success");await loadDiscounts();}
+        });
+    } catch(error) {
+        console.error("Discount section error:",error);
+        codeBox.innerHTML=`<div class="notice">The discount system needs the supplied Supabase SQL setup to be run once. After that, this section will load and save normally.</div>`;
+        redemptionBox.innerHTML="";
+    }
+}
+
+function setupDiscountForms() {
+    const form=document.getElementById("discountCodeForm");
+    if(!form||form.dataset.bound)return;
+    form.dataset.bound="1";
+    form.addEventListener("submit",async e=>{
+        e.preventDefault();
+        const id=document.getElementById("discountCodeId").value.trim();
+        const code=document.getElementById("discountCodeValue").value.trim().toUpperCase();
+        const discountPercent=Math.max(0,Math.min(100,Number(document.getElementById("discountPercent").value||10)));
+        const active=document.getElementById("discountCodeActive").checked;
+        if(!code){message("Enter the discount code printed on the thank-you card.","error");return;}
+        try{
+            const payload={code,discount_percent:discountPercent,active,updated_at:new Date().toISOString()};
+            let r=id?await db.from("discount_codes").update(payload).eq("id",id):await db.from("discount_codes").insert(payload);
+            if(r.error)throw r.error;
+            form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;
+            message("Discount code saved.","success");await loadDiscounts();
+        }catch(error){message("Discount code could not be saved: "+error.message,"error");}
+    });
+    document.getElementById("discountCodeNew")?.addEventListener("click",()=>{form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;form.scrollIntoView({behavior:"smooth",block:"start"});});
+    document.getElementById("discountCodeCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;});
 }
 
 /* =========================================================
@@ -3258,7 +3571,8 @@ async function loadSettings() {
         return !key.startsWith("invoice_price_")
             && !key.startsWith("site_link_")
             && !key.startsWith("hidden_content_")
-            && !key.startsWith("social_");
+            && !key.startsWith("social_")
+            && !key.startsWith("homepage_featured_");
     });
     const list = document.getElementById("settingsList");
     if (!list) return;
@@ -3417,6 +3731,43 @@ async function seedInitialPublicContent() {
     } catch (e) { console.warn("Gallery initial import unavailable:", e); }
 
     try {
+        const collectionName = await db.from("settings").select("id").eq("setting_key","homepage_featured_collection_name").limit(1);
+        if (!collectionName.error && !collectionName.data?.length) {
+            await db.from("settings").insert({
+                setting_key:"homepage_featured_collection_name",
+                setting_value:"Featured Collection",
+                updated_at:new Date().toISOString()
+            });
+        }
+    } catch (e) { console.warn("Homepage collection name initial import unavailable:", e); }
+
+    // Create the separate homepage Featured Collection from the current featured
+    // gallery media once. Future homepage edits use only homepage_featured_* settings.
+    try {
+        const existingHomepage = await db.from("settings").select("id").like("setting_key", "homepage_featured_%").limit(1);
+        if (!existingHomepage.error && !existingHomepage.data?.length) {
+            const featured = await db.from("gallery_items").select("title,image_url,description,display_order,featured,active")
+                .eq("featured", true).eq("active", true).order("display_order", {ascending:true});
+            if (!featured.error && featured.data?.length) {
+                for (const row of featured.data) {
+                    const key = homepageMediaKey(row.title || "Featured Media");
+                    await db.from("settings").insert({
+                        setting_key: key,
+                        setting_value: JSON.stringify({
+                            title: row.title || "Featured Collection",
+                            url: row.image_url || "",
+                            order: row.display_order || 1,
+                            description: row.description || "",
+                            active: true
+                        }),
+                        updated_at: new Date().toISOString()
+                    });
+                }
+            }
+        }
+    } catch (e) { console.warn("Homepage featured media initial import unavailable:", e); }
+
+    try {
         const services = await db.from("admin_services").select("id,title");
         if (!services.error) {
             const existing = new Set((services.data || []).map(r => (r.title || "").trim().toLowerCase()));
@@ -3465,10 +3816,10 @@ async function seedInitialPublicContent() {
     } catch (e) { console.warn("Website content initial import unavailable:", e); }
 
     const INITIAL_POLICIES = [
-        ["1. Payment Policy", "payment_policy", "A minimum of 75% of the total cost must be paid before production begins.\n\nFor orders being picked up or collected, the remaining balance must be paid before or at the time of collection.\n\nFor delivery orders, the remaining balance must be paid in full before the order is dispatched.\n\nFor any form of fashion training\nFull payment must be made before start of class or section."],
-        ["2. Refund Policy", "refund_policy", "At Aprils Signature, every order is custom-made or made-to-order with care and attention to detail. For this reason, we encourage customers to review all order details carefully before confirming their orders.\n\nThe 75% deposit paid before production begins is non-refundable once production has started.\n\nIf a customer chooses to cancel an order before production begins, any refund will be considered on a case-by-case basis, depending on any costs already incurred.\n\nRefunds will not be issued for changes of mind after production has commenced.\n\nIf an item is found to have a genuine workmanship defect, customers should contact us within 48 hours of receiving the item so we can assess the issue and provide an appropriate solution, which may include alterations, repairs, or another suitable remedy where applicable.\n\nRefunds do not apply to issues arising from incorrect measurements or information provided by the customer.\n\nCustomer satisfaction is important to us. We encourage all customers to communicate any concerns as soon as possible so that we can work together to find a fair and satisfactory solution.\n\nFor any form of training\nPayments made are not refundable or transferrable as such, prospective trainees must do their due diligence and be certain of taking the class before any payment is made."],
-        ["3. Delivery & Collection Policy", "delivery_collection_policy", "At Aprils Signature, every item is custom-made or made-to-order. Completion and delivery times vary depending on the design, order complexity, and current workload.\n\nCustomers will be informed of the estimated completion date after their order has been confirmed.\n\nCustomers who choose pickup/collection will be notified when their order is ready.\n\nFor delivery orders, dispatch will be arranged after the order has been completed and the outstanding balance has been paid in full.\n\nDelivery charges, where applicable, will be communicated before dispatch.\n\nWhile we make every effort to meet agreed timelines, unforeseen circumstances may occasionally cause delays. In such cases, customers will be informed promptly.\n\nWe also encourage customers to provide accurate delivery information to ensure a smooth delivery process."],
-        ["4. Privacy Policy", "privacy_policy", "At Aprils Signature, we value your privacy and are committed to protecting your personal information.\n\nAny information you provide through our website, including contact forms, quote requests, training applications, and order enquiries, is used solely to provide our services and communicate with you regarding your request.\n\nThe information we may collect includes: Name; Phone number; Email address; Delivery or pickup details; Measurements; Uploaded photos or mock-ups; Any other information you choose to provide.\n\nYour personal information will not be sold, rented, or shared with third parties except where necessary to provide our services or where required by law.\n\nWe take reasonable steps to keep your information secure and use it only for legitimate business purposes.\n\nIf you have any questions about how your personal information is used, please contact us and we will be happy to assist you.\n\nBy using our website and submitting your information, you agree to the terms of this Privacy Policy."]
+        ["Payment Policy", "payment_policy", "A minimum of 75% of the total cost must be paid before production begins.\n\nFor orders being picked up or collected, the remaining balance must be paid before or at the time of collection.\n\nFor delivery orders, the remaining balance must be paid in full before the order is dispatched.\n\nFor any form of fashion training\nFull payment must be made before start of class or section."],
+        ["Refund Policy", "refund_policy", "At Aprils Signature, every order is custom-made or made-to-order with care and attention to detail. For this reason, we encourage customers to review all order details carefully before confirming their orders.\n\nThe 75% deposit paid before production begins is non-refundable once production has started.\n\nIf a customer chooses to cancel an order before production begins, any refund will be considered on a case-by-case basis, depending on any costs already incurred.\n\nRefunds will not be issued for changes of mind after production has commenced.\n\nIf an item is found to have a genuine workmanship defect, customers should contact us within 48 hours of receiving the item so we can assess the issue and provide an appropriate solution, which may include alterations, repairs, or another suitable remedy where applicable.\n\nRefunds do not apply to issues arising from incorrect measurements or information provided by the customer.\n\nCustomer satisfaction is important to us. We encourage all customers to communicate any concerns as soon as possible so that we can work together to find a fair and satisfactory solution.\n\nFor any form of training\nPayments made are not refundable or transferrable as such, prospective trainees must do their due diligence and be certain of taking the class before any payment is made."],
+        ["Delivery & Collection Policy", "delivery_collection_policy", "At Aprils Signature, every item is custom-made or made-to-order. Completion and delivery times vary depending on the design, order complexity, and current workload.\n\nCustomers will be informed of the estimated completion date after their order has been confirmed.\n\nCustomers who choose pickup/collection will be notified when their order is ready.\n\nFor delivery orders, dispatch will be arranged after the order has been completed and the outstanding balance has been paid in full.\n\nDelivery charges, where applicable, will be communicated before dispatch.\n\nWhile we make every effort to meet agreed timelines, unforeseen circumstances may occasionally cause delays. In such cases, customers will be informed promptly.\n\nWe also encourage customers to provide accurate delivery information to ensure a smooth delivery process."],
+        ["Privacy Policy", "privacy_policy", "At Aprils Signature, we value your privacy and are committed to protecting your personal information.\n\nAny information you provide through our website, including contact forms, quote requests, training applications, and order enquiries, is used solely to provide our services and communicate with you regarding your request.\n\nThe information we may collect includes: Name; Phone number; Email address; Delivery or pickup details; Measurements; Uploaded photos or mock-ups; Any other information you choose to provide.\n\nYour personal information will not be sold, rented, or shared with third parties except where necessary to provide our services or where required by law.\n\nWe take reasonable steps to keep your information secure and use it only for legitimate business purposes.\n\nIf you have any questions about how your personal information is used, please contact us and we will be happy to assist you.\n\nBy using our website and submitting your information, you agree to the terms of this Privacy Policy."]
     ];
     try {
         const existing = await db.from("policies").select("id,policy_key");
@@ -3546,9 +3897,10 @@ async function startAdmin() {
     setupLogin();
     setupLogout();
     setupNavigation();
-    setupCustomerDirectLinks();
 
     setupGalleryForm();
+    setupHomepageMediaForm();
+    setupHomepageCollectionNameForm();
     setupTrainingForm();
     setupTestimonialForm();
     setupFAQForm();
@@ -3557,6 +3909,8 @@ async function startAdmin() {
     setupInvoiceForm();
     setupInvoicePaymentForm();
     setupWebsiteLinksForm();
+    setupDirectCustomerLinks();
+    setupDiscountForms();
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
