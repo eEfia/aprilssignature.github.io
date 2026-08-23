@@ -1488,14 +1488,12 @@ function openReceiptGenerator() {
     const phone = document.getElementById("generatedInvoicePhone")?.value || "";
     const email = document.getElementById("generatedInvoiceEmail")?.value || "";
     const invoiceDate = document.getElementById("generatedInvoiceDate")?.value || "";
-    const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 75)));
-    const initialPayment = totals.total * depositPercent / 100;
 
     modal.innerHTML = `
         <div class="invoice-generator-toolbar">
             <button type="button" class="submission-modal-close" onclick="closeReceiptGenerator()" aria-label="Close">&times;</button>
             <h2>Generate Payment Receipt</h2>
-            <p class="receipt-intro">Record the payment actually received. The receipt automatically shows the amount paid to date, percentage paid, and remaining balance.</p>
+            <p class="receipt-intro">Generate this receipt only after payment has been received. It records the amount actually paid by the customer.</p>
             <div class="invoice-action-buttons">
                 <button type="button" class="primary" id="receiptDownloadPdf">Download PDF</button>
                 <button type="button" class="primary" id="receiptSharePdf">Share PDF</button>
@@ -1505,24 +1503,13 @@ function openReceiptGenerator() {
             </div>
         </div>
         <div class="invoice-generator-editor receipt-editor">
-            <div class="receipt-payment-banner">
-                <strong>Invoice Total: GHS ${totals.total.toFixed(2)}</strong>
-                <span>Initial payment target: ${depositPercent}% (GHS ${initialPayment.toFixed(2)})</span>
-            </div>
             <div class="form-grid">
                 <div class="form-group"><label>Receipt Number</label><input id="generatedReceiptNumber" value="${escapeHTML(receiptNumber)}"></div>
                 <div class="form-group"><label>Receipt Date</label><input id="generatedReceiptDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
                 <div class="form-group"><label>Invoice Number</label><input id="generatedReceiptInvoiceNumber" value="${escapeHTML(invoiceNumber)}" readonly></div>
-                <div class="form-group"><label>Previous Payments (GHS)</label><input id="generatedReceiptPrevious" type="number" min="0" step="0.01" value="0"><small>Enter payments already received before this receipt.</small></div>
-                <div class="form-group"><label>Amount Received Now (GHS)</label><input id="generatedReceiptAmount" type="number" min="0" step="0.01" value="${initialPayment.toFixed(2)}"></div>
+                <div class="form-group"><label>Amount Received (GHS)</label><input id="generatedReceiptAmount" type="number" min="0" step="0.01" value="${totals.paidDue.toFixed(2)}"></div>
                 <div class="form-group"><label>Payment Method</label><select id="generatedReceiptMethod"><option>Mobile Money</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></div>
                 <div class="form-group"><label>Transaction / Reference</label><input id="generatedReceiptReference" placeholder="Optional transaction reference"></div>
-            </div>
-            <div class="form-grid receipt-live-summary">
-                <div class="form-group"><label>Paid To Date</label><input id="generatedReceiptPaidToDate" readonly></div>
-                <div class="form-group"><label>Paid Percentage</label><input id="generatedReceiptPaidPercent" readonly></div>
-                <div class="form-group"><label>Balance Remaining</label><input id="generatedReceiptBalance" readonly></div>
-                <div class="form-group"><label>Payment Status</label><input id="generatedReceiptStatus" readonly></div>
             </div>
             <div class="form-grid">
                 <div class="form-group"><label>Customer Name</label><input id="generatedReceiptCustomer" value="${escapeHTML(customer)}"></div>
@@ -1536,33 +1523,10 @@ function openReceiptGenerator() {
     `;
 
     const preview = modal.querySelector("#generatedReceiptPreview");
-    function calculatePayment() {
-        const previous = Math.max(0, Number(document.getElementById("generatedReceiptPrevious")?.value || 0));
-        const current = Math.max(0, Number(document.getElementById("generatedReceiptAmount")?.value || 0));
-        const paidToDate = Math.min(totals.total, previous + current);
-        const paidPercent = totals.total > 0 ? (paidToDate / totals.total) * 100 : 0;
-        const balance = Math.max(0, totals.total - paidToDate);
-        let status = "No Payment Recorded";
-        if (current > 0 && paidToDate >= totals.total - 0.005) {
-            status = previous > 0 ? "Balance Payment — Fully Paid" : "Full Payment — Fully Paid";
-        } else if (paidToDate > 0 && previous === 0 && Math.abs(paidToDate - initialPayment) < 0.01) {
-            status = `Initial Payment — ${depositPercent}% Paid`;
-        } else if (paidToDate > 0 && previous > 0) {
-            status = "Part Payment — Balance Outstanding";
-        } else if (paidToDate > 0) {
-            status = "Part Payment — Balance Outstanding";
-        }
-        return { previous, current, paidToDate, paidPercent, balance, status };
-    }
-
     function renderReceipt() {
-        const payment = calculatePayment();
-        document.getElementById("generatedReceiptPaidToDate").value = `GHS ${payment.paidToDate.toFixed(2)}`;
-        document.getElementById("generatedReceiptPaidPercent").value = `${payment.paidPercent.toFixed(0)}%`;
-        document.getElementById("generatedReceiptBalance").value = `GHS ${payment.balance.toFixed(2)}`;
-        document.getElementById("generatedReceiptStatus").value = payment.status;
+        const amount = Math.max(0, Number(document.getElementById("generatedReceiptAmount")?.value || 0));
+        const remaining = Math.max(0, totals.total - amount);
         const logoSrc = new URL("../icons/Aprils Signature logo.jpeg", window.location.href).href;
-        const displayStatus = payment.status.toUpperCase();
         preview.innerHTML = `
             <div class="receipt-paper" id="receiptPaper">
                 <div class="receipt-brand-row">
@@ -1570,7 +1534,7 @@ function openReceiptGenerator() {
                     <div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div>
                     <div class="receipt-meta"><strong>PAYMENT RECEIPT</strong><span>Receipt No: ${escapeHTML(document.getElementById("generatedReceiptNumber").value)}</span><span>Date: ${escapeHTML(document.getElementById("generatedReceiptDate").value)}</span></div>
                 </div>
-                <div class="receipt-status">${escapeHTML(displayStatus)}</div>
+                <div class="receipt-status">PAYMENT RECEIVED</div>
                 <div class="receipt-customer">
                     <div><strong>Received From</strong><br>${escapeHTML(document.getElementById("generatedReceiptCustomer").value)}<br>${escapeHTML(document.getElementById("generatedReceiptPhone").value)}<br>${escapeHTML(document.getElementById("generatedReceiptEmail").value)}</div>
                     <div><strong>Reference Invoice</strong><br>${escapeHTML(document.getElementById("generatedReceiptInvoiceNumber").value)}<br><strong>Payment Method</strong><br>${escapeHTML(document.getElementById("generatedReceiptMethod").value)}<br><strong>Transaction Reference</strong><br>${escapeHTML(document.getElementById("generatedReceiptReference").value || "—")}</div>
@@ -1580,13 +1544,11 @@ function openReceiptGenerator() {
                 </tbody></table>
                 <div class="receipt-summary">
                     <p>Invoice Total: <strong>GHS ${totals.total.toFixed(2)}</strong></p>
-                    <p>Previous Payments: <strong>GHS ${payment.previous.toFixed(2)}</strong></p>
-                    <p>Payment Received Now: <strong>GHS ${payment.current.toFixed(2)}</strong></p>
-                    <p>Total Paid To Date: <strong>GHS ${payment.paidToDate.toFixed(2)} (${payment.paidPercent.toFixed(0)}%)</strong></p>
-                    <p>Balance Remaining: <strong>GHS ${payment.balance.toFixed(2)} (${Math.max(0,100-payment.paidPercent).toFixed(0)}%)</strong></p>
+                    <p>Amount Received: <strong>GHS ${amount.toFixed(2)}</strong></p>
+                    <p>Balance Remaining: <strong>GHS ${remaining.toFixed(2)}</strong></p>
                 </div>
                 <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
-                <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above. It does not constitute automatic bank or Mobile Money verification.</div>
+                <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
             </div>
         `;
     }
@@ -1600,7 +1562,7 @@ function openReceiptGenerator() {
     modal.querySelector("#receiptEmail").onclick = () => shareGeneratedReceiptEmail();
     backdrop.style.display = "block";
     modal.classList.add("open");
-    window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals, calculatePayment };
+    window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals };
 }
 
 function closeReceiptGenerator() {
@@ -1649,8 +1611,7 @@ function getGeneratedReceiptShareText() {
     const state = window._aprilsCurrentReceipt;
     if (!state) return "";
     state.renderReceipt();
-    const payment = state.calculatePayment ? state.calculatePayment() : {paidToDate:0,paidPercent:0,balance:0};
-    return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nPayment Received Now: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nPaid To Date: GHS ${payment.paidToDate.toFixed(2)} (${payment.paidPercent.toFixed(0)}%)\nBalance: GHS ${payment.balance.toFixed(2)}\nStatus: ${document.getElementById("generatedReceiptStatus")?.value || ""}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
+    return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nAmount Received: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
 }
 
 function shareGeneratedReceiptWhatsApp() {
