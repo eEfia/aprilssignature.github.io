@@ -14,7 +14,7 @@
 
 
 function escapeHTML(value) {
-    return String(value ??
+    return String(value ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -906,9 +906,37 @@ async function loadPublicStreetwearProducts() {
             catch (_) { return null; }
         }).filter(row => row && row.name && row.active !== false);
 
+        const requestedStreetwearOrder = [
+            "jerseys",
+            "hoodies",
+            "joggers super thick cotton joggers",
+            "joggers everyday wear type",
+            "t-shirts",
+            "polo shirts",
+            "sweatshirts",
+            "sweatpants",
+            "ladies tank tops",
+            "men's tank tops",
+            "varsity jackets",
+            "cargo pants",
+            "cargo skirts",
+            "jogger shorts",
+            "hoodies & joggers set",
+            "t-shirts & shorts set",
+            "t-shirt & sweatpants set",
+            "sweatshirts & shorts set",
+            "sweatshirts & sweatpants set"
+        ];
+        const requestedOrder = new Map(requestedStreetwearOrder.map((name, index) => [name, index + 1]));
         const streetwear = products
             .filter(row => String(row.category || "").toLowerCase() === "streetwear")
-            .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
+            .sort((a,b) => {
+                const an = String(a.name || "").trim().toLowerCase();
+                const bn = String(b.name || "").trim().toLowerCase();
+                const ao = requestedOrder.has(an) ? requestedOrder.get(an) : 9999;
+                const bo = requestedOrder.has(bn) ? requestedOrder.get(bn) : 9999;
+                return ao - bo || String(a.name || "").localeCompare(String(b.name || ""));
+            });
 
         if (streetwear.length) renderProducts(streetwear);
     } catch (error) {
@@ -1002,6 +1030,13 @@ function setupMediaInteractions() {
 }
 
 
+function resolvePublicMediaUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^(https?:|data:|blob:|\/)/i.test(raw)) return raw;
+    return raw.replace(/^(\.\.\/)+/, "");
+}
+
 async function loadPublicFeaturedCollection() {
     if (!document.body.classList.contains("home-page")) return;
 
@@ -1050,7 +1085,7 @@ async function loadPublicFeaturedCollection() {
             </div>
             <div class="featured-grid">
                 ${featured.map(row => {
-                    const mediaUrl = row.url || row.image_url || "";
+                    const mediaUrl = resolvePublicMediaUrl(row.url || row.image_url || "");
                     const media = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl)
                         ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(mediaUrl)}" type="video/mp4"></video></div>`
                         : `<div class="featured-video"><img src="${escapeHTML(mediaUrl)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
@@ -1106,12 +1141,12 @@ async function loadPublicGallery() {
     const collectionOrder = new Map();
     try {
         const collections = await loadPublicRows("gallery_collections");
-        collections.forEach(row => collectionOrder.set(String(row.name || ""), Number(row.display_order ?? 9999)));
+        collections.forEach(row => collectionOrder.set(String(row.name || "").trim().toLowerCase(), Number(row.display_order ?? 9999)));
     } catch (_) {}
 
     const fragment = document.createDocumentFragment();
 
-    Object.keys(groups).sort((a,b) => (collectionOrder.get(a) ?? 9999) - (collectionOrder.get(b) ?? 9999) || a.localeCompare(b)).forEach(category => {
+    Object.keys(groups).sort((a,b) => (collectionOrder.get(String(a).trim().toLowerCase()) ?? Math.min(...groups[a].map(r => Number(r.display_order ?? 9999)))) - (collectionOrder.get(String(b).trim().toLowerCase()) ?? Math.min(...groups[b].map(r => Number(r.display_order ?? 9999)))) || a.localeCompare(b)).forEach(category => {
         groups[category].sort((a,b) => Number(a.display_order ?? 9999) - Number(b.display_order ?? 9999) || String(a.title || "").localeCompare(String(b.title || "")));
         const section = document.createElement("section");
         section.className = "full-gallery";
@@ -1122,9 +1157,9 @@ async function loadPublicGallery() {
                     ${groups[category].map(row => `
                         <article class="gallery-item">
                             <div class="gallery-image">
-                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url || "")
-                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(row.image_url)}" type="video/mp4"></video>`
-                                    : `<img src="${escapeHTML(row.image_url)}" alt="${escapeHTML(row.title || category)}">`}
+                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(resolvePublicMediaUrl(row.image_url || ""))
+                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" type="video/mp4"></video>`
+                                    : `<img src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" alt="${escapeHTML(row.title || category)}">`}
                             </div>
                             ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
                             ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
@@ -1194,26 +1229,65 @@ async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
     const rows = await loadPublicRows("training_programs");
-    if (!rows.length) return;
 
-    const supabase = await waitForSupabase();
-    let publicPrices = {};
-    if (supabase) {
-        const settingsResult = await supabase.from("settings").select("setting_key,setting_value").like("setting_key", "public_training_price_%");
-        if (!settingsResult.error) {
-            (settingsResult.data || []).forEach(r => { try { const x = JSON.parse(r.setting_value || "{}"); if (x.name) publicPrices[String(x.name).trim().toLowerCase()] = x.price; } catch (_) {} });
+    const desired = [
+        {
+            title: "3 Months Beginners Fashion Training",
+            aliases: ["3 months beginners fashion training", "3 months beginner's fashion training"],
+            fallback: "A practical programme designed for beginners who want to develop foundational fashion skills."
+        },
+        {
+            title: "6 Months Fashion Training",
+            aliases: ["6 months fashion training"],
+            fallback: "A more detailed training programme for learners who want to improve their fashion knowledge and practical skills."
+        },
+        {
+            title: "1 Year Fashion Training",
+            aliases: ["1 year fashion training"],
+            fallback: "A comprehensive programme covering a wider range of fashion techniques and production skills."
+        },
+        {
+            title: "3 Years Apprenticeship Training",
+            aliases: ["3 years apprenticeship training"],
+            fallback: "A long-term practical apprenticeship programme focused on developing professional fashion skills."
+        },
+        {
+            title: "1 Month Streetwear Class",
+            aliases: ["1 month streetwear class"],
+            fallback: "For those who can already cut and sew without supervision and want to upgrade in streetwear."
+        },
+        {
+            title: "3 Months Advanced Streetwear Class",
+            aliases: ["3 months advanced streetwear class", "3 months advanced streetwear"],
+            fallback: "For those with basic sewing knowledge who want to advance their streetwear skills."
+        },
+        {
+            title: "6 Months Beginners' Streetwear Class",
+            aliases: ["6 months beginners' streetwear class", "6 months beginners streetwear class"],
+            fallback: "For absolute beginners interested in learning streetwear production."
         }
-    }
+    ];
+
+    const normalized = value => String(value || "").trim().toLowerCase().replace(/[’']/g, "'");
+
+    const cards = desired.map(item => {
+        const match = rows.find(row => item.aliases.includes(normalized(row.title)));
+        return {
+            title: item.title,
+            description: match?.description || item.fallback,
+            active: match?.active !== false
+        };
+    }).filter(item => item.active);
 
     const grid = document.querySelector(".training-section .training-grid");
     if (!grid) return;
 
-    grid.innerHTML = rows.map(row => `
+    // Keep the public training cards to the seven programmes requested for the
+    // top card area. Specialty classes below remain separate.
+    grid.innerHTML = cards.map(row => `
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
-            ${row.duration ? `<p><strong>Duration:</strong> ${escapeHTML(row.duration)}</p>` : ""}
-            ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
-            ${publicPrices[String(row.title || "").trim().toLowerCase()] !== undefined && publicPrices[String(row.title || "").trim().toLowerCase()] !== null && publicPrices[String(row.title || "").trim().toLowerCase()] !== "" ? `<p class="service-public-price"><strong>Price:</strong> GHS ${Number(publicPrices[String(row.title || "").trim().toLowerCase()]).toFixed(2)}</p>` : ""}
+            <p>${escapeHTML(row.description)}</p>
         </article>
     `).join("");
 }
@@ -1484,13 +1558,16 @@ async function loadPublicManagedContent() {
                         .slice()
                         .sort((a, b) => (policyRank[String(a.policy_key || "").toLowerCase()] || 99) - (policyRank[String(b.policy_key || "").toLowerCase()] || 99))
                         .forEach(row => {
+                            const policyKey = String(row.policy_key || "").toLowerCase();
+                            const policyNumber = policyRank[policyKey] || "";
                             const cleanTitle = String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, "");
+                            const displayTitle = policyNumber ? `${policyNumber}. ${cleanTitle}` : cleanTitle;
                             const section = document.createElement("section");
                             section.className = "policy-section";
                             const container = document.createElement("div");
                             container.className = "container";
                             const heading = document.createElement("h2");
-                            heading.textContent = cleanTitle;
+                            heading.textContent = displayTitle;
                             container.appendChild(heading);
 
                             const rawContent = String(row.content || "");
@@ -1498,6 +1575,29 @@ async function loadPublicManagedContent() {
                             paragraphs.forEach(textBlock => {
                                 const clean = textBlock.trim();
                                 if (!clean) return;
+                                if (policyKey === "privacy_policy" && /the information we may collect includes/i.test(clean)) {
+                                    const intro = document.createElement("p");
+                                    intro.textContent = "The information we may collect includes:";
+                                    container.appendChild(intro);
+                                    const ul = document.createElement("ul");
+                                    [
+                                        "Name",
+                                        "Phone number",
+                                        "Email address",
+                                        "Delivery or pickup details",
+                                        "Measurements",
+                                        "Uploaded garments photos or mockups",
+                                        "Any other information you may choose to provide",
+                                        "The order request code from the selection area"
+                                    ].forEach(item => {
+                                        const li = document.createElement("li");
+                                        li.textContent = item;
+                                        ul.appendChild(li);
+                                    });
+                                    container.appendChild(ul);
+                                    return;
+                                }
+
                                 const trainingMatch = clean.match(/^For any form of (fashion training|training)\s*\n([\s\S]*)$/i);
                                 if (trainingMatch) {
                                     const note = document.createElement("div");
@@ -1507,9 +1607,10 @@ async function loadPublicManagedContent() {
                                     note.appendChild(h3);
                                     const body = trainingMatch[2].trim();
                                     if (body) {
-                                        if (/^[-•]/.test(body)) {
+                                        const items = body.split(/\n/).map(x => x.trim()).filter(Boolean);
+                                        if (items.length && items.every(item => /^[-•]/.test(item))) {
                                             const ul = document.createElement("ul");
-                                            body.split(/\n/).filter(Boolean).forEach(item => {
+                                            items.forEach(item => {
                                                 const li = document.createElement("li");
                                                 li.textContent = item.replace(/^[-•]\s*/, "");
                                                 ul.appendChild(li);
@@ -1523,9 +1624,21 @@ async function loadPublicManagedContent() {
                                     }
                                     container.appendChild(note);
                                 } else {
-                                    const p = document.createElement("p");
-                                    p.textContent = clean;
-                                    container.appendChild(p);
+                                    const lines = clean.split(/\n/).map(x => x.trim()).filter(Boolean);
+                                    const bulletLines = lines.filter(line => /^[-•]/.test(line));
+                                    if (bulletLines.length === lines.length && bulletLines.length) {
+                                        const ul = document.createElement("ul");
+                                        bulletLines.forEach(item => {
+                                            const li = document.createElement("li");
+                                            li.textContent = item.replace(/^[-•]\s*/, "");
+                                            ul.appendChild(li);
+                                        });
+                                        container.appendChild(ul);
+                                    } else {
+                                        const p = document.createElement("p");
+                                        p.textContent = clean;
+                                        container.appendChild(p);
+                                    }
                                 }
                             });
                             section.appendChild(container);
@@ -1537,6 +1650,31 @@ async function loadPublicManagedContent() {
         }
     } catch (error) {
         console.warn("Public policies could not be loaded:", error);
+    }
+}
+
+async function loadPublicContactExtras() {
+    try {
+        const settings = await loadPublicRows("settings");
+        const row = settings.find(item => String(item.setting_key || "") === "contact_extra");
+        if (!row?.setting_value) return;
+        let extras = [];
+        try { extras = JSON.parse(row.setting_value); } catch (_) { return; }
+        if (!Array.isArray(extras) || !extras.length) return;
+
+        document.querySelectorAll(".footer-column").forEach(column => {
+            if (!/^contact$/i.test(String(column.querySelector("h3")?.textContent || "").trim())) return;
+            if (column.querySelector("[data-public-contact-extras]")) return;
+            const box = document.createElement("div");
+            box.setAttribute("data-public-contact-extras", "true");
+            box.style.marginTop = "12px";
+            box.innerHTML = extras.map(item =>
+                `<p><strong>${escapeHTML(item.label || "")}:</strong><br>${escapeHTML(item.value || "")}</p>`
+            ).join("");
+            column.appendChild(box);
+        });
+    } catch (error) {
+        console.warn("Additional public contact details could not be loaded:", error);
     }
 }
 
@@ -1581,7 +1719,8 @@ async function setupPublicDatabaseContent() {
         loadPublicTestimonials(),
         loadPublicFAQs(),
         loadPublicManagedContent(),
-        loadPublicLogoSetting()
+        loadPublicLogoSetting(),
+        loadPublicContactExtras()
     ]);
     setupMediaInteractions();
 }

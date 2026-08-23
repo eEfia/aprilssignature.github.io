@@ -223,7 +223,7 @@ PUBLIC FORM FIXES
                 // has not loaded yet. The same streetwear size/measurements and colour(s)
                 // apply to the whole streetwear request.
                 [
-                    "jerseys", "hoodies", "joggers", "tshirts", "poloShirts",
+                    "jerseys", "hoodies", "joggersSuperThick", "joggersEveryday", "tshirts", "poloShirts",
                     "sweatshirts", "sweatpants", "ladiesTankTops", "mensTankTops",
                     "varsityJackets", "cargoPants", "cargoSkirts", "joggerShorts",
                     "hoodiesJoggersSet", "tshirtsShortsSet", "tshirtSweatpantsSet",
@@ -232,8 +232,31 @@ PUBLIC FORM FIXES
                     if (form.querySelector('input[name="' + name + '"][data-streetwear-product="true"]')) return;
                     const raw = String(data.get(name) || "").trim();
                     if (raw !== "" && Number(raw) > 0) {
+                        const input = form.querySelector('input[name="' + name + '"]');
+                        const label = input?.closest(".form-group")?.querySelector("label")?.textContent?.trim();
+                        const productNames = {
+                            jerseys: "Jerseys",
+                            hoodies: "Hoodies",
+                            joggersSuperThick: "Joggers — Super Thick Cotton Joggers",
+                            joggersEveryday: "Joggers — Everyday Wear Type",
+                            tshirts: "T-shirts",
+                            poloShirts: "Polo Shirts",
+                            sweatshirts: "Sweatshirts",
+                            sweatpants: "Sweatpants",
+                            ladiesTankTops: "Ladies Tank Tops",
+                            mensTankTops: "Men's Tank Tops",
+                            varsityJackets: "Varsity Jackets",
+                            cargoPants: "Cargo Pants",
+                            cargoSkirts: "Cargo Skirts",
+                            joggerShorts: "Jogger Shorts",
+                            hoodiesJoggersSet: "Hoodies & Joggers Set",
+                            tshirtsShortsSet: "T-shirts & Shorts Set",
+                            tshirtSweatpantsSet: "T-shirt & Sweatpants Set",
+                            sweatshirtsShortsSet: "Sweatshirts & Shorts Set",
+                            sweatshirtsSweatpantsSet: "Sweatshirts & Sweatpants Set"
+                        };
                         details.streetwear[name] = {
-                            product: name,
+                            product: productNames[name] || label || name,
                             quantity: raw,
                             size: details.streetwearSizeMeasurements,
                             measurements: "",
