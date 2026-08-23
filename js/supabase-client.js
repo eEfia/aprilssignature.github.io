@@ -2,7 +2,7 @@
 
     "use strict";
 
-    if (!window.APRILS_SUPABASE_CONFIG) {
+    if (!window.APR,lILS_SUPABASE_CONFIG) {
 
         console.error(
             "Supabase configuration was not found."
