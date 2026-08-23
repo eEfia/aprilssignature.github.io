@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Order / Request a Quote | Aprils Sature</title>
+    <title>Order / Request a Quote | Aprils Signature</title>
 
     <meta
         name="description"
@@ -578,9 +578,18 @@
 
 <section class="form-section hidden-section" id="streetwearSection">
     <h2>Streetwear Product Selection</h2>
-    <p>Select the streetwear products you need and enter quantities. Streetwear size / measurements are collected here only.</p>
+    <p>Select the streetwear products you need and enter the quantities. Size / measurements and colour(s) are collected once for the streetwear request, not separately for every product.</p>
 
-    <p class="field-help">For each selected streetwear product, enter the Size (UK), Measurements, Colour and Quantity.</p>
+    <div class="streetwear-global-details">
+        <div class="form-group">
+            <label for="streetwearSizeMeasurements">Size (UK) / Measurements</label>
+            <textarea id="streetwearSizeMeasurements" name="streetwearSizeMeasurements" placeholder="Enter the size (UK) or provide measurements."></textarea>
+        </div>
+        <div class="form-group">
+            <label for="streetwearColour">Colour (S)</label>
+            <input type="text" id="streetwearColour" name="streetwearColour" placeholder="Enter one or more colours.">
+        </div>
+    </div>
 
     <div id="streetwearProductsDynamic">
         <div class="quantity-row">
