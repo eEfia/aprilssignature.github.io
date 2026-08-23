@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">xz,xx
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Order / Request a Quote | Aprils Signature</title>
 
@@ -140,6 +140,25 @@
             gap: 15px;
             align-items: end;
             margin-bottom: 15px;
+        }
+
+        .streetwear-product-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            align-items: end;
+            padding: 15px 0;
+            border-bottom: 1px solid #e5e5e5;
+        }
+
+        .streetwear-product-row .form-group {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 760px) {
+            .streetwear-product-row {
+                grid-template-columns: 1fr;
+            }
         }
 
         .upload-box {
@@ -561,14 +580,7 @@
     <h2>Streetwear Product Selection</h2>
     <p>Select the streetwear products you need and enter quantities. Streetwear size / measurements are collected here only.</p>
 
-    <div class="form-group">
-        <label for="streetwearSize">Streetwear Size (UK) / Measurements</label>
-        <textarea id="streetwearSize" name="streetwearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
-    </div>
-    <div class="form-group">
-        <label for="streetwearColour">Colour</label>
-        <input type="text" id="streetwearColour" name="streetwearColour" placeholder="Example: Black, Red, White, Navy Blue, etc.">
-    </div>
+    <p class="field-help">For each selected streetwear product, enter the Size (UK), Measurements, Colour and Quantity.</p>
 
     <div id="streetwearProductsDynamic">
         <div class="quantity-row">
@@ -706,7 +718,7 @@
     </div>
     <div class="form-group">
         <label for="ladiesWearColour">Colour</label>
-        <input type="text" id="ladiesWearColour" name="ladiesWearColour" placeholder="Example: Black, Red, White, Emerald Green, etc.">
+        <input type="text" id="ladiesWearColour" name="ladiesWearColour" placeholder="e.g. Black, Navy Blue">
     </div>
     <div class="form-group">
         <label for="ladiesWearQuantity">Quantity</label>
@@ -727,7 +739,7 @@
     </div>
     <div class="form-group">
         <label for="kidsWearColour">Colour</label>
-        <input type="text" id="kidsWearColour" name="kidsWearColour" placeholder="Example: Black, Red, White, Blue, etc.">
+        <input type="text" id="kidsWearColour" name="kidsWearColour" placeholder="e.g. Black, Navy Blue">
     </div>
     <div class="form-group">
         <label for="kidsWearQuantity">Quantity</label>
@@ -747,122 +759,166 @@
 >
 
     <h2>Embellishment Services Selection</h2>
-    <p class="field-help">Select the embellishment service you need. The size/measurements, quantity and details fields will appear only for the service you select.</p>
+    <p class="field-help">Select one or more embellishment services. The details for each selected service will appear underneath it.</p>
 
     <div class="product-options">
 
         <label class="check-option">
-            <input type="checkbox" name="embellishment[]" value="Rhinestone Embellishment" data-embellishment-key="rhinestone">
-            <span>Rhinestone Embellishment</span>
+            <input type="checkbox" name="embellishment[]" value="Rhinestone Embellishment">
+            Rhinestone Embellishment
         </label>
-        <div class="embellishment-detail-field" data-embellishment-detail="rhinestone" style="display:none;">
-            <div class="form-group">
-                <label for="rhinestoneSize">Size / Measurements</label>
-                <textarea id="rhinestoneSize" name="rhinestoneSize" placeholder="Enter the size or measurements of the item to be embellished."></textarea>
+
+        <label class="check-option">
+            <input type="checkbox" name="embellishment[]" value="Screen Printing">
+            Screen Printing
+        </label>
+
+        <label class="check-option">
+            <input type="checkbox" name="embellishment[]" value="Fabric Painting">
+            Fabric Painting
+        </label>
+
+        <label class="check-option">
+            <input type="checkbox" name="embellishment[]" value="Glitter Works">
+            Glitter Works
+        </label>
+
+        <label class="check-option">
+            <input type="checkbox" name="embellishment[]" value="Others">
+            Others
+        </label>
+
+    </div>
+
+    <div id="embellishmentDetailsContainer" style="margin-top:15px;">
+
+        <div class="embellishment-detail-panel hidden-section" data-embellishment-detail="Rhinestone Embellishment" style="display:none;">
+            <h3>Rhinestone Embellishment Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Size (UK)</label>
+                    <input type="text" name="embellishmentSize[Rhinestone Embellishment]" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Measurements</label>
+                    <textarea name="embellishmentMeasurements[Rhinestone Embellishment]" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <input type="text" name="embellishmentColour[Rhinestone Embellishment]" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" name="embellishmentQuantity[Rhinestone Embellishment]" min="1" value="1">
+                </div>
             </div>
             <div class="form-group">
-                <label for="rhinestoneQuantity">Quantity</label>
-                <input type="number" id="rhinestoneQuantity" name="rhinestoneQuantity" min="1" value="1">
-            </div>
-            <div class="form-group">
-                <label for="rhinestoneColour">Colour</label>
-                <input type="text" id="rhinestoneColour" name="rhinestoneColour" placeholder="Example: Black, Red, Gold, Silver, etc.">
-            </div>
-            <div class="form-group">
-                <label for="rhinestoneDetails">Details / Style Request</label>
-                <textarea id="rhinestoneDetails" name="rhinestoneDetails" placeholder="Describe the rhinestone design, placement or style you want."></textarea>
+                <label>Details / Style Request</label>
+                <textarea name="embellishmentDetails[Rhinestone Embellishment]" placeholder="Describe the embellishment, placement, design or style you want."></textarea>
             </div>
         </div>
 
-        <label class="check-option">
-            <input type="checkbox" name="embellishment[]" value="Screen Printing" data-embellishment-key="screenPrinting">
-            <span>Screen Printing</span>
-        </label>
-        <div class="embellishment-detail-field" data-embellishment-detail="screenPrinting" style="display:none;">
-            <div class="form-group">
-                <label for="screenPrintingSize">Size / Measurements</label>
-                <textarea id="screenPrintingSize" name="screenPrintingSize" placeholder="Enter the size or measurements of the item to be printed."></textarea>
+        <div class="embellishment-detail-panel hidden-section" data-embellishment-detail="Screen Printing" style="display:none;">
+            <h3>Screen Printing Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Size (UK)</label>
+                    <input type="text" name="embellishmentSize[Screen Printing]" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Measurements</label>
+                    <textarea name="embellishmentMeasurements[Screen Printing]" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <input type="text" name="embellishmentColour[Screen Printing]" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" name="embellishmentQuantity[Screen Printing]" min="1" value="1">
+                </div>
             </div>
             <div class="form-group">
-                <label for="screenPrintingQuantity">Quantity</label>
-                <input type="number" id="screenPrintingQuantity" name="screenPrintingQuantity" min="1" value="1">
-            </div>
-            <div class="form-group">
-                <label for="screenPrintingColour">Colour</label>
-                <input type="text" id="screenPrintingColour" name="screenPrintingColour" placeholder="Example: Black, Red, Gold, Silver, etc.">
-            </div>
-            <div class="form-group">
-                <label for="screenPrintingDetails">Details / Style Request</label>
-                <textarea id="screenPrintingDetails" name="screenPrintingDetails" placeholder="Describe the print, artwork, placement or style you want."></textarea>
-            </div>
-        </div>
-
-        <label class="check-option">
-            <input type="checkbox" name="embellishment[]" value="Fabric Painting" data-embellishment-key="fabricPainting">
-            <span>Fabric Painting</span>
-        </label>
-        <div class="embellishment-detail-field" data-embellishment-detail="fabricPainting" style="display:none;">
-            <div class="form-group">
-                <label for="fabricPaintingSize">Size / Measurements</label>
-                <textarea id="fabricPaintingSize" name="fabricPaintingSize" placeholder="Enter the size or measurements of the item to be painted."></textarea>
-            </div>
-            <div class="form-group">
-                <label for="fabricPaintingQuantity">Quantity</label>
-                <input type="number" id="fabricPaintingQuantity" name="fabricPaintingQuantity" min="1" value="1">
-            </div>
-            <div class="form-group">
-                <label for="fabricPaintingColour">Colour</label>
-                <input type="text" id="fabricPaintingColour" name="fabricPaintingColour" placeholder="Example: Black, Red, Gold, Silver, etc.">
-            </div>
-            <div class="form-group">
-                <label for="fabricPaintingDetails">Details / Style Request</label>
-                <textarea id="fabricPaintingDetails" name="fabricPaintingDetails" placeholder="Describe the painting, artwork, placement or style you want."></textarea>
+                <label>Details / Style Request</label>
+                <textarea name="embellishmentDetails[Screen Printing]" placeholder="Describe the printing, placement, design or style you want."></textarea>
             </div>
         </div>
 
-        <label class="check-option">
-            <input type="checkbox" name="embellishment[]" value="Glitter Works" data-embellishment-key="glitterWorks">
-            <span>Glitter Works</span>
-        </label>
-        <div class="embellishment-detail-field" data-embellishment-detail="glitterWorks" style="display:none;">
-            <div class="form-group">
-                <label for="glitterWorksSize">Size / Measurements</label>
-                <textarea id="glitterWorksSize" name="glitterWorksSize" placeholder="Enter the size or measurements of the item."></textarea>
+        <div class="embellishment-detail-panel hidden-section" data-embellishment-detail="Fabric Painting" style="display:none;">
+            <h3>Fabric Painting Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Size (UK)</label>
+                    <input type="text" name="embellishmentSize[Fabric Painting]" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Measurements</label>
+                    <textarea name="embellishmentMeasurements[Fabric Painting]" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <input type="text" name="embellishmentColour[Fabric Painting]" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" name="embellishmentQuantity[Fabric Painting]" min="1" value="1">
+                </div>
             </div>
             <div class="form-group">
-                <label for="glitterWorksQuantity">Quantity</label>
-                <input type="number" id="glitterWorksQuantity" name="glitterWorksQuantity" min="1" value="1">
-            </div>
-            <div class="form-group">
-                <label for="glitterWorksColour">Colour</label>
-                <input type="text" id="glitterWorksColour" name="glitterWorksColour" placeholder="Example: Black, Red, Gold, Silver, etc.">
-            </div>
-            <div class="form-group">
-                <label for="glitterWorksDetails">Details / Style Request</label>
-                <textarea id="glitterWorksDetails" name="glitterWorksDetails" placeholder="Describe the glitter work, placement or style you want."></textarea>
+                <label>Details / Style Request</label>
+                <textarea name="embellishmentDetails[Fabric Painting]" placeholder="Describe the painting, placement, design or style you want."></textarea>
             </div>
         </div>
 
-        <label class="check-option">
-            <input type="checkbox" name="embellishment[]" value="Others" data-embellishment-key="others">
-            <span>Others</span>
-        </label>
-        <div class="embellishment-detail-field" data-embellishment-detail="others" style="display:none;">
-            <div class="form-group">
-                <label for="embellishmentOtherSize">Size / Measurements</label>
-                <textarea id="embellishmentOtherSize" name="embellishmentOtherSize" placeholder="Enter the size or measurements, if applicable."></textarea>
+        <div class="embellishment-detail-panel hidden-section" data-embellishment-detail="Glitter Works" style="display:none;">
+            <h3>Glitter Works Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Size (UK)</label>
+                    <input type="text" name="embellishmentSize[Glitter Works]" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Measurements</label>
+                    <textarea name="embellishmentMeasurements[Glitter Works]" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <input type="text" name="embellishmentColour[Glitter Works]" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" name="embellishmentQuantity[Glitter Works]" min="1" value="1">
+                </div>
             </div>
             <div class="form-group">
-                <label for="embellishmentOtherQuantity">Quantity</label>
-                <input type="number" id="embellishmentOtherQuantity" name="embellishmentOtherQuantity" min="1" value="1">
+                <label>Details / Style Request</label>
+                <textarea name="embellishmentDetails[Glitter Works]" placeholder="Describe the glitter work, placement, design or style you want."></textarea>
+            </div>
+        </div>
+
+        <div class="embellishment-detail-panel hidden-section" data-embellishment-detail="Others" style="display:none;">
+            <h3>Other Embellishment Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Size (UK)</label>
+                    <input type="text" name="embellishmentSize[Others]" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label>Measurements</label>
+                    <textarea name="embellishmentMeasurements[Others]" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Colour</label>
+                    <input type="text" name="embellishmentColour[Others]" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" name="embellishmentQuantity[Others]" min="1" value="1">
+                </div>
             </div>
             <div class="form-group">
-                <label for="embellishmentOtherColour">Colour</label>
-                <input type="text" id="embellishmentOtherColour" name="embellishmentOtherColour" placeholder="Example: Black, Red, Gold, Silver, etc.">
-            </div>
-            <div class="form-group">
-                <label for="embellishmentOther">Specify Your Request / Details</label>
-                <textarea id="embellishmentOther" name="embellishmentOther" placeholder="Please specify the embellishment service and describe what you want."></textarea>
+                <label>Specify Your Request</label>
+                <textarea name="embellishmentDetails[Others]" placeholder="Please specify the embellishment service you need."></textarea>
             </div>
         </div>
 
@@ -1169,11 +1225,11 @@ All rights reserved.
 
 
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260822"></script>
-<script src="js/supabase-client.js?v=20260822"></script>
+<script src="js/supabase-config.js?v=20260823"></script>
+<script src="js/supabase-client.js?v=20260823"></script>
 
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script src="js/form-fixes.js?v=20260822" defer></script> <script src="js/script.js?v=20260822" defer></script>
+<script src="js/form-fixes.js?v=20260823" defer></script> <script src="js/script.js?v=20260823" defer></script>
 
 </body>
 
