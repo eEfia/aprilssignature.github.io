@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Return Customer Discount | Aprils Signature</title>
+<meta name="description" content="Submit your Aprils Signature thank-you-card discount code for your next order.">
+<link rel="stylesheet" href="css/style.css">
+<style>
+.discount-page{padding:65px 20px;background:#fff}.discount-container{max-width:760px;margin:0 auto}.discount-intro{text-align:center;margin-bottom:35px}.discount-intro h1{margin-bottom:14px}.discount-intro p{line-height:1.7}.discount-card{background:#fff;border:1px solid #e5e5e5;padding:34px;box-shadow:0 10px 35px rgba(0,0,0,.06)}.discount-note{background:#f8f8f8;border-left:4px solid #008c95;padding:18px;margin-bottom:24px;line-height:1.7}.discount-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.discount-group{margin-bottom:18px}.discount-group.full{grid-column:1/-1}.discount-group label{display:block;font-weight:600;margin-bottom:7px}.discount-group input,.discount-group textarea{width:100%;padding:13px 14px;border:1px solid #ccc;border-radius:4px;font:inherit;box-sizing:border-box}.discount-group textarea{min-height:110px;resize:vertical}.discount-preview{margin:5px 0 22px;padding:15px;border:1px solid #ddd;background:#fafafa;display:none}.discount-submit{text-align:center;margin-top:24px}.discount-submit button{background:#008c95;color:#fff;border:0;padding:14px 28px;border-radius:4px;font-weight:600;cursor:pointer}.discount-submit button:disabled{opacity:.6;cursor:not-allowed}.discount-status{margin-bottom:18px;padding:12px 14px;border-radius:4px;display:none}.discount-status.success{display:block;background:#eef9f6;border-left:4px solid #008c95}.discount-status.error{display:block;background:#fff1f1;border-left:4px solid #b00020}@media(max-width:700px){.discount-grid{grid-template-columns:1fr}.discount-group.full{grid-column:auto}.discount-card{padding:22px}}
+</style>
+</head>
+<body>
+<header class="site-header">
+<div class="container">
+<a href="index.html" class="logo-link"><img src="icons/Aprils Signature logo.jpeg" alt="Aprils Signature"></a>
+<nav aria-label="Main navigation"><a href="index.html">Home</a><a href="gallery.html">Gallery</a><a href="quotes.html">Order / Request a Quote</a><a href="training.html">Training</a></nav>
+</div>
+</header>
+<main class="discount-page">
+<div class="discount-container">
+<div class="discount-intro"><h1>Return Customer Discount</h1><p>Thank you for choosing Aprils Signature again. Enter the code from your thank-you card below so we can verify your <strong>10% discount</strong> for your next eligible order.</p></div>
+<div class="discount-card">
+<div id="discountStatus" class="discount-status"></div>
+<div class="discount-note"><strong>How it works:</strong> Submit the code before or while discussing your next order. Your request is recorded for verification. The discount is applied by Aprils Signature and the redemption is marked as used after it has been applied to your order.</div>
+<form id="returnDiscountForm">
+<div class="discount-grid">
+<div class="discount-group"><label for="returnDiscountCode">Discount Code <span style="color:#b00020">*</span></label><input id="returnDiscountCode" name="code" required autocomplete="off" placeholder="Enter the code on your card"></div>
+<div class="discount-group"><label for="returnDiscountName">Full Name <span style="color:#b00020">*</span></label><input id="returnDiscountName" name="full_name" required autocomplete="name"></div>
+<div class="discount-group"><label for="returnDiscountPhone">Phone / WhatsApp <span style="color:#b00020">*</span></label><input id="returnDiscountPhone" name="phone" required autocomplete="tel"></div>
+<div class="discount-group"><label for="returnDiscountEmail">Email</label><input id="returnDiscountEmail" name="email" type="email" autocomplete="email"></div>
+<div class="discount-group full"><label for="returnDiscountOrderAmount">Estimated / Current Order Amount (GHS)</label><input id="returnDiscountOrderAmount" name="order_amount" type="number" min="0" step="0.01" placeholder="Optional — helps us calculate your 10% discount"></div>
+</div>
+<div id="discountPreview" class="discount-preview"></div>
+<div class="discount-group"><label for="returnDiscountNotes">Additional Details</label><textarea id="returnDiscountNotes" name="notes" placeholder="Optional order details or anything you would like us to know."></textarea></div>
+<div class="discount-submit"><button id="returnDiscountSubmit" type="submit">Submit Discount Code</button></div>
+</form>
+</div>
+</div>
+</main>
+<footer>
+<div class="container"><p>&copy; <span id="copyrightYear"></span> Aprils Signature. All rights reserved.</p></div>
+</footer>
+<script src="js/supabase-config.js?v=20260823"></script>
+<script src="js/supabase-client.js?v=20260823"></script>
+<script>
+(function(){
+const form=document.getElementById('returnDiscountForm'), status=document.getElementById('discountStatus'), amount=document.getElementById('returnDiscountOrderAmount'), preview=document.getElementById('discountPreview');
+function show(text,type){status.textContent=text;status.className='discount-status '+type;}
+function updatePreview(){const value=Number(amount.value||0); if(value>0){const discount=value*.10;preview.style.display='block';preview.innerHTML='<strong>Estimated 10% discount:</strong> GHS '+discount.toFixed(2)+'<br><span style="color:#666">Estimated amount after discount: GHS '+(value-discount).toFixed(2)+'</span>';}else{preview.style.display='none';preview.textContent='';}}
+amount.addEventListener('input',updatePreview);
+form.addEventListener('submit',async e=>{e.preventDefault();show('','');status.style.display='none';const button=document.getElementById('returnDiscountSubmit');button.disabled=true;button.textContent='Submitting…';try{for(let i=0;i<80&&!window.aprilsSupabase;i++)await new Promise(r=>setTimeout(r,100));const db=window.aprilsSupabase;if(!db)throw new Error('The submission service is temporarily unavailable. Please try again.');const payload={p_code:document.getElementById('returnDiscountCode').value.trim().toUpperCase(),p_full_name:document.getElementById('returnDiscountName').value.trim(),p_phone:document.getElementById('returnDiscountPhone').value.trim(),p_email:document.getElementById('returnDiscountEmail').value.trim()||null,p_order_amount:Number(amount.value||0)||0,p_notes:document.getElementById('returnDiscountNotes').value.trim()||null};const result=await db.rpc('submit_return_customer_discount',payload);if(result.error)throw result.error;const data=result.data||{};if(data.status==='already_redeemed')throw new Error('This discount code has already been used for these customer details. Please contact Aprils Signature if you believe this is an error.');show('Thank you. Your discount code has been recorded and will be verified by Aprils Signature before the discount is applied.','success');form.reset();updatePreview();}catch(error){console.error(error);show(error.message||'Your discount code could not be submitted. Please try again.','error');}finally{button.disabled=false;button.textContent='Submit Discount Code';}});document.getElementById('copyrightYear').textContent=new Date().getFullYear();
+})();
+</script>
+</body>
+</html>
