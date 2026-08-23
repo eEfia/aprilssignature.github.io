@@ -117,6 +117,32 @@ async function cleanupExactDuplicates() {
         } catch (e) { console.warn("Duplicate cleanup skipped for", table, e); }
     }
 
+    // Customer submissions can also be duplicated by older save handlers. Keep
+    // only one exact-content copy so the dashboard count and request list stay clean.
+    for (const table of ["quote_requests", "training_registrations"]) {
+        try {
+            const result = await db.from(table).select("*");
+            if (result.error || !result.data?.length) continue;
+            const seen = new Set();
+            const duplicateIds = [];
+            for (const row of result.data) {
+                const copy = {...row};
+                delete copy.id;
+                delete copy.created_at;
+                delete copy.updated_at;
+                const key = JSON.stringify(copy, Object.keys(copy).sort());
+                if (seen.has(key)) duplicateIds.push(row.id);
+                else seen.add(key);
+            }
+            if (duplicateIds.length) {
+                const del = await db.from(table).delete().in("id", duplicateIds);
+                if (del.error) console.warn("Submission duplicate cleanup failed for", table, del.error.message);
+            }
+        } catch (e) {
+            console.warn("Submission duplicate cleanup skipped for", table, e);
+        }
+    }
+
     // Settings keys are intended to be unique in practice. Clean duplicate
     // records for managed prefixes so editing an item never leaves a second copy.
     try {
@@ -236,6 +262,7 @@ async function loadSection(id) {
         if (id === "registrations") await loadRegistrations();
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
+        if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
         if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
         if (id === "testimonials") await loadTestimonials();
@@ -243,7 +270,7 @@ async function loadSection(id) {
         if (id === "policies") await loadPolicies();
         if (id === "content") await loadContent();
         if (id === "social") await loadSocial();
-        if (id === "services") await loadServices();
+        if (id === "services") { await loadServices(); await loadTraining(); }
         if (id === "contact") await loadContact();
         if (id === "settings") await loadSettings();
     } catch (error) {
@@ -385,7 +412,7 @@ async function loadGallery() {
                 ${rows.map(row => `
                     <tr>
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
-                        <td>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
+                        <td>${escapeHTML((policyRank[String(row.policy_key||"").toLowerCase()] ? policyRank[String(row.policy_key||"").toLowerCase()] + ". " : "") + String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
                         <td>${escapeHTML(row.category)}</td><td>${escapeHTML(row.display_order ?? 1)}</td>
                         <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
@@ -404,7 +431,35 @@ async function loadGallery() {
     document.getElementById("newGalleryCollectionButton").onclick = addGalleryCollection;
 
     try {
-        const collectionResult = await db.from("gallery_collections").select("id,name,active,display_order").order("display_order", {ascending:true}).order("name");
+        let collectionResult = await db.from("gallery_collections").select("id,name,active,display_order").order("display_order", {ascending:true}).order("name");
+        // Make sure every category currently used by gallery items has one real
+        // collection record. Missing collection rows were the main reason some
+        // collection orders appeared not to respond on the public gallery.
+        if (!collectionResult.error) {
+            const existingCollections = collectionResult.data || [];
+            const usedCategories = [...new Set(rows.map(r => String(r.category || "").trim()).filter(Boolean))];
+            let maxOrder = Math.max(0, ...existingCollections.map(c => Number(c.display_order || 0)));
+            for (const category of usedCategories) {
+                const exists = existingCollections.some(c => String(c.name || "").trim().toLowerCase() === category.toLowerCase());
+                if (!exists) {
+                    maxOrder += 1;
+                    const created = await db.from("gallery_collections").insert({name:category, active:true, display_order:maxOrder});
+                    if (!created.error) existingCollections.push({id:created.data?.[0]?.id, name:category, active:true, display_order:maxOrder});
+                }
+            }
+            // Remove duplicate collection rows with the same name, keeping the first.
+            const seenCollections = new Map();
+            for (const c of existingCollections.slice()) {
+                const key = String(c.name || "").trim().toLowerCase();
+                if (!key) continue;
+                if (seenCollections.has(key) && c.id) {
+                    try { await db.from("gallery_collections").delete().eq("id", c.id); } catch (_) {}
+                } else {
+                    seenCollections.set(key, c.id);
+                }
+            }
+            collectionResult = await db.from("gallery_collections").select("id,name,active,display_order").order("display_order", {ascending:true}).order("name");
+        }
         const collectionBox = document.getElementById("galleryCollectionOrderList");
         if (!collectionResult.error && collectionBox) {
             const collections = collectionResult.data || [];
@@ -728,7 +783,7 @@ async function getTrainingCategories() {
 const DEFAULT_PRODUCTS = [
     ["Streetwear","Jerseys",1],
     ["Streetwear","Hoodies",2],
-    ["Streetwear","Joggers — Super Thick Cutting Joggers",3],
+    ["Streetwear","Joggers — Super Thick Cotton Joggers",3],
     ["Streetwear","Joggers — Everyday Wear Type",4],
     ["Streetwear","T-shirts",5],
     ["Streetwear","Polo Shirts",6],
@@ -1138,14 +1193,20 @@ function setupDirectCustomerLinks() {
         website: new URL("../index.html", window.location.href).href,
         order: new URL("../quotes.html#quoteForm", window.location.href).href,
         training: new URL("../training.html#training-registration-form", window.location.href).href,
-        gallery: new URL("../gallery.html", window.location.href).href
+        gallery: new URL("../gallery.html", window.location.href).href,
+        contact: new URL("../contact.html", window.location.href).href,
+        policies: new URL("../policies.html", window.location.href).href,
+        discount: new URL("../redeem.html", window.location.href).href
     };
 
     const labels = {
         website: "Main Website",
         order: "Order / Request a Quote",
         training: "Training Registration",
-        gallery: "Gallery"
+        gallery: "Gallery",
+        contact: "Contact",
+        policies: "Policies & Terms",
+        discount: "Discount Redemption"
     };
 
     const list = document.getElementById("directLinksList");
@@ -1226,6 +1287,7 @@ function invoicePriceFor(map, name) {
         "t shirt": ["t shirts", "t shirt"],
         "t shirts": ["t shirts", "t shirt"],
         "hoodies joggers set": ["hoodies joggers set"],
+        "joggers super thick cotton joggers": ["joggers super thick cutting joggers", "joggers super thick cotton joggers"],
         "t shirt shorts set": ["t shirts shorts set", "t shirt shorts set"],
         "t shirt sweatpants set": ["t shirt sweatpants set"]
     };
@@ -1340,6 +1402,106 @@ async function saveInvoiceRecord(invoiceNumber, record) {
 }
 
 
+async function loadSavedInvoiceReceiptRecords() {
+    const list = document.getElementById("savedInvoiceReceiptList");
+    if (!list) return;
+
+    try {
+        const rows = await getRows("settings");
+        const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_record_")).map(r => {
+            try { return {type:"Invoice", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+        }).filter(Boolean);
+        const receipts = rows.filter(r => String(r.setting_key || "").startsWith("receipt_record_")).map(r => {
+            try { return {type:"Receipt", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+        }).filter(Boolean);
+
+        const records = [...invoices, ...receipts].sort((a,b) => String(b.savedAt || b.date || "").localeCompare(String(a.savedAt || a.date || "")));
+
+        list.innerHTML = records.length ? `
+            <table>
+                <thead><tr><th>Type</th><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                ${records.map(r => {
+                    const amount = r.type === "Receipt" ? Number(r.amount || 0) : Number(r.total || 0);
+                    const status = r.type === "Receipt" ? "Payment recorded" : (r.training ? "Training • Full payment" : "Invoice saved");
+                    return `<tr>
+                        <td>${escapeHTML(r.type)}</td>
+                        <td>${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}</td>
+                        <td>${escapeHTML(r.date || "")}</td>
+                        <td>${escapeHTML(r.customer || r.full_name || "")}</td>
+                        <td>GHS ${amount.toFixed(2)}</td>
+                        <td>${escapeHTML(status)}</td>
+                        <td>
+                            ${r.type === "Invoice" ? `<button type="button" class="secondary" data-open-saved-invoice="${escapeHTML(r.key)}">Edit / Open</button>` : ""}
+                            <button type="button" class="danger" data-delete-saved-record="${escapeHTML(r.id)}" data-record-type="${escapeHTML(r.type)}" data-record-key="${escapeHTML(r.key)}" data-record-number="${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}">Delete</button>
+                        </td>
+                    </tr>`;
+                }).join("")}
+                </tbody>
+            </table>` : `<div class="empty">No saved invoices or receipts yet.</div>`;
+
+        list.querySelectorAll("[data-open-saved-invoice]").forEach(button => {
+            button.onclick = async () => {
+                const row = records.find(r => r.key === button.dataset.openSavedInvoice);
+                if (!row) return;
+                const customerRow = {
+                    full_name: row.customer || "",
+                    phone: row.phone || "",
+                    whatsapp: row.phone || "",
+                    email: row.email || "",
+                    location: row.address || ""
+                };
+                await openInvoiceGenerator(customerRow, {
+                    manualLines: row.lines || [],
+                    notes: row.notes || "",
+                    training: !!row.training,
+                    invoiceNumber: row.invoiceNumber
+                });
+            };
+        });
+
+        list.querySelectorAll("[data-delete-saved-record]").forEach(button => {
+            button.onclick = async () => {
+                const type = button.dataset.recordType;
+                const number = button.dataset.recordNumber;
+                if (!confirm(`Delete this saved ${type.toLowerCase()}${number ? ` ${number}` : ""}?`)) return;
+                try {
+                    const result = await db.from("settings").delete().eq("id", button.dataset.deleteSavedRecord);
+                    if (result.error) throw result.error;
+
+                    if (type === "Invoice" && number) {
+                        const paymentRows = await getRows("settings");
+                        const ids = paymentRows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
+                            .filter(r => {
+                                try { return String(JSON.parse(r.setting_value || "{}").invoiceNumber || "") === String(number); }
+                                catch (_) { return false; }
+                            }).map(r => r.id);
+                        if (ids.length) await db.from("settings").delete().in("id", ids);
+                    }
+
+                    if (type === "Receipt" && number) {
+                        const paymentRows = await getRows("settings");
+                        const ids = paymentRows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
+                            .filter(r => {
+                                try { return String(JSON.parse(r.setting_value || "{}").receiptNumber || "") === String(number); }
+                                catch (_) { return false; }
+                            }).map(r => r.id);
+                        if (ids.length) await db.from("settings").delete().in("id", ids);
+                    }
+
+                    message(`${type} deleted.`, "success");
+                    await loadSavedInvoiceReceiptRecords();
+                } catch (error) {
+                    message(`${type} could not be deleted: ${error.message}`, "error");
+                }
+            };
+        });
+    } catch (error) {
+        console.error("Saved invoice/receipt records could not load:", error);
+        list.innerHTML = `<div class="empty">Saved invoice and receipt records could not be loaded.</div>`;
+    }
+}
+
 async function getDiscountForCustomer(row) {
     const phone = String(row?.phone || row?.whatsapp || "").replace(/\D/g, "");
     const email = String(row?.email || "").trim().toLowerCase();
@@ -1374,9 +1536,8 @@ async function getDiscountForCustomer(row) {
 async function openInvoiceGenerator(row, details) {
     const priceMap = await getInvoicePriceMap();
     const discountOffer = await getDiscountForCustomer(row);
-    const paymentRows = await getRows("settings");
-    const payment = {};
-    paymentRows.filter(r => /^invoice_payment_/.test(String(r.setting_key || ""))).forEach(r => payment[r.setting_key] = r.setting_value || "");
+    const isTrainingInvoice = !!details?.training || String(details?.invoiceType || "").toLowerCase() === "training";
+    const paymentAccounts = await getInvoicePaymentAccounts();
 
     let modal = document.getElementById("invoiceGeneratorModal");
     let backdrop = document.getElementById("invoiceGeneratorBackdrop");
@@ -1393,7 +1554,7 @@ async function openInvoiceGenerator(row, details) {
         document.body.appendChild(modal);
     }
 
-    const invoiceNumber = "AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase();
+    const invoiceNumber = details?.invoiceNumber || ("AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase());
     const detailsLines = buildInvoiceLinesFromQuote(row, details, priceMap);
     const savedPayments = await getInvoicePayments(invoiceNumber);
 
@@ -1407,6 +1568,7 @@ async function openInvoiceGenerator(row, details) {
                 <button type="button" class="secondary" id="invoicePrint">Print</button>
                 <button type="button" class="secondary" id="invoiceWhatsApp">WhatsApp</button>
                 <button type="button" class="secondary" id="invoiceEmail">Email</button>
+                <button type="button" class="primary" id="saveGeneratedInvoice">Save Invoice</button>
                 <button type="button" class="primary" id="generateReceiptFromInvoice">Generate Receipt</button>
             </div>
         </div>
@@ -1415,7 +1577,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="form-group"><label>Invoice Number</label><input id="generatedInvoiceNumber" value="${escapeHTML(invoiceNumber)}"></div>
                 <div class="form-group"><label>Invoice Date</label><input id="generatedInvoiceDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
                 <div class="form-group"><label>Due Date</label><input id="generatedInvoiceDueDate" type="date"></div>
-                <div class="form-group"><label>Deposit / Payment %</label><input id="generatedInvoiceDeposit" type="number" min="0" max="100" step="1" value="75"></div>
+                <div class="form-group" id="generatedInvoiceDepositRow"><label>Deposit / Payment %</label><input id="generatedInvoiceDeposit" type="number" min="0" max="100" step="1" value="${isTrainingInvoice ? "100" : "75"}"></div>
             </div>
             <div class="form-grid">
                 <div class="form-group"><label>Customer Name</label><input id="generatedInvoiceCustomer" value="${escapeHTML(row.full_name || "")}"></div>
@@ -1429,8 +1591,10 @@ async function openInvoiceGenerator(row, details) {
     `;
 
     const preview = modal.querySelector("#generatedInvoicePreview");
+    const depositRow = modal.querySelector("#generatedInvoiceDepositRow");
+    if (depositRow && isTrainingInvoice) depositRow.style.display = "none";
     function renderInvoice() {
-        const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit").value) || 0));
+        const depositPercent = isTrainingInvoice ? 100 : Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit").value) || 0));
         const discountPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDiscountPercent")?.value || 0)));
         const lines = Array.from(modal.querySelectorAll("#invoiceLineRows .invoice-edit-row")).map(rowEl => ({
             description: rowEl.querySelector(".invoice-line-description")?.value || "",
@@ -1456,21 +1620,25 @@ async function openInvoiceGenerator(row, details) {
                     <div class="invoice-meta"><strong>INVOICE</strong><span>${escapeHTML(document.getElementById("generatedInvoiceNumber").value)}</span><span>${escapeHTML(document.getElementById("generatedInvoiceDate").value)}</span></div>
                 </div>
                 <div class="invoice-customer"><div><strong>Bill To</strong><br>${escapeHTML(document.getElementById("generatedInvoiceCustomer").value)}<br>${escapeHTML(document.getElementById("generatedInvoicePhone").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceEmail").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceAddress").value)}</div></div>
-                <table class="invoice-lines"><thead><tr><th>Description</th><th>Details</th><th>Qty</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead>
-                <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
+                <table class="invoice-lines"><thead><tr><th>#</th><th>Item / Description</th><th>Details</th><th>Qty</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead>
+                <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${i+1}</td><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
                 <div class="invoice-summary">
                     <p>Subtotal: <strong>GHS ${subtotal.toFixed(2)}</strong></p>
-                    <p>Discount (${discountPercent.toFixed(2)}%): <strong>GHS ${discount.toFixed(2)}</strong></p>
+                    <p>Discount ${discountOffer?.code ? `(${escapeHTML(discountOffer.code)} — ${discountPercent.toFixed(2)}%)` : `(${discountPercent.toFixed(2)}%)`}: <strong>GHS ${discount.toFixed(2)}</strong></p>
                     <p>Grand Total: <strong>GHS ${total.toFixed(2)}</strong></p>
-                    <p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>
+                    ${isTrainingInvoice ? "" : `<p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>
                     <p>Amount Paid: <strong>GHS ${paidAmount.toFixed(2)}</strong></p>
-                    <p>Balance: <strong>GHS ${outstanding.toFixed(2)}</strong></p>
+                    <p>Balance: <strong>GHS ${outstanding.toFixed(2)}</strong></p>`}
                     <p class="invoice-payment-status"><strong>${paymentStatus}</strong></p>
                 </div>
-                <div class="invoice-payment"><strong>Payment Details</strong><br>
-                    ${escapeHTML(payment.invoice_payment_network || "")} ${escapeHTML(payment.invoice_payment_number || "")}<br>
-                    ${escapeHTML(payment.invoice_payment_name || "")}<br>
-                    ${escapeHTML(payment.invoice_payment_note || "")}
+                <div class="invoice-payment"><strong>Payment Details</strong>
+                    ${paymentAccounts.map((item,index)=>`<div style="margin-top:10px;padding-top:8px;border-top:${index ? "1px solid #ccc" : "0"};">
+                        <strong>${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}</strong><br>
+                        ${escapeHTML(item.name || "")}<br>
+                        <div class="invoice-payment-note" style="margin-top:6px;font-weight:700;border-left:4px solid #c9a227;padding:7px 10px;">
+                            *** Payment Note ***<br>${escapeHTML(item.note || "")}
+                        </div>
+                    </div>`).join("")}
                 </div>
                 <div class="invoice-note">${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</div>
             </div>
@@ -1503,7 +1671,16 @@ async function openInvoiceGenerator(row, details) {
             <button type="button" class="danger">Remove</button>
         `;
         el.querySelector("button").onclick = () => { el.remove(); renderInvoice(); };
+        const descriptionInput = el.querySelector(".invoice-line-description");
+        const priceInput = el.querySelector(".invoice-line-price");
         ["input","change"].forEach(evt => el.addEventListener(evt, renderInvoice));
+        descriptionInput?.addEventListener("change", () => {
+            const suggested = invoicePriceFor(priceMap, descriptionInput.value || "");
+            if (suggested > 0 && Number(priceInput?.value || 0) === 0) {
+                priceInput.value = suggested.toFixed(2);
+                renderInvoice();
+            }
+        });
         lineRows.appendChild(el);
     }
     detailsLines.forEach(addLine);
@@ -1521,7 +1698,7 @@ async function openInvoiceGenerator(row, details) {
     modal.querySelector("#invoiceEmail").onclick = () => shareGeneratedInvoiceEmail();
     modal.querySelector("#saveGeneratedInvoice").onclick = async () => {
         try {
-            statefulSaveGeneratedInvoice(row, details, savedPayments);
+            await statefulSaveGeneratedInvoice(row, details, savedPayments);
         } catch (error) {
             message("Invoice could not be saved: " + error.message, "error");
         }
@@ -1531,7 +1708,7 @@ async function openInvoiceGenerator(row, details) {
     backdrop.style.display = "block";
     modal.classList.add("open");
 
-    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, payment, savedPayments, discountOffer };
+    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice };
 }
 
 
@@ -1554,7 +1731,8 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments) {
         invoiceNumber,
         date: document.getElementById("generatedInvoiceDate")?.value || "",
         dueDate: document.getElementById("generatedInvoiceDueDate")?.value || "",
-        depositPercent: Number(document.getElementById("generatedInvoiceDeposit")?.value || 75),
+        depositPercent: state.isTrainingInvoice ? 100 : Number(document.getElementById("generatedInvoiceDeposit")?.value || 75),
+        training: !!state.isTrainingInvoice,
         customer: document.getElementById("generatedInvoiceCustomer")?.value || "",
         phone: document.getElementById("generatedInvoicePhone")?.value || "",
         email: document.getElementById("generatedInvoiceEmail")?.value || "",
@@ -1568,6 +1746,7 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments) {
         try { await db.from("discount_redemptions").update({status:"used"}).eq("id", state.discountOffer.redemptionId); } catch (_) {}
     }
     message("Invoice " + invoiceNumber + " saved.", "success");
+    await loadSavedInvoiceReceiptRecords();
 }
 function closeInvoiceGenerator() {
     document.getElementById("invoiceGeneratorBackdrop")?.remove();
@@ -1577,15 +1756,15 @@ function closeInvoiceGenerator() {
 
 async function generateInvoicePdf(share) {
     const state = window._aprilsCurrentInvoice;
-    if (!state) return;
+    if (!state) return false;
     state.renderInvoice();
     const paper = document.getElementById("invoicePaper");
-    if (!paper) return;
+    if (!paper) return false;
 
     if (!window.html2pdf) {
         printGeneratedInvoice();
         message("PDF library is unavailable, so the invoice has been opened in print view. Choose Save as PDF there.", "success");
-        return;
+        return false;
     }
 
     try {
@@ -1602,14 +1781,16 @@ async function generateInvoicePdf(share) {
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({title:options.filename, text:"Aprils Signature Invoice", files:[file]});
-                return;
+                return true;
             }
         }
         await worker.save();
         if (share) message("PDF saved. If your device supports file sharing, use the PDF's Share option to send it through WhatsApp or another app.", "success");
+        return false;
     } catch (error) {
         console.error(error);
         message("The PDF could not be created. Use Print and choose Save as PDF.", "error");
+        return false;
     }
 }
 
@@ -1623,12 +1804,9 @@ function getGeneratedInvoiceShareText() {
 }
 
 async function shareGeneratedInvoiceWhatsApp() {
-    // On devices that support file sharing, this sends the generated PDF through
-    // the system share sheet, where WhatsApp can be selected. Otherwise, save
-    // the PDF and open WhatsApp with the invoice message ready.
     try {
-        await generateInvoicePdf(true);
-        if (!navigator.share) {
+        const sharedFile = await generateInvoicePdf(true);
+        if (!sharedFile) {
             const text = encodeURIComponent(getGeneratedInvoiceShareText());
             window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
         }
@@ -1766,8 +1944,8 @@ function openReceiptGenerator() {
                     <div><strong>Received From</strong><br>${escapeHTML(document.getElementById("generatedReceiptCustomer").value)}<br>${escapeHTML(document.getElementById("generatedReceiptPhone").value)}<br>${escapeHTML(document.getElementById("generatedReceiptEmail").value)}</div>
                     <div><strong>Reference Invoice</strong><br>${escapeHTML(document.getElementById("generatedReceiptInvoiceNumber").value)}<br><strong>Payment Method</strong><br>${escapeHTML(document.getElementById("generatedReceiptMethod").value)}<br><strong>Transaction Reference</strong><br>${escapeHTML(document.getElementById("generatedReceiptReference").value || "—")}</div>
                 </div>
-                <table class="receipt-lines"><thead><tr><th>Description</th><th>Qty</th><th>Amount (GHS)</th></tr></thead><tbody>
-                    ${totals.lines.map(l => `<tr><td>${escapeHTML(l.description)}${l.details ? `<small>${escapeHTML(l.details)}</small>` : ""}</td><td>${l.quantity}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}
+                <table class="receipt-lines"><thead><tr><th>#</th><th>Item / Description</th><th>Qty</th><th>Amount (GHS)</th></tr></thead><tbody>
+                    ${totals.lines.map((l,i) => `<tr><td>${i+1}</td><td>${escapeHTML(l.description)}${l.details ? `<small>${escapeHTML(l.details)}</small>` : ""}</td><td>${l.quantity}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}
                 </tbody></table>
                 <div class="receipt-summary">
                     <p>Invoice Total: <strong>GHS ${totals.total.toFixed(2)}</strong></p>
@@ -1790,6 +1968,10 @@ function openReceiptGenerator() {
     modal.querySelector("#receiptSavePayment").onclick = async () => {
         const amount = Number(document.getElementById("generatedReceiptAmount")?.value || 0);
         if (amount <= 0) { message("Enter the amount actually received before saving the payment.", "error"); return; }
+        if (invoiceState.isTrainingInvoice && amount < totals.total) {
+            message("Training registration invoices require full payment before a receipt can be recorded.", "error");
+            return;
+        }
         try {
             await saveInvoicePayment({
                 invoiceNumber: document.getElementById("generatedReceiptInvoiceNumber")?.value || "",
@@ -1802,6 +1984,21 @@ function openReceiptGenerator() {
                 reference: document.getElementById("generatedReceiptReference")?.value || "",
                 date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10)
             });
+            await safeSettingUpsert(
+                "receipt_record_" + contentSlug(document.getElementById("generatedReceiptNumber")?.value || ""),
+                JSON.stringify({
+                    receiptNumber: document.getElementById("generatedReceiptNumber")?.value || "",
+                    invoiceNumber: document.getElementById("generatedReceiptInvoiceNumber")?.value || "",
+                    customer: document.getElementById("generatedReceiptCustomer")?.value || "",
+                    phone: document.getElementById("generatedReceiptPhone")?.value || "",
+                    email: document.getElementById("generatedReceiptEmail")?.value || "",
+                    amount,
+                    method: document.getElementById("generatedReceiptMethod")?.value || "",
+                    reference: document.getElementById("generatedReceiptReference")?.value || "",
+                    date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10),
+                    savedAt: new Date().toISOString()
+                })
+            );
             const latest = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
             if (invoiceState) {
                 invoiceState.savedPayments = latest;
@@ -1813,6 +2010,7 @@ function openReceiptGenerator() {
                 } catch (_) {}
             }
             message("Payment saved. The invoice balance will update when the invoice is reopened.", "success");
+            await loadSavedInvoiceReceiptRecords();
             renderReceipt();
         } catch (error) {
             message("Payment could not be saved: " + error.message, "error");
@@ -1831,14 +2029,14 @@ function closeReceiptGenerator() {
 
 async function generateReceiptPdf(share) {
     const state = window._aprilsCurrentReceipt;
-    if (!state) return;
+    if (!state) return false;
     state.renderReceipt();
     const paper = document.getElementById("receiptPaper");
-    if (!paper) return;
+    if (!paper) return false;
     if (!window.html2pdf) {
         printGeneratedReceipt();
         message("PDF library is unavailable, so the receipt has been opened in print view. Choose Save as PDF there.", "success");
-        return;
+        return false;
     }
     try {
         const options = {
@@ -1854,14 +2052,16 @@ async function generateReceiptPdf(share) {
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({title:options.filename,text:"Aprils Signature Payment Receipt",files:[file]});
-                return;
+                return true;
             }
         }
         await worker.save();
         if (share) message("Receipt PDF saved. You can use the PDF's Share option to send it through WhatsApp or another app.", "success");
+        return false;
     } catch (error) {
         console.error(error);
         message("The receipt PDF could not be created. Use Print and choose Save as PDF.", "error");
+        return false;
     }
 }
 
@@ -1874,8 +2074,8 @@ function getGeneratedReceiptShareText() {
 
 async function shareGeneratedReceiptWhatsApp() {
     try {
-        await generateReceiptPdf(true);
-        if (!navigator.share) {
+        const sharedFile = await generateReceiptPdf(true);
+        if (!sharedFile) {
             window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
         }
     } catch (_) {
@@ -3177,125 +3377,314 @@ function invoiceStorageKey(id) {
 async function loadInvoicePricing() {
     const rows = await getRows("settings");
     const invoiceRows = rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_"));
-    const seenInvoiceKeys = new Set();
+    const seen = new Set();
     const invoices = invoiceRows.filter(r => {
         const key = String(r.setting_key || "");
-        if (seenInvoiceKeys.has(key)) return false;
-        seenInvoiceKeys.add(key);
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
     });
-    const list = document.getElementById("invoiceList");
-    if (!list) return;
 
-    list.innerHTML = invoices.length ? `
+    const productInvoices = invoices.filter(r => !String(r.setting_key || "").startsWith("invoice_price_training_"));
+    const trainingInvoices = invoices.filter(r => String(r.setting_key || "").startsWith("invoice_price_training_"));
+
+    const renderRows = (items, emptyText, editAttr, sharePrefix) => items.length ? `
         <table>
-            <thead><tr><th>Item / Service</th><th>Category</th><th>Invoice Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Item / Programme</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-                ${invoices.map(r => {
-                    let item = { name: "", category: "", price: "", notes: "", active: true };
-                    try { item = { ...item, ...JSON.parse(r.setting_value || "{}") }; } catch (_) {}
+                ${items.map(r => {
+                    let item = {name:"",category:"",price:"",notes:"",active:true};
+                    try { item = {...item,...JSON.parse(r.setting_value||"{}")}; } catch (_) {}
                     return `<tr>
                         <td>${escapeHTML(item.name)}</td>
                         <td>${escapeHTML(item.category)}</td>
-                        <td>GHS ${Number(item.price || 0).toFixed(2)}</td>
+                        <td>GHS ${Number(item.price||0).toFixed(2)}</td>
                         <td>${escapeHTML(item.notes)}</td>
                         <td>${item.active === false ? "Inactive" : "Active"}</td>
                         <td>
-                            <button type="button" class="secondary" data-edit-invoice="${escapeHTML(r.id)}">Edit</button>
-                            <button type="button" class="danger" data-delete-invoice="${escapeHTML(r.id)}">Delete</button> <button type="button" class="secondary" data-share-invoice="${escapeHTML(r.id)}">Share</button>
+                            <button type="button" class="secondary" ${editAttr}="${escapeHTML(r.id)}">Edit</button>
+                            <button type="button" class="danger" data-delete-invoice="${escapeHTML(r.id)}">Delete</button>
+                            <button type="button" class="secondary" data-share-invoice="${escapeHTML(r.id)}">Share</button>
                         </td>
                     </tr>`;
                 }).join("")}
             </tbody>
-        </table>
-    ` : `<div class="empty"><strong>No internal invoice prices have been added yet.</strong><br>Use “+ Add Invoice Price” above. Once a price is saved, every invoice-price row will have its own <strong>Edit</strong> and <strong>Delete</strong> buttons.</div>`;
+        </table>` : `<div class="empty">${emptyText}</div>`;
 
-    list.querySelectorAll("[data-edit-invoice]").forEach(button => {
+    const productList = document.getElementById("invoiceProductList");
+    if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
+
+    const trainingList = document.getElementById("invoiceTrainingList");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training");
+
+    const bindList = list => {
+        if (!list) return;
+
+        list.querySelectorAll("[data-edit-invoice]").forEach(button => {
+            button.onclick = () => {
+                const row = invoices.find(r => String(r.id) === String(button.dataset.editInvoice));
+                if (!row) return;
+                let item = {};
+                try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+                document.getElementById("invoiceId").value = row.id || "";
+                document.getElementById("invoiceItem").value = item.name || "";
+                document.getElementById("invoiceCategory").value = item.category || "";
+                document.getElementById("invoicePrice").value = item.price ?? "";
+                document.getElementById("invoiceNotes").value = item.notes || "";
+                document.getElementById("invoiceActive").checked = item.active !== false;
+                document.getElementById("invoiceForm").scrollIntoView({behavior:"smooth",block:"start"});
+            };
+        });
+
+        list.querySelectorAll("[data-edit-training-invoice]").forEach(button => {
+            button.onclick = () => {
+                const row = invoices.find(r => String(r.id) === String(button.dataset.editTrainingInvoice));
+                if (!row) return;
+                let item = {};
+                try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+                document.getElementById("trainingInvoiceId").value = row.id || "";
+                document.getElementById("trainingInvoiceItem").value = item.name || "";
+                document.getElementById("trainingInvoiceCategory").value = item.category || "";
+                document.getElementById("trainingInvoiceDuration").value = item.duration || item.notes || "";
+                document.getElementById("trainingInvoicePrice").value = item.price ?? "";
+                document.getElementById("trainingInvoiceNotes").value = item.notes || "";
+                document.getElementById("trainingInvoiceActive").checked = item.active !== false;
+                document.getElementById("trainingInvoiceForm").scrollIntoView({behavior:"smooth",block:"start"});
+            };
+        });
+
+        list.querySelectorAll("[data-share-invoice]").forEach(button => {
+            button.onclick = () => {
+                const row = invoices.find(r => String(r.id) === String(button.dataset.shareInvoice));
+                if (!row) return;
+                let item = {};
+                try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+                shareText("Aprils Signature Invoice Price", `Item / Programme: ${item.name||""}\nCategory: ${item.category||""}\nPrice: GHS ${Number(item.price||0).toFixed(2)}\nNotes: ${item.notes||""}`);
+            };
+        });
+
+        list.querySelectorAll("[data-delete-invoice]").forEach(button => {
+            button.onclick = async () => {
+                if (!confirm("Delete this internal invoice price?")) return;
+                const result = await db.from("settings").delete().eq("id", button.dataset.deleteInvoice);
+                if (result.error) {
+                    message("Invoice price could not be deleted: " + result.error.message, "error");
+                    return;
+                }
+                message("Invoice price deleted.", "success");
+                await loadInvoicePricing();
+                await loadProducts();
+                await loadTraining();
+            };
+        });
+    };
+
+    bindList(productList);
+    bindList(trainingList);
+    await loadInvoicePaymentDetails();
+}
+
+function paymentRowTemplate(item = {}) {
+    return `
+        <div class="invoice-payment-row" data-payment-row style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:12px;">
+            <div class="form-grid">
+                <div class="form-group"><label>MoMo / Payment Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || "")}" placeholder="e.g. 024..."></div>
+                <div class="form-group"><label>Account / MoMo Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || "")}" placeholder="Name on the account"></div>
+                <div class="form-group"><label>Network / Payment Method</label><input class="invoice-payment-network" value="${escapeHTML(item.network || "")}" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
+            </div>
+            <div class="form-group"><label>Payment Note</label><textarea class="invoice-payment-note" placeholder="Payment instruction to appear on invoices.">${escapeHTML(item.note || "")}</textarea></div>
+            <button type="button" class="danger remove-invoice-payment">Remove This Payment Detail</button>
+        </div>`;
+}
+
+async function getInvoicePaymentAccounts() {
+    const rows = await getRows("settings");
+    const accountRow = rows.find(r => String(r.setting_key || "") === "invoice_payment_accounts");
+    if (accountRow?.setting_value) {
+        try {
+            const parsed = JSON.parse(accountRow.setting_value);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_) {}
+    }
+
+    const legacy = {};
+    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||"")))
+        .forEach(r => legacy[r.setting_key] = r.setting_value || "");
+
+    if (legacy.invoice_payment_number || legacy.invoice_payment_name || legacy.invoice_payment_network || legacy.invoice_payment_note) {
+        return [{
+            number: legacy.invoice_payment_number || "",
+            name: legacy.invoice_payment_name || "",
+            network: legacy.invoice_payment_network || "",
+            note: legacy.invoice_payment_note || ""
+        }];
+    }
+    return [];
+}
+
+function renderInvoicePaymentRows(accounts) {
+    const wrap = document.getElementById("invoicePaymentRows");
+    if (!wrap) return;
+    const items = accounts.length ? accounts : [{}];
+    wrap.innerHTML = items.map(paymentRowTemplate).join("");
+    wrap.querySelectorAll(".remove-invoice-payment").forEach(button => {
         button.onclick = () => {
-            const row = invoices.find(r => String(r.id) === String(button.dataset.editInvoice));
-            if (!row) return;
-            let item = {};
-            try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
-            document.getElementById("invoiceId").value = row.id || "";
-            document.getElementById("invoiceItem").value = item.name || "";
-            document.getElementById("invoiceCategory").value = item.category || "";
-            document.getElementById("invoicePrice").value = item.price ?? "";
-            document.getElementById("invoiceNotes").value = item.notes || "";
-            document.getElementById("invoiceActive").checked = item.active !== false;
-            document.getElementById("invoiceForm").scrollIntoView({ behavior: "smooth", block: "start" });
-        };
-    });
-
-    list.querySelectorAll("[data-share-invoice]").forEach(button=>{button.onclick=()=>{const row=invoices.find(r=>String(r.id)===String(button.dataset.shareInvoice));if(!row)return;let item={};try{item=JSON.parse(row.setting_value||"{}");}catch(_){} shareText("Aprils Signature Invoice Price",`Item / Service: ${item.name||""}\nCategory: ${item.category||""}\nUnit Price: GHS ${Number(item.price||0).toFixed(2)}\nNotes: ${item.notes||""}`);};});
-
-    list.querySelectorAll("[data-delete-invoice]").forEach(button => {
-        button.onclick = async () => {
-            if (!confirm("Delete this internal invoice price?")) return;
-            const result = await db.from("settings").delete().eq("id", button.dataset.deleteInvoice);
-            if (result.error) {
-                message("Invoice price could not be deleted.", "error");
-                return;
+            const rows = wrap.querySelectorAll("[data-payment-row]");
+            if (rows.length <= 1) {
+                rows[0]?.remove();
+                wrap.insertAdjacentHTML("beforeend", paymentRowTemplate({}));
+            } else {
+                button.closest("[data-payment-row]")?.remove();
             }
-            message("Invoice price deleted.", "success");
-            await loadInvoicePricing();
         };
     });
 }
 
 async function loadInvoicePaymentDetails() {
-    const rows=await getRows("settings"); const values={};
-    rows.filter(r=>["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||""))).forEach(r=>{ values[r.setting_key]=r.setting_value||""; });
-    const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
-    Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)el.value=values[key]||"";});
+    const accounts = await getInvoicePaymentAccounts();
+    renderInvoicePaymentRows(accounts);
+
     const saved = document.getElementById("invoicePaymentSaved");
     if (saved) {
-        const labels = {invoice_payment_number:"MoMo / Payment Number", invoice_payment_name:"Account / MoMo Name", invoice_payment_network:"Network / Payment Method", invoice_payment_note:"Payment Note"};
-        const entries = Object.entries(labels).filter(([key]) => values[key]);
-        saved.innerHTML = entries.length
-            ? `<table><thead><tr><th>Field</th><th>Saved Value</th></tr></thead><tbody>${entries.map(([key,label])=>`<tr><th>${escapeHTML(label)}</th><td>${escapeHTML(values[key])}</td></tr>`).join("")}</tbody></table>`
-            : `<div class="empty">No invoice payment details have been saved yet.</div>`;
-        const form = document.getElementById("invoicePaymentForm");
-        if (form) form.style.display = entries.length ? "none" : "";
+        saved.innerHTML = accounts.length ? `
+            <div class="payment-details-list">
+                ${accounts.map((item,index) => `
+                    <div style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:10px;">
+                        <strong>Payment Detail ${index+1}</strong><br>
+                        ${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}<br>
+                        ${escapeHTML(item.name || "")}<br>
+                        <div style="margin-top:8px;font-weight:700;border-left:4px solid #c9a227;padding:8px 10px;">
+                            <strong>*** Payment Note ***</strong><br>
+                            ${escapeHTML(item.note || "No payment note saved.")}
+                        </div>
+                    </div>`).join("")}
+            </div>` : `<div class="empty">No invoice payment details have been saved yet. Add your first payment detail above.</div>`;
     }
 }
+
 function setupInvoicePaymentForm(){
-    const form=document.getElementById("invoicePaymentForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{
-        e.preventDefault();
-        const map={invoicePaymentNumber:"invoice_payment_number",invoicePaymentName:"invoice_payment_name",invoicePaymentNetwork:"invoice_payment_network",invoicePaymentNote:"invoice_payment_note"};
-        try{
-            for(const [id,key] of Object.entries(map)){
-                const value=document.getElementById(id)?.value.trim()||"";
-                await safeSettingUpsert(key,value);
-            }
-            form.reset();
-            message("Invoice payment details saved.","success");
-            await loadInvoicePaymentDetails();
-        }catch(error){message("Invoice payment details could not be saved: "+error.message,"error");}
+    const form = document.getElementById("invoicePaymentForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    document.getElementById("addInvoicePaymentDetail")?.addEventListener("click", () => {
+        const wrap = document.getElementById("invoicePaymentRows");
+        if (!wrap) return;
+        wrap.insertAdjacentHTML("beforeend", paymentRowTemplate({}));
+        renderInvoicePaymentRowsFromCurrentDom();
     });
-    document.getElementById("editInvoicePaymentDetails")?.addEventListener("click", async () => {
-        await loadInvoicePaymentDetails();
-        const form = document.getElementById("invoicePaymentForm");
-        if (form) form.style.display = "";
-        document.getElementById("invoicePaymentForm")?.scrollIntoView({behavior:"smooth",block:"start"});
-    });
-    document.getElementById("deleteInvoicePaymentDetails")?.addEventListener("click", async () => {
-        if (!confirm("Clear all saved invoice payment details?")) return;
+
+    function renderInvoicePaymentRowsFromCurrentDom() {
+        const wrap = document.getElementById("invoicePaymentRows");
+        if (!wrap) return;
+        wrap.querySelectorAll(".remove-invoice-payment").forEach(button => {
+            button.onclick = () => {
+                const rows = wrap.querySelectorAll("[data-payment-row]");
+                if (rows.length <= 1) {
+                    rows[0]?.remove();
+                    wrap.insertAdjacentHTML("beforeend", paymentRowTemplate({}));
+                } else {
+                    button.closest("[data-payment-row]")?.remove();
+                }
+            };
+        });
+    }
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const wrap = document.getElementById("invoicePaymentRows");
+        const accounts = Array.from(wrap?.querySelectorAll("[data-payment-row]") || []).map(row => ({
+            number: row.querySelector(".invoice-payment-number")?.value.trim() || "",
+            name: row.querySelector(".invoice-payment-name")?.value.trim() || "",
+            network: row.querySelector(".invoice-payment-network")?.value.trim() || "",
+            note: row.querySelector(".invoice-payment-note")?.value.trim() || ""
+        })).filter(item => item.number || item.name || item.network || item.note);
+
         try {
-            const keys = ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"];
-            const result = await db.from("settings").delete().in("setting_key", keys);
-            if (result.error) throw result.error;
-            message("Saved invoice payment details cleared.", "success");
-            const form = document.getElementById("invoicePaymentForm");
-            if (form) form.style.display = "";
+            await safeSettingUpsert("invoice_payment_accounts", JSON.stringify(accounts));
+            // Keep the older single-value settings in sync for backward compatibility.
+            const first = accounts[0] || {};
+            await safeSettingUpsert("invoice_payment_number", first.number || "");
+            await safeSettingUpsert("invoice_payment_name", first.name || "");
+            await safeSettingUpsert("invoice_payment_network", first.network || "");
+            await safeSettingUpsert("invoice_payment_note", first.note || "");
+            message("Invoice payment details saved.", "success");
             await loadInvoicePaymentDetails();
         } catch (error) {
-            message("Saved invoice payment details could not be cleared: " + error.message, "error");
+            message("Invoice payment details could not be saved: " + error.message, "error");
         }
     });
+
     loadInvoicePaymentDetails();
 }
 
+function setupTrainingInvoicePricingForm() {
+    const form = document.getElementById("trainingInvoiceForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const id = document.getElementById("trainingInvoiceId").value.trim();
+        const name = document.getElementById("trainingInvoiceItem").value.trim();
+        const category = document.getElementById("trainingInvoiceCategory").value.trim();
+        const duration = document.getElementById("trainingInvoiceDuration").value.trim();
+        const priceValue = document.getElementById("trainingInvoicePrice").value;
+        const price = Number(priceValue);
+        const notes = document.getElementById("trainingInvoiceNotes").value.trim();
+        const active = document.getElementById("trainingInvoiceActive").checked;
+
+        if (!name || priceValue === "" || Number.isNaN(price)) {
+            message("Please enter a training programme/class and a valid price.", "error");
+            return;
+        }
+
+        try {
+            const key = invoiceStorageKey("Training - " + name);
+            const value = JSON.stringify({
+                name,
+                category: category || "Training",
+                duration,
+                price,
+                notes,
+                active
+            });
+
+            if (id) {
+                const old = await db.from("settings").select("id,setting_key").eq("id", id).maybeSingle();
+                if (old.error) throw old.error;
+                if (old.data?.setting_key && old.data.setting_key !== key) {
+                    await db.from("settings").delete().eq("id", id);
+                    await safeSettingUpsert(key, value);
+                } else {
+                    const result = await db.from("settings").update({
+                        setting_key:key,
+                        setting_value:value,
+                        updated_at:new Date().toISOString()
+                    }).eq("id", id);
+                    if (result.error) throw result.error;
+                }
+            } else {
+                await safeSettingUpsert(key, value);
+            }
+
+            form.reset();
+            document.getElementById("trainingInvoiceId").value = "";
+            document.getElementById("trainingInvoiceActive").checked = true;
+            message("Training invoice price saved.", "success");
+            await loadInvoicePricing();
+            await loadTraining();
+        } catch (error) {
+            message("Training invoice price could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("trainingInvoiceCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("trainingInvoiceId").value = "";
+        document.getElementById("trainingInvoiceActive").checked = true;
+    });
+}
 
 function setupInvoiceForm() {
     const form = document.getElementById("invoiceForm");
@@ -3581,6 +3970,36 @@ function setupSocialForm() {
     });
 }
 
+function contactExtraTemplate(item = {}) {
+    return `<div class="contact-extra-row" data-contact-extra style="display:grid;grid-template-columns:1fr 2fr auto;gap:10px;align-items:end;margin-bottom:10px;">
+        <div class="form-group"><label>Label</label><input class="contact-extra-label" value="${escapeHTML(item.label || "")}" placeholder="e.g. Second Phone"></div>
+        <div class="form-group"><label>Value</label><input class="contact-extra-value" value="${escapeHTML(item.value || "")}" placeholder="e.g. +233 ..."></div>
+        <button type="button" class="danger remove-contact-extra">Remove</button>
+    </div>`;
+}
+
+async function getContactExtras() {
+    try {
+        const row = await getSettingValue("contact_extra");
+        if (!row?.setting_value) return [];
+        const parsed = JSON.parse(row.setting_value);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (_) { return []; }
+}
+
+function renderContactExtras(items = []) {
+    const wrap = document.getElementById("contactExtraRows");
+    if (!wrap) return;
+    wrap.innerHTML = (items.length ? items : [{}]).map(contactExtraTemplate).join("");
+    wrap.querySelectorAll(".remove-contact-extra").forEach(button => {
+        button.onclick = () => {
+            const rows = wrap.querySelectorAll("[data-contact-extra]");
+            if (rows.length <= 1) rows[0]?.remove();
+            else button.closest("[data-contact-extra]")?.remove();
+        };
+    });
+}
+
 async function loadContact() {
     try {
         const result = await db.from("contact_settings").select("*").limit(1).maybeSingle();
@@ -3593,6 +4012,7 @@ async function loadContact() {
         document.getElementById("contactEmail").value = row.email || "";
         document.getElementById("contactAddress").value = row.address || "";
         document.getElementById("contactHours").value = row.opening_hours || "";
+        renderContactExtras(await getContactExtras());
     } catch (error) {
         console.warn("Contact settings could not be loaded:", error);
     }
@@ -3623,12 +4043,38 @@ function setupContactForm() {
                 : await db.from("contact_settings").insert(data);
 
             if (result.error) throw result.error;
+
+            const extraWrap = document.getElementById("contactExtraRows");
+            const extras = Array.from(extraWrap?.querySelectorAll("[data-contact-extra]") || []).map(row => ({
+                label: row.querySelector(".contact-extra-label")?.value.trim() || "",
+                value: row.querySelector(".contact-extra-value")?.value.trim() || ""
+            })).filter(item => item.label || item.value);
+            await safeSettingUpsert("contact_extra", JSON.stringify(extras));
             message("Contact information saved.", "success");
         } catch (error) {
             console.error(error);
             message("Contact information could not be saved: " + error.message, "error");
         }
     });
+
+    document.getElementById("addContactExtra")?.addEventListener("click", () => {
+        const wrap = document.getElementById("contactExtraRows");
+        if (!wrap) return;
+        wrap.insertAdjacentHTML("beforeend", contactExtraTemplate({}));
+        renderContactExtrasFromCurrentDom();
+    });
+
+    function renderContactExtrasFromCurrentDom() {
+        const wrap = document.getElementById("contactExtraRows");
+        if (!wrap) return;
+        wrap.querySelectorAll(".remove-contact-extra").forEach(button => {
+            button.onclick = () => {
+                const rows = wrap.querySelectorAll("[data-contact-extra]");
+                if (rows.length <= 1) rows[0]?.remove();
+                else button.closest("[data-contact-extra]")?.remove();
+            };
+        });
+    }
 }
 
 async function getSettingValue(key) {
@@ -4445,6 +4891,7 @@ async function startAdmin() {
     setupPolicyForm();
     setupContentForm();
     setupInvoiceForm();
+    setupTrainingInvoicePricingForm();
     setupInvoicePaymentForm();
     setupManualInvoiceForm();
     setupDiscountForm();

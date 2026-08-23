@@ -636,6 +636,7 @@ Testimonials
 <button data-section="policies">Policies &amp; Terms</button>
 <button data-section="contact">Contact Information</button>
 <button data-section="social">Social Links</button>
+<button data-section="discounts">Discount Codes</button>
 <button data-section="settings">Website Settings</button>
 
 
@@ -1123,6 +1124,29 @@ Manage the public product catalogue and services. Product prices here are the pu
 
 <div id="adminServicesList" class="table-wrap"></div>
 
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Training Programmes</h3>
+<p class="intro">Manage the training programmes shown in the public Training page. Prices here are optional; internal invoice prices are also available in Invoice Pricing.</p>
+<form id="trainingForm">
+<input type="hidden" id="trainingId">
+<div class="form-grid">
+<div class="form-group"><label>Programme Name</label><input id="trainingTitle" required placeholder="e.g. 6 Months Fashion Training"></div>
+<div class="form-group"><label>Duration</label><input id="trainingDuration" placeholder="e.g. 6 months"></div>
+<div class="form-group"><label>Category</label><input id="trainingCategory" placeholder="Fashion Training, Streetwear Class, etc."></div>
+<div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional"></div>
+<div class="form-group"><label>Invoice Price (GHS)</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional"></div>
+</div>
+<div class="form-group"><label>Description</label><textarea id="trainingDescription" rows="4" placeholder="Describe the programme."></textarea></div>
+<label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label>
+<br>
+<button class="primary" type="submit">Save Training Programme</button>
+<button type="button" class="secondary" id="trainingCancel">Cancel</button>
+</form>
+</div>
+<div id="trainingList" class="table-wrap"></div>
+
+
+
 </section>
 
 
@@ -1456,13 +1480,15 @@ INVOICE PRICING
 ===================================================== -->
 <section id="invoice" class="section">
 <h2>Invoice Pricing</h2>
-<p class="intro">Separate internal pricing for invoices. These prices do not change the public Services, Training or Gallery prices.</p><div class="toolbar"><button type="button" class="primary" id="newInvoiceButton">+ Add Invoice Price</button></div>
+<p class="intro">Internal prices used when generating invoices. Public catalogue prices remain separate.</p>
 
 <div class="notice">
-<strong>Internal use only.</strong> Invoice prices are stored separately from public website pricing and are not displayed on the public website.
+<strong>Internal use only.</strong> These prices are not displayed as public website prices.
 </div>
 
 <div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Items &amp; Services</h3>
+<p class="intro">Add any custom item or service you may need on a future invoice. These are independent of public pricing.</p>
 <form id="invoiceForm">
 <input type="hidden" id="invoiceId">
 <div class="form-grid">
@@ -1472,7 +1498,7 @@ INVOICE PRICING
 </div>
 <div class="form-group">
 <label for="invoiceCategory">Category</label>
-<input id="invoiceCategory" placeholder="Streetwear, Ladies Wear, etc.">
+<input id="invoiceCategory" placeholder="Streetwear, Ladies Wear, Embellishment, etc.">
 </div>
 <div class="form-group">
 <label for="invoicePrice">Invoice Price (GHS)</label>
@@ -1483,36 +1509,67 @@ INVOICE PRICING
 <label for="invoiceNotes">Notes</label>
 <textarea id="invoiceNotes" placeholder="Optional internal invoicing note"></textarea>
 </div>
-<label class="checkbox">
-<input type="checkbox" id="invoiceActive" checked>
-Active
-</label>
+<label class="checkbox"><input type="checkbox" id="invoiceActive" checked> Active</label>
 <br>
 <button class="primary" type="submit">Save Invoice Price</button>
 <button type="button" class="secondary" id="invoiceCancel">Cancel</button>
 </form>
 </div>
+<div id="invoiceProductList" class="table-wrap"></div>
+
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Training Invoice Pricing</h3>
+<p class="intro">Training prices are kept separately so training registrations automatically use the correct full-payment price.</p>
+<form id="trainingInvoiceForm">
+<input type="hidden" id="trainingInvoiceId">
+<div class="form-grid">
+<div class="form-group">
+<label for="trainingInvoiceItem">Training Programme / Class</label>
+<input id="trainingInvoiceItem" required placeholder="Example: 6 Months Fashion Training">
+</div>
+<div class="form-group">
+<label for="trainingInvoiceCategory">Category</label>
+<input id="trainingInvoiceCategory" placeholder="Fashion Training, Streetwear Class, Specialty Class">
+</div>
+<div class="form-group">
+<label for="trainingInvoiceDuration">Duration</label>
+<input id="trainingInvoiceDuration" placeholder="Example: 6 months">
+</div>
+<div class="form-group">
+<label for="trainingInvoicePrice">Invoice Price (GHS)</label>
+<input id="trainingInvoicePrice" type="number" min="0" step="0.01" required placeholder="0.00">
+</div>
+</div>
+<div class="form-group">
+<label for="trainingInvoiceNotes">Notes</label>
+<textarea id="trainingInvoiceNotes" placeholder="Optional internal training note"></textarea>
+</div>
+<label class="checkbox"><input type="checkbox" id="trainingInvoiceActive" checked> Active</label>
+<br>
+<button class="primary" type="submit">Save Training Price</button>
+<button type="button" class="secondary" id="trainingInvoiceCancel">Cancel</button>
+</form>
+</div>
+<div id="invoiceTrainingList" class="table-wrap"></div>
 
 <div class="form-card" style="margin-top:20px;">
 <h3>Invoice Payment Details</h3>
-<p class="intro">Save these once so future invoices can automatically show the payment information at the bottom.</p>
+<p class="intro">Add one or more payment methods. The details saved here will appear on future invoices and receipts.</p>
 <form id="invoicePaymentForm">
-<div class="form-grid">
-<div class="form-group"><label for="invoicePaymentNumber">MoMo / Payment Number</label><input id="invoicePaymentNumber" placeholder="e.g. 024..." ></div>
-<div class="form-group"><label for="invoicePaymentName">Account / MoMo Name</label><input id="invoicePaymentName" placeholder="Name on the account" ></div>
-<div class="form-group"><label for="invoicePaymentNetwork">Network / Payment Method</label><input id="invoicePaymentNetwork" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
-</div>
-<div class="form-group"><label for="invoicePaymentNote">Payment Note</label><textarea id="invoicePaymentNote" placeholder="Any payment instruction to appear on invoices."></textarea></div>
+<div id="invoicePaymentRows"></div>
+<div class="admin-actions">
+<button type="button" class="secondary" id="addInvoicePaymentDetail">+ Add Payment Detail</button>
 <button class="primary" type="submit">Save Payment Details</button>
+</div>
 </form>
 </div>
 <div class="form-card" style="margin-top:20px;">
 <h3 style="color:#008c95;margin-bottom:10px;">Saved Invoice Payment Details</h3>
-<p class="intro">These are the payment details currently saved for future invoices. You can edit them above or clear them below.</p>
+<p class="intro">You can edit or remove any saved payment detail.</p>
 <div id="invoicePaymentSaved"></div>
-<button type="button" class="secondary" id="editInvoicePaymentDetails" style="margin-top:12px;">Edit Saved Payment Details</button> <button type="button" class="danger" id="deleteInvoicePaymentDetails" style="margin-top:12px;">Clear Saved Payment Details</button>
 </div>
-<div id="invoiceList" class="table-wrap"></div>
+
+<div id="invoiceList" class="table-wrap" style="display:none;"></div>
 </section>
 
 <!-- =====================================================
@@ -1541,7 +1598,13 @@ MANUAL INVOICE / RECEIPT
 </div>
 </form>
 </div>
-<div class="notice"><strong>Payment tracking:</strong> invoices use the standard 75% required payment by default. After a payment is received, use <strong>Generate Receipt</strong> inside the invoice window and save the payment so the invoice can show the amount paid and remaining balance.</div>
+<div class="notice"><strong>Payment tracking:</strong> production quotes use the standard 75% initial payment. Training registrations require full payment, so training invoices do not show a 75% payment due or a balance. After payment is received, use <strong>Generate Receipt</strong> and save the payment. The invoice status will then show the payment state.
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Saved Invoices &amp; Receipts</h3>
+<p class="intro">All invoices and payment receipts generated in the admin system are listed here. You can reopen, download/print, or delete unwanted records.</p>
+<div id="savedInvoiceReceiptList" class="table-wrap"></div>
+</div>
+
 </section>
 
 <!-- =====================================================
@@ -1589,16 +1652,6 @@ Active
 <div class="form-card" style="margin-top:20px;">
 <h3 style="color:#008c95;margin-bottom:10px;">Quick Customer Links</h3>
 <p class="intro">Use these direct links when you want to send a customer straight to the correct public page.</p>
-<div class="toolbar">
-<button type="button" class="secondary" data-copy-direct-link="website">Copy Main Website Link</button>
-<button type="button" class="secondary" data-share-direct-link="website">Share Main Website Link</button>
-<button type="button" class="secondary" data-copy-direct-link="order">Copy Order / Request a Quote Link</button>
-<button type="button" class="secondary" data-share-direct-link="order">Share Order / Request a Quote Link</button>
-<button type="button" class="secondary" data-copy-direct-link="training">Copy Training Registration Link</button>
-<button type="button" class="secondary" data-share-direct-link="training">Share Training Registration Link</button>
-<button type="button" class="secondary" data-copy-direct-link="gallery">Copy Gallery Link</button>
-<button type="button" class="secondary" data-share-direct-link="gallery">Share Gallery Link</button>
-</div>
 <div id="directLinksList"></div>
 </div>
 </section>
@@ -1629,6 +1682,12 @@ Winneba, Central Region, Ghana.</textarea></div>
 <div class="form-group"><label>Opening Hours</label><textarea id="contactHours">Monday – Friday: 8:00 AM – 6:00 PM
 Saturday: Closed
 Sunday: Closed</textarea></div>
+<div class="form-card" style="margin-top:15px;">
+<h3 style="color:#008c95;margin-bottom:8px;">Additional Contact Details</h3>
+<p class="intro">Add extra phone numbers, payment contacts, addresses or other contact details in future.</p>
+<div id="contactExtraRows"></div>
+<button type="button" class="secondary" id="addContactExtra">+ Add Contact Detail</button>
+</div>
 <button class="primary" type="submit">Save Contact Information</button>
 </form>
 </div>
@@ -1727,11 +1786,11 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260823"></script>
-<script src="../js/supabase-client.js?v=20260823"></script>
+<script src="../js/supabase-config.js?v=20260823-final"></script>
+<script src="../js/supabase-client.js?v=20260823-final"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260823" defer></script>
-<script src="Admin-fixes.js?v=20260823" defer></script>
+<script src="admin.js?v=20260823-final" defer></script>
+<script src="Admin-fixes.js?v=20260823-final" defer></script>
 </body>
 
 <style>
@@ -1801,4 +1860,16 @@ th { border-color: #075957 !important; border-width: 2px !important; }
  .invoice-generator-editor,.invoice-generator-toolbar{display:none!important}
  .invoice-paper{box-shadow:none;border:0;max-width:none}
 }
+
+
+/* Final correction pass */
+.admin-logo{width:32px;height:32px;}
+#orders .table-wrap, #registrations .table-wrap{overflow-x:auto;}
+#orders table, #registrations table{width:100%;table-layout:fixed;font-size:11px;}
+#orders th,#orders td,#registrations th,#registrations td{padding:6px 5px;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;}
+#orders th:nth-child(1){width:8%}#orders th:nth-child(2){width:9%}#orders th:nth-child(3){width:8%}#orders th:nth-child(4){width:8%}#orders th:nth-child(5){width:8%}#orders th:nth-child(6){width:8%}#orders th:nth-child(7){width:9%}#orders th:nth-child(8){width:13%}#orders th:nth-child(9){width:8%}#orders th:nth-child(10){width:21%;}
+#registrations th,#registrations td{font-size:11px;}
+.invoice-payment-row .form-group{margin-bottom:8px;}
+.invoice-payment-note{background:#fffdf5;}
+
 </style>
