@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redeem Your Discount | Aprils Signature</title>
+<meta name="description" content="Enter your Aprils Signature discount code and customer details.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="redeem-page">
+<header class="site-header">
+<div class="container header-inner">
+<a href="index.html" class="brand">
+<img src="icons/Aprils Signature logo.jpeg" alt="Aprils Signature logo" class="brand-logo">
+<span class="brand-text"><span class="brand-name">Aprils Signature</span><span class="brand-tagline">Elegance in Every Stitch</span></span>
+</a>
+<button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
+<nav class="main-navigation" aria-label="Main navigation">
+<a href="index.html">Home</a><a href="about.html">About</a><a href="services.html">Services</a><a href="gallery.html">Gallery</a><a href="training.html">Training</a><a href="quotes.html">Order / Request a Quote</a><a href="policies.html">Policies &amp; Terms</a><a href="contact.html">Contact</a>
+</nav>
+</div>
+</header>
+
+<main>
+<section class="page-intro"><div class="container">
+<h1>Redeem Your Discount</h1>
+<p>Enter your discount code and customer details. Your discount will be applied when your invoice is prepared.</p>
+</div></section>
+
+<section>
+<div class="container">
+<div class="form-card redeem-card">
+<form id="discountRedeemForm">
+<div class="form-grid">
+<div class="form-group"><label for="redeemName">Full Name</label><input id="redeemName" name="full_name" required></div>
+<div class="form-group"><label for="redeemPhone">Phone / WhatsApp</label><input id="redeemPhone" name="phone" required></div>
+<div class="form-group"><label for="redeemEmail">Email</label><input id="redeemEmail" name="email" type="email"></div>
+<div class="form-group"><label for="redeemCode">Discount Code</label><input id="redeemCode" name="code" required autocomplete="off"></div>
+</div>
+<div class="form-group"><label for="redeemReference">Order / Request Reference (Optional)</label><input id="redeemReference" name="order_reference" placeholder="If you have one"></div>
+<p class="small">This page does not display your order total. Your discount is applied to the invoice prepared by Aprils Signature.</p>
+<button class="button" type="submit">Redeem Discount</button>
+<div id="discountRedeemMessage" class="form-status" style="display:none;margin-top:15px;"></div>
+</form>
+</div>
+</div>
+</section>
+</main>
+
+<footer class="site-footer">
+<div class="footer-top"><div class="container footer-grid">
+<div class="footer-column"><h3>Contact</h3>
+<p><strong>Phone:</strong><br><a href="tel:+233592983027">+233 59 298 3027</a></p>
+<p><strong>WhatsApp:</strong><br><a href="https://wa.me/233592983027" target="_blank" rel="noopener noreferrer">+233 59 298 3027</a></p>
+<p><strong>Email:</strong><br><a href="mailto:info@aprilssignature.com">info@aprilssignature.com</a></p>
+<p><strong>Address:</strong><br>CE-003-0009 AL174 Windy Avenue<br>Opposite Former Perez Chapel International<br>Winneba, Central Region, Ghana.</p>
+</div>
+<div class="footer-column"><h3>Opening Hours</h3><p>Monday – Friday: 8:00 AM – 5:30 PM<br>Saturday: Closed<br>Sunday: Closed</p></div>
+</div></div>
+<div class="footer-bottom"><div class="container"><p>&copy; <span id="copyrightYear"></span> Aprils Signature. All rights reserved.</p></div></div>
+</footer>
+<a href="https://wa.me/233592983027" class="whatsapp-button" target="_blank" rel="noopener noreferrer" aria-label="Contact Aprils Signature on WhatsApp"><img src="icons/Whatsapp.jpg" alt="WhatsApp"></a>
+
+<script src="js/supabase-config.js?v=20260823"></script>
+<script src="js/supabase-client.js?v=20260823"></script>
+<script src="js/script.js?v=20260823" defer></script>
+<script>
+(function(){
+"use strict";
+function show(text, ok){
+ const box=document.getElementById("discountRedeemMessage");
+ if(!box)return;
+ box.textContent=text;
+ box.style.display="block";
+ box.style.color=ok?"#145c31":"#8a0018";
+ box.style.background=ok?"#e8f7ee":"#fff0f0";
+ box.style.padding="12px";
+ box.style.borderRadius="5px";
+}
+async function run(){
+ const form=document.getElementById("discountRedeemForm");
+ if(!form)return;
+ form.addEventListener("submit",async e=>{
+   e.preventDefault();
+   const supabase=window.aprilsSupabase||window.AprilsSupabase;
+   if(!supabase){show("The submission system is temporarily unavailable. Please try again.",false);return;}
+   const data=new FormData(form);
+   const payload={
+     full_name:String(data.get("full_name")||"").trim(),
+     phone:String(data.get("phone")||"").trim(),
+     email:String(data.get("email")||"").trim(),
+     code:String(data.get("code")||"").trim(),
+     order_reference:String(data.get("order_reference")||"").trim(),
+     status:"pending"
+   };
+   try{
+     const result=await supabase.from("discount_redemptions").insert(payload);
+     if(result.error)throw result.error;
+     show("Thank you. Your discount code has been recorded. Aprils Signature will apply the discount to your invoice.",true);
+     form.reset();
+   }catch(error){
+     console.error("DISCOUNT REDEMPTION ERROR:",error);
+     show("We could not record the discount code right now. Please contact Aprils Signature directly.",false);
+   }
+ });
+}
+if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",run);else run();
+})();
+</script>
+</body>
+</html>
