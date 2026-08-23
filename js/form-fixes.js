@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.AprilsSupabase ||
+        return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
@@ -165,6 +165,8 @@ PUBLIC FORM FIXES
                 const details = {
                     selectedServices: services,
                     streetwear: {},
+                    streetwearSizeMeasurements: String(data.get("streetwearSizeMeasurements") || "").trim(),
+                    streetwearColour: String(data.get("streetwearColour") || "").trim(),
                     streetwearOther: String(data.get("streetwearOther") || "").trim(),
                     ladiesWear: String(data.get("ladiesWearDetails") || "").trim(),
                     ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
@@ -207,22 +209,19 @@ PUBLIC FORM FIXES
                     const raw = String(data.get(input.name) || "").trim();
                     const product = input.getAttribute("data-product-name") || input.name;
                     if (raw !== "" && Number(raw) > 0) {
-                        const size = String(data.get(input.name + "_size") || "").trim();
-                        const measurements = String(data.get(input.name + "_measurements") || "").trim();
-                        const colour = String(data.get(input.name + "_colour") || "").trim();
-
                         details.streetwear[input.name] = {
                             product,
                             quantity: raw,
-                            size,
-                            measurements,
-                            colour
+                            size: details.streetwearSizeMeasurements,
+                            measurements: "",
+                            colour: details.streetwearColour
                         };
                     }
                 });
 
                 // Compatibility with older/static product fields if the dynamic catalogue
-                // has not loaded yet.
+                // has not loaded yet. The same streetwear size/measurements and colour(s)
+                // apply to the whole streetwear request.
                 [
                     "jerseys", "hoodies", "joggers", "tshirts", "poloShirts",
                     "sweatshirts", "sweatpants", "ladiesTankTops", "mensTankTops",
@@ -236,9 +235,9 @@ PUBLIC FORM FIXES
                         details.streetwear[name] = {
                             product: name,
                             quantity: raw,
-                            size: String(data.get(name + "_size") || "").trim(),
-                            measurements: String(data.get(name + "_measurements") || "").trim(),
-                            colour: String(data.get(name + "_colour") || "").trim()
+                            size: details.streetwearSizeMeasurements,
+                            measurements: "",
+                            colour: details.streetwearColour
                         };
                     }
                 });

@@ -885,18 +885,6 @@ async function loadPublicStreetwearProducts() {
             const id = "product_" + slug(row.name);
             return `<div class="quantity-row streetwear-product-row" data-streetwear-row="${escapeHTML(row.name)}">
                 <div class="form-group">
-                    <label for="${escapeHTML(id)}_size">Size (UK)</label>
-                    <input type="text" id="${escapeHTML(id)}_size" name="${escapeHTML(id)}_size" placeholder="e.g. Size 12 (UK)">
-                </div>
-                <div class="form-group">
-                    <label for="${escapeHTML(id)}_measurements">Measurements</label>
-                    <textarea id="${escapeHTML(id)}_measurements" name="${escapeHTML(id)}_measurements" placeholder="Provide measurements if required."></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="${escapeHTML(id)}_colour">Colour</label>
-                    <input type="text" id="${escapeHTML(id)}_colour" name="${escapeHTML(id)}_colour" placeholder="e.g. Black, Navy Blue">
-                </div>
-                <div class="form-group">
                     <label for="${escapeHTML(id)}">${escapeHTML(row.name)} — Quantity</label>
                     <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
                 </div>
@@ -1499,7 +1487,48 @@ async function loadPublicManagedContent() {
                             const cleanTitle = String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, "");
                             const section = document.createElement("section");
                             section.className = "policy-section";
-                            section.innerHTML = `<div class="container"><h2>${escapeHTML(cleanTitle)}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
+                            const container = document.createElement("div");
+                            container.className = "container";
+                            const heading = document.createElement("h2");
+                            heading.textContent = cleanTitle;
+                            container.appendChild(heading);
+
+                            const rawContent = String(row.content || "");
+                            const paragraphs = rawContent.split(/\n\s*\n/);
+                            paragraphs.forEach(textBlock => {
+                                const clean = textBlock.trim();
+                                if (!clean) return;
+                                const trainingMatch = clean.match(/^For any form of (fashion training|training)\s*\n([\s\S]*)$/i);
+                                if (trainingMatch) {
+                                    const note = document.createElement("div");
+                                    note.className = "policy-training-note";
+                                    const h3 = document.createElement("h3");
+                                    h3.textContent = "For any form of " + trainingMatch[1];
+                                    note.appendChild(h3);
+                                    const body = trainingMatch[2].trim();
+                                    if (body) {
+                                        if (/^[-•]/.test(body)) {
+                                            const ul = document.createElement("ul");
+                                            body.split(/\n/).filter(Boolean).forEach(item => {
+                                                const li = document.createElement("li");
+                                                li.textContent = item.replace(/^[-•]\s*/, "");
+                                                ul.appendChild(li);
+                                            });
+                                            note.appendChild(ul);
+                                        } else {
+                                            const p = document.createElement("p");
+                                            p.textContent = body;
+                                            note.appendChild(p);
+                                        }
+                                    }
+                                    container.appendChild(note);
+                                } else {
+                                    const p = document.createElement("p");
+                                    p.textContent = clean;
+                                    container.appendChild(p);
+                                }
+                            });
+                            section.appendChild(container);
                             frag.appendChild(section);
                         });
                     intro.after(frag);
