@@ -4,7 +4,7 @@
    ========================================================= */
 
 
-/* =====================================kklzs====================
+/* =========================================================
    1. BASIC RESET
    ========================================================= */
 
@@ -3079,5 +3079,46 @@ table td {
     .aprils-email-fallback,
     .aprils-email-fallback-card {
         transition: none !important;
+    }
+}
+
+
+/* =========================================================
+   FINAL PUBLIC CORRECTIONS — POLICY / STREETWEAR
+========================================================= */
+.policy-training-note {
+    margin-top: 28px;
+    padding: 20px 22px;
+    border-left: 5px solid var(--teal);
+    background: rgba(0, 140, 149, 0.06);
+}
+.policy-training-note h3 {
+    color: var(--teal) !important;
+    font-weight: 800;
+    margin: 0 0 16px;
+}
+.policy-training-note p,
+.policy-training-note ul {
+    margin-bottom: 0;
+}
+.streetwear-global-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    margin: 18px 0 26px;
+    padding: 18px;
+    border: 1.5px solid #8a8a8a;
+    border-radius: 8px;
+    background: #fff;
+}
+.streetwear-global-details .form-group {
+    margin-bottom: 0;
+}
+.streetwear-global-details label {
+    font-weight: 700;
+}
+@media (max-width: 700px) {
+    .streetwear-global-details {
+        grid-template-columns: 1fr;
     }
 }
