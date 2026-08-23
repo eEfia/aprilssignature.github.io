@@ -7,7 +7,7 @@ PUBLIC FORM FIXES
 =========================================================
 */
 
-(function () {xx.c
+(function () {
 
     function getSupabase() {
         return window.aprilsSupabase || window.AprilsSupabase || null;
@@ -162,64 +162,66 @@ PUBLIC FORM FIXES
                     }
                 }
 
-                const embellishmentDetails = {};
-                form.querySelectorAll('input[name="embellishment[]"]:checked').forEach(function(input) {
-                    const key = input.getAttribute("data-embellishment-key") || input.value;
-                    const prefix = key;
-                    const size = String(data.get(prefix + "Size") || "").trim();
-                    const quantity = String(data.get(prefix + "Quantity") || "").trim();
-                    const colour = String(data.get(prefix + "Colour") || "").trim();
-                    const request = String(data.get(prefix + "Details") || "").trim() || (key === "others" ? String(data.get("embellishmentOther") || "").trim() : "");
-                    if (size || quantity || colour || request) {
-                        embellishmentDetails[input.value] = {
-                            size,
-                            quantity: quantity || "1",
-                            colour,
-                            details: request
-                        };
-                    }
-                });
-
                 const details = {
                     selectedServices: services,
                     streetwear: {},
                     streetwearOther: String(data.get("streetwearOther") || "").trim(),
                     ladiesWear: String(data.get("ladiesWearDetails") || "").trim(),
-                    kidsWear: String(data.get("kidsWearDetails") || "").trim(),
-                    training: String(data.get("trainingDetails") || "").trim(),
-                    embellishment: data.getAll("embellishment[]").filter(Boolean),
-                    embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
-                    serviceOther: String(data.get("serviceOther") || "").trim(),
-                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
-                    streetwearSize: String(data.get("streetwearSize") || "").trim(),
-                    streetwearColour: String(data.get("streetwearColour") || "").trim(),
                     ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
                     ladiesWearColour: String(data.get("ladiesWearColour") || "").trim(),
+                    ladiesWearQuantity: String(data.get("ladiesWearQuantity") || "0").trim(),
+                    kidsWear: String(data.get("kidsWearDetails") || "").trim(),
                     kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
                     kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
-                    embellishmentSize: String(data.get("embellishmentSize") || "").trim(),
-                    ladiesWearQuantity: String(data.get("ladiesWearQuantity") || "0").trim(),
                     kidsWearQuantity: String(data.get("kidsWearQuantity") || "0").trim(),
-                    embellishmentQuantity: String(data.get("embellishmentQuantity") || "0").trim(),
-                    embellishmentItems: data.getAll("embellishment[]").filter(Boolean),
-                    embellishmentDetails,
+                    training: String(data.get("trainingDetails") || "").trim(),
+                    embellishment: data.getAll("embellishment[]").filter(Boolean),
+                    embellishmentDetails: {},
+                    serviceOther: String(data.get("serviceOther") || "").trim(),
+                    additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
                     inspiration: Array.from(document.getElementById("inspiration")?.files || []).map(file => file.name),
                     submittedFrom: window.location.href
                 };
 
+                details.embellishment.forEach(function(serviceName) {
+                    const size = String(data.get(`embellishmentSize[${serviceName}]`) || "").trim();
+                    const measurements = String(data.get(`embellishmentMeasurements[${serviceName}]`) || "").trim();
+                    const colour = String(data.get(`embellishmentColour[${serviceName}]`) || "").trim();
+                    const quantity = String(data.get(`embellishmentQuantity[${serviceName}]`) || "0").trim();
+                    const request = String(data.get(`embellishmentDetails[${serviceName}]`) || "").trim();
+
+                    details.embellishmentDetails[serviceName] = {
+                        size,
+                        measurements,
+                        colour,
+                        quantity,
+                        details: request
+                    };
+                });
+
+
+
                 Array.from(form.querySelectorAll('input[data-streetwear-product="true"]')).forEach(function(input) {
                     const raw = String(data.get(input.name) || "").trim();
+                    const product = input.getAttribute("data-product-name") || input.name;
                     if (raw !== "" && Number(raw) > 0) {
+                        const size = String(data.get(input.name + "_size") || "").trim();
+                        const measurements = String(data.get(input.name + "_measurements") || "").trim();
+                        const colour = String(data.get(input.name + "_colour") || "").trim();
+
                         details.streetwear[input.name] = {
+                            product,
                             quantity: raw,
-                            product: input.getAttribute("data-product-name") || input.name
+                            size,
+                            measurements,
+                            colour
                         };
                     }
                 });
 
-                // Keep compatibility with older/static product fields if the database catalogue
+                // Compatibility with older/static product fields if the dynamic catalogue
                 // has not loaded yet.
                 [
                     "jerseys", "hoodies", "joggers", "tshirts", "poloShirts",
@@ -230,7 +232,15 @@ PUBLIC FORM FIXES
                 ].forEach(function(name) {
                     if (form.querySelector('input[name="' + name + '"][data-streetwear-product="true"]')) return;
                     const raw = String(data.get(name) || "").trim();
-                    if (raw !== "" && Number(raw) > 0) details.streetwear[name] = raw;
+                    if (raw !== "" && Number(raw) > 0) {
+                        details.streetwear[name] = {
+                            product: name,
+                            quantity: raw,
+                            size: String(data.get(name + "_size") || "").trim(),
+                            measurements: String(data.get(name + "_measurements") || "").trim(),
+                            colour: String(data.get(name + "_colour") || "").trim()
+                        };
+                    }
                 });
 
                 const payload = {

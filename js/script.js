@@ -820,25 +820,6 @@ function setupQuoteForm() {
             form.querySelectorAll('input[name="services[]"]:checked')
         ).map(input => input.value);
 
-        form.querySelectorAll(".service-size-field").forEach(function (field) {
-            const serviceName = field.getAttribute("data-size-service");
-            field.style.display = selected.includes(serviceName) ? "block" : "none";
-            /*
-               Do NOT clear another service's size simply because another
-               service was selected. Each service keeps its own value.
-            */
-        });
-
-        form.querySelectorAll("[data-service-detail]").forEach(function (field) {
-            const serviceName = field.getAttribute("data-service-detail");
-            field.style.display = selected.includes(serviceName) ? "block" : "none";
-        });
-
-        form.querySelectorAll(".service-quantity-field").forEach(function (field) {
-            const serviceName = field.getAttribute("data-quantity-service");
-            field.style.display = selected.includes(serviceName) ? "block" : "none";
-        });
-
         const streetwear = document.getElementById("streetwearSection");
         if (streetwear) {
             streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
@@ -864,17 +845,11 @@ function setupQuoteForm() {
             const showEmbellishment = selected.includes("Embellishment Services");
             embellishment.style.display = showEmbellishment ? "block" : "none";
 
-            const otherWrap = document.getElementById("embellishmentOtherWrap");
-            const otherInput = document.getElementById("embellishmentOther");
-            const otherSelected = Array.from(embellishment.querySelectorAll('input[name="embellishment[]"]'))
-                .some(input => input.checked && input.value === "Others");
-
-            if (otherWrap) otherWrap.style.display = showEmbellishment && otherSelected ? "block" : "none";
-            if (otherInput) {
-                otherInput.required = showEmbellishment && otherSelected;
-                if (!otherSelected) otherInput.value = "";
-            }
-            if (typeof updateEmbellishmentDetailFields === "function") updateEmbellishmentDetailFields();
+            embellishment.querySelectorAll("[data-embellishment-detail]").forEach(panel => {
+                const serviceName = panel.getAttribute("data-embellishment-detail");
+                const checkbox = embellishment.querySelector(`input[name="embellishment[]"][value="${CSS.escape(serviceName)}"]`);
+                panel.style.display = showEmbellishment && checkbox?.checked ? "block" : "none";
+            });
         }
     }
 
@@ -886,27 +861,11 @@ function setupQuoteForm() {
         input.addEventListener("change", updateServiceSections);
     });
 
-    function updateEmbellishmentDetailFields() {
-        form.querySelectorAll(".embellishment-detail-field").forEach(function (field) {
-            const key = field.getAttribute("data-embellishment-detail");
-            const checkbox = Array.from(form.querySelectorAll('input[name="embellishment[]"]'))
-                .find(input => input.getAttribute("data-embellishment-key") === key);
-            const section = document.getElementById("embellishmentSection");
-            const visible = !!checkbox && checkbox.checked && !!section && section.style.display !== "none";
-            field.style.display = visible ? "block" : "none";
-        });
-    }
-
-    form.querySelectorAll('input[name="embellishment[]"]').forEach(function (input) {
-        input.addEventListener("change", updateEmbellishmentDetailFields);
-    });
-
     form.addEventListener("reset", function () {
         window.setTimeout(updateServiceSections, 0);
     });
 
     updateServiceSections();
-    updateEmbellishmentDetailFields();
 }
 
 
@@ -918,36 +877,52 @@ async function loadPublicStreetwearProducts() {
     const container = document.getElementById("streetwearProductsDynamic");
     if (!container) return;
 
+    const slug = name => String(name || "").toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+    const renderProducts = products => {
+        container.innerHTML = products.map(row => {
+            const id = "product_" + slug(row.name);
+            return `<div class="quantity-row streetwear-product-row" data-streetwear-row="${escapeHTML(row.name)}">
+                <div class="form-group">
+                    <label for="${escapeHTML(id)}_size">Size (UK)</label>
+                    <input type="text" id="${escapeHTML(id)}_size" name="${escapeHTML(id)}_size" placeholder="e.g. Size 12 (UK)">
+                </div>
+                <div class="form-group">
+                    <label for="${escapeHTML(id)}_measurements">Measurements</label>
+                    <textarea id="${escapeHTML(id)}_measurements" name="${escapeHTML(id)}_measurements" placeholder="Provide measurements if required."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="${escapeHTML(id)}_colour">Colour</label>
+                    <input type="text" id="${escapeHTML(id)}_colour" name="${escapeHTML(id)}_colour" placeholder="e.g. Black, Navy Blue">
+                </div>
+                <div class="form-group">
+                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)} — Quantity</label>
+                    <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
+                </div>
+            </div>`;
+        }).join("");
+    };
+
     try {
         const supabase = await waitForSupabase();
         if (!supabase) return;
+
         const result = await supabase.from("settings")
             .select("setting_key,setting_value")
             .like("setting_key","product_%");
         if (result.error) return;
 
         const products = (result.data || []).map(row => {
-            try { return {...JSON.parse(row.setting_value || "{}"), setting_key:row.setting_key}; }
+            try { return {...JSON.parse(row.setting_value || "{}"), setting_key: row.setting_key}; }
             catch (_) { return null; }
         }).filter(row => row && row.name && row.active !== false);
 
         const streetwear = products
             .filter(row => String(row.category || "").toLowerCase() === "streetwear")
-            .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999) ||
-                String(a.name).localeCompare(String(b.name)));
+            .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
 
-        if (!streetwear.length) return;
-
-        const slug = name => String(name).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
-        container.innerHTML = streetwear.map(row => {
-            const id = "product_" + slug(row.name);
-            return `<div class="quantity-row">
-                <div class="form-group">
-                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)}</label>
-                    <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
-                </div>
-            </div>`;
-        }).join("");
+        if (streetwear.length) renderProducts(streetwear);
     } catch (error) {
         console.warn("Public streetwear catalogue unavailable:", error);
     }
@@ -1041,22 +1016,41 @@ function setupMediaInteractions() {
 
 async function loadPublicFeaturedCollection() {
     if (!document.body.classList.contains("home-page")) return;
-    const rows = await loadPublicRows("gallery_items");
-    let featuredOrder = new Map();
+
+    let featured = [];
+    let collectionName = "Featured Collection";
     try {
         const supabase = await waitForSupabase();
         if (supabase) {
-            const settings = await supabase.from("settings").select("setting_key,setting_value").like("setting_key","featured_order_%");
-            if (!settings.error) (settings.data || []).forEach(r => featuredOrder.set(String(r.setting_key).replace("featured_order_", ""), Number(r.setting_value) || 9999));
+            const nameResult = await supabase.from("settings").select("setting_value").eq("setting_key","homepage_featured_collection_name").limit(1).maybeSingle();
+            if (!nameResult.error && nameResult.data?.setting_value) collectionName = String(nameResult.data.setting_value);
+            const settings = await supabase.from("settings")
+                .select("setting_key,setting_value")
+                .like("setting_key","homepage_featured_%");
+
+            if (!settings.error) {
+                featured = (settings.data || []).map(row => {
+                    try { return {...JSON.parse(row.setting_value || "{}"), id:row.id}; }
+                    catch (_) { return null; }
+                }).filter(row => row && row.url && row.active !== false)
+                  .sort((a,b) => Number(a.order || 9999) - Number(b.order || 9999));
+            }
         }
     } catch (_) {}
-    const featured = rows.filter(row => row.featured && row.image_url)
-        .sort((a,b)=>(featuredOrder.get(String(a.id)) ?? Number(a.display_order||9999))-(featuredOrder.get(String(b.id)) ?? Number(b.display_order||9999)) ||
-            String(a.title||"").localeCompare(String(b.title||"")));
+
+    // Backward-compatible fallback for an installation that has not yet created
+    // the separate homepage records.
+    if (!featured.length) {
+        const rows = await loadPublicRows("gallery_items");
+        featured = rows.filter(row => row.featured && row.image_url)
+            .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
+    }
+
     if (!featured.length) return;
 
     const main = document.querySelector("main");
     if (!main) return;
+
     const existing = main.querySelector(".featured-collection");
     if (!existing) return;
 
@@ -1064,17 +1058,17 @@ async function loadPublicFeaturedCollection() {
         <div class="container">
             <div class="section-heading">
                 <p class="eyebrow">Selected Work</p>
-                <h2>Featured Collection</h2>
+                <h2>${escapeHTML(collectionName)}</h2>
             </div>
             <div class="featured-grid">
                 ${featured.map(row => {
-                    const media = /\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url || "")
-                        ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(row.image_url)}" type="video/mp4"></video></div>`
-                        : `<div class="featured-video"><img src="${escapeHTML(row.image_url)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
+                    const mediaUrl = row.url || row.image_url || "";
+                    const media = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl)
+                        ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(mediaUrl)}" type="video/mp4"></video></div>`
+                        : `<div class="featured-video"><img src="${escapeHTML(mediaUrl)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
                     return `<article class="featured-card">
                         ${media}
                         ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
-                        ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
                         ${row.description ? `<p>${escapeHTML(row.description)}</p>` : ""}
                     </article>`;
                 }).join("")}
@@ -1492,12 +1486,22 @@ async function loadPublicManagedContent() {
                 if (main && intro && old?.length) {
                     old.forEach(section => section.remove());
                     const frag = document.createDocumentFragment();
-                    policies.forEach(row => {
-                        const section = document.createElement("section");
-                        section.className = "policy-section";
-                        section.innerHTML = `<div class="container"><h2>${escapeHTML(row.title || "")}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
-                        frag.appendChild(section);
-                    });
+                    const policyRank = {
+                        payment_policy: 1,
+                        refund_policy: 2,
+                        delivery_collection_policy: 3,
+                        privacy_policy: 4
+                    };
+                    policies
+                        .slice()
+                        .sort((a, b) => (policyRank[String(a.policy_key || "").toLowerCase()] || 99) - (policyRank[String(b.policy_key || "").toLowerCase()] || 99))
+                        .forEach(row => {
+                            const cleanTitle = String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, "");
+                            const section = document.createElement("section");
+                            section.className = "policy-section";
+                            section.innerHTML = `<div class="container"><h2>${escapeHTML(cleanTitle)}</h2><p>${escapeHTML(row.content || "").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p></div>`;
+                            frag.appendChild(section);
+                        });
                     intro.after(frag);
                 }
             }
