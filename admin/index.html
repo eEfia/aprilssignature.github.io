@@ -593,12 +593,6 @@ data-section="links"
 >
 Website Links
 </button>
-
-<button
-data-section="discounts"
->
-Return Customer Discount
-</button>
 <button
 data-section="testimonials"
 >
@@ -1539,38 +1533,8 @@ Active
 <button type="button" class="secondary" data-copy-direct-link="order">Copy Order / Request a Quote Link</button>
 <button type="button" class="secondary" data-copy-direct-link="training">Copy Training Registration Link</button>
 <button type="button" class="secondary" data-copy-direct-link="gallery">Copy Gallery Link</button>
-<button type="button" class="secondary" data-copy-direct-link="discount">Copy Discount Code Link</button>
 </div>
 <div id="directLinksList"></div>
-</div>
-</section>
-
-<!-- =====================================================
-RETURN CUSTOMER DISCOUNT
-===================================================== -->
-<section id="discounts" class="section">
-<h2>Return Customer Discount</h2>
-<p class="intro">Manage the 10% thank-you-card discount without crowding the order or invoice sections. Customers submit their code on a separate page; you verify and mark the redemption here.</p>
-<div class="form-card">
-<h3 style="color:#008c95;margin-bottom:10px;">Discount Code</h3>
-<form id="discountCodeForm">
-<input type="hidden" id="discountCodeId">
-<div class="form-grid">
-<div class="form-group"><label for="discountCodeValue">Code on Thank-You Card</label><input id="discountCodeValue" required placeholder="Enter the exact code printed on the card"></div>
-<div class="form-group"><label for="discountPercent">Discount Percentage</label><input id="discountPercent" type="number" min="0" max="100" step="1" value="10"></div>
-</div>
-<label class="checkbox"><input type="checkbox" id="discountCodeActive" checked> Active</label>
-<br>
-<button class="primary" type="submit">Save Discount Code</button>
-<button type="button" class="secondary" id="discountCodeNew">New Code</button>
-<button type="button" class="secondary" id="discountCodeCancel">Cancel</button>
-</form>
-</div>
-<div id="discountCodeList" class="table-wrap" style="margin-bottom:20px;"></div>
-<div class="form-card">
-<h3 style="color:#008c95;margin-bottom:8px;">Customer Redemptions</h3>
-<p class="intro" style="margin-bottom:12px;">Each submission is recorded. Mark it <strong>Redeemed</strong> only after you have applied the discount to the customer's order/payment.</p>
-<div id="discountRedemptionList" class="table-wrap"></div>
 </div>
 </section>
 

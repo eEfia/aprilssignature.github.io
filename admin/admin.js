@@ -237,7 +237,6 @@ async function loadSection(id) {
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "links") await loadWebsiteLinks();
-        if (id === "discounts") await loadDiscounts();
         if (id === "testimonials") await loadTestimonials();
         if (id === "faq") await loadFAQs();
         if (id === "policies") await loadPolicies();
@@ -1098,14 +1097,13 @@ function setupDirectCustomerLinks() {
     const links = {
         order: new URL("../quotes.html#quoteForm", window.location.href).href,
         training: new URL("../training.html#training-registration-form", window.location.href).href,
-        gallery: new URL("../gallery.html", window.location.href).href,
-        discount: new URL("../return-customer-discount.html", window.location.href).href
+        gallery: new URL("../gallery.html", window.location.href).href
     };
 
     const list = document.getElementById("directLinksList");
     if (list) {
         list.innerHTML = Object.entries(links).map(([key, url]) =>
-            `<p style="margin:8px 0;"><strong>${key === "order" ? "Order / Request a Quote" : key === "training" ? "Training Registration" : key === "gallery" ? "Gallery" : "Return Customer Discount"}:</strong> <a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a></p>`
+            `<p style="margin:8px 0;"><strong>${key === "order" ? "Order / Request a Quote" : key === "training" ? "Training Registration" : "Gallery"}:</strong> <a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a></p>`
         ).join("");
     }
 
@@ -3039,90 +3037,6 @@ function setupInvoiceForm() {
 }
 
 
-
-/* =========================================================
-   RETURN CUSTOMER DISCOUNT / THANK-YOU CARD
-========================================================= */
-
-async function loadDiscounts() {
-    const codeBox = document.getElementById("discountCodeList");
-    const redemptionBox = document.getElementById("discountRedemptionList");
-    if (!codeBox || !redemptionBox || !db) return;
-
-    try {
-        const [codesResult, redemptionsResult] = await Promise.all([
-            db.from("discount_codes").select("*").order("created_at", {ascending:false}),
-            db.from("discount_redemptions").select("*").order("created_at", {ascending:false})
-        ]);
-        if (codesResult.error) throw codesResult.error;
-        if (redemptionsResult.error) throw redemptionsResult.error;
-        const codes = codesResult.data || [];
-        const redemptions = redemptionsResult.data || [];
-
-        codeBox.innerHTML = codes.length ? `<table><thead><tr><th>Code</th><th>Discount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${codes.map(r=>`
-            <tr><td><strong>${escapeHTML(r.code)}</strong></td><td>${Number(r.discount_percent||10)}%</td><td>${r.active===false?"Inactive":"Active"}</td><td>
-            <button type="button" class="secondary" data-edit-discount-code="${escapeHTML(r.id)}">Edit</button>
-            <button type="button" class="danger" data-delete-discount-code="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty">No discount codes have been added yet. Add the exact code printed on your thank-you card.</div>`;
-
-        redemptionBox.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Code</th><th>Customer</th><th>Order Amount</th><th>Discount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${redemptions.map(r=>{
-            const pct=Number(r.discount_percent||10), order=Number(r.order_amount||0), amount=Number(r.discount_amount||0);
-            return `<tr><td>${escapeHTML(r.created_at?new Date(r.created_at).toLocaleString():"")}</td><td>${escapeHTML(r.code||"")}</td><td>${escapeHTML(r.full_name||"")}<small style="display:block;color:#666">${escapeHTML(r.phone||"")}</small></td><td>${order?"GHS "+order.toFixed(2):"—"}</td><td>${amount?"GHS "+amount.toFixed(2)+" ("+pct+"%)":"—"}</td><td>${escapeHTML(r.status||"Pending Verification")}</td><td><button type="button" class="secondary" data-redeem-discount="${escapeHTML(r.id)}">${String(r.status||"").toLowerCase()==="redeemed"?"Mark Pending":"Mark Redeemed"}</button><button type="button" class="danger" data-delete-discount-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`;
-        }).join("")}</tbody></table>` : `<div class="empty">No customers have submitted a discount code yet.</div>`;
-
-        codeBox.querySelectorAll("[data-edit-discount-code]").forEach(b=>b.onclick=()=>{
-            const r=codes.find(x=>String(x.id)===String(b.dataset.editDiscountCode)); if(!r)return;
-            document.getElementById("discountCodeId").value=r.id||"";
-            document.getElementById("discountCodeValue").value=r.code||"";
-            document.getElementById("discountPercent").value=Number(r.discount_percent||10);
-            document.getElementById("discountCodeActive").checked=r.active!==false;
-            document.getElementById("discountCodeForm").scrollIntoView({behavior:"smooth",block:"start"});
-        });
-        codeBox.querySelectorAll("[data-delete-discount-code]").forEach(b=>b.onclick=async()=>{
-            if(!confirm("Delete this discount code? Existing redemption records will remain."))return;
-            const r=await db.from("discount_codes").delete().eq("id",b.dataset.deleteDiscountCode);
-            if(r.error)message("Discount code could not be deleted: "+r.error.message,"error"); else {message("Discount code deleted.","success");await loadDiscounts();}
-        });
-        redemptionBox.querySelectorAll("[data-redeem-discount]").forEach(b=>b.onclick=async()=>{
-            const row=redemptions.find(x=>String(x.id)===String(b.dataset.redeemDiscount)); if(!row)return;
-            const next=String(row.status||"").toLowerCase()==="redeemed"?"Pending Verification":"Redeemed";
-            const r=await db.from("discount_redemptions").update({status:next,updated_at:new Date().toISOString()}).eq("id",row.id);
-            if(r.error)message("Redemption status could not be updated: "+r.error.message,"error"); else {message("Discount redemption status updated.","success");await loadDiscounts();}
-        });
-        redemptionBox.querySelectorAll("[data-delete-discount-redemption]").forEach(b=>b.onclick=async()=>{
-            if(!confirm("Delete this redemption record?"))return;
-            const r=await db.from("discount_redemptions").delete().eq("id",b.dataset.deleteDiscountRedemption);
-            if(r.error)message("Redemption could not be deleted: "+r.error.message,"error"); else {message("Redemption record deleted.","success");await loadDiscounts();}
-        });
-    } catch(error) {
-        console.error("Discount section error:",error);
-        codeBox.innerHTML=`<div class="notice">The discount system needs the supplied Supabase SQL setup to be run once. After that, this section will load and save normally.</div>`;
-        redemptionBox.innerHTML="";
-    }
-}
-
-function setupDiscountForms() {
-    const form=document.getElementById("discountCodeForm");
-    if(!form||form.dataset.bound)return;
-    form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{
-        e.preventDefault();
-        const id=document.getElementById("discountCodeId").value.trim();
-        const code=document.getElementById("discountCodeValue").value.trim().toUpperCase();
-        const discountPercent=Math.max(0,Math.min(100,Number(document.getElementById("discountPercent").value||10)));
-        const active=document.getElementById("discountCodeActive").checked;
-        if(!code){message("Enter the discount code printed on the thank-you card.","error");return;}
-        try{
-            const payload={code,discount_percent:discountPercent,active,updated_at:new Date().toISOString()};
-            let r=id?await db.from("discount_codes").update(payload).eq("id",id):await db.from("discount_codes").insert(payload);
-            if(r.error)throw r.error;
-            form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;
-            message("Discount code saved.","success");await loadDiscounts();
-        }catch(error){message("Discount code could not be saved: "+error.message,"error");}
-    });
-    document.getElementById("discountCodeNew")?.addEventListener("click",()=>{form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;form.scrollIntoView({behavior:"smooth",block:"start"});});
-    document.getElementById("discountCodeCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("discountCodeId").value="";document.getElementById("discountPercent").value="10";document.getElementById("discountCodeActive").checked=true;});
-}
-
 /* =========================================================
    WEBSITE LINKS — HEADER / FOOTER
 ========================================================= */
@@ -3910,7 +3824,6 @@ async function startAdmin() {
     setupInvoicePaymentForm();
     setupWebsiteLinksForm();
     setupDirectCustomerLinks();
-    setupDiscountForms();
     setupContactForm();
     setupSocialForm();
     setupSettingsForm();
