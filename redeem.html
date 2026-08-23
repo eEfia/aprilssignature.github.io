@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redeem Your Discount | Aprils Signature</title>
-<meta name="description" content="Enter your jiklkAprils Signature discount code and customer details.">
+<meta name="description" content="Enter your Aprils Signature discount code and customer details.">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body class="redeem-page">
@@ -37,7 +37,6 @@
 <div class="form-group"><label for="redeemEmail">Email</label><input id="redeemEmail" name="email" type="email"></div>
 <div class="form-group"><label for="redeemCode">Discount Code</label><input id="redeemCode" name="code" required autocomplete="off"></div>
 </div>
-<div class="form-group"><label for="redeemReference">Order / Request Reference (Optional)</label><input id="redeemReference" name="order_reference" placeholder="If you have one"></div>
 <p class="small">This page does not display your order total. Your discount is applied to the invoice prepared by Aprils Signature.</p>
 <button class="button" type="submit">Redeem Discount</button>
 <div id="discountRedeemMessage" class="form-status" style="display:none;margin-top:15px;"></div>
@@ -61,9 +60,9 @@
 </footer>
 <a href="https://wa.me/233592983027" class="whatsapp-button" target="_blank" rel="noopener noreferrer" aria-label="Contact Aprils Signature on WhatsApp"><img src="icons/Whatsapp.jpg" alt="WhatsApp"></a>
 
-<script src="js/supabase-config.js?v=20260823"></script>
-<script src="js/supabase-client.js?v=20260823"></script>
-<script src="js/script.js?v=20260823" defer></script>
+<script src="js/supabase-config.js?v=20260823-final"></script>
+<script src="js/supabase-client.js?v=20260823-final"></script>
+<script src="js/script.js?v=20260823-final" defer></script>
 <script>
 (function(){
 "use strict";
@@ -90,7 +89,6 @@ async function run(){
      phone:String(data.get("phone")||"").trim(),
      email:String(data.get("email")||"").trim(),
      code:String(data.get("code")||"").trim(),
-     order_reference:String(data.get("order_reference")||"").trim(),
      status:"pending"
    };
    try{
