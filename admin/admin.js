@@ -236,6 +236,7 @@ async function loadSection(id) {
         if (id === "registrations") await loadRegistrations();
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
+        if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
         if (id === "testimonials") await loadTestimonials();
         if (id === "faq") await loadFAQs();
@@ -939,19 +940,58 @@ function setupProductForm() {
    Stored in settings as homepage_featured_* records.
 ========================================================= */
 
-function homepageMediaKey(title) {
-    return "homepage_featured_" + contentSlug(title) + "_" + Date.now() + "_" + Math.random().toString(36).slice(2,8);
+function homepageMediaKey(title, url = "") {
+    return "homepage_featured_" + contentSlug(String(title || "") + "_" + String(url || ""));
 }
 
 async function getHomepageMediaRows() {
     const rows = await getRows("settings");
-    return rows.filter(r => String(r.setting_key || "").startsWith("homepage_featured_"))
+    const source = rows.filter(r => String(r.setting_key || "").startsWith("homepage_featured_"))
         .map(r => {
             let item = {};
             try { item = JSON.parse(r.setting_value || "{}"); } catch (_) {}
             return { ...item, id: r.id, setting_key: r.setting_key };
         })
         .filter(r => r.title && r.url);
+
+    // Remove exact homepage duplicates created by earlier versions.
+    const seen = new Map();
+    const unique = [];
+    for (const row of source) {
+        const key = String(row.title).trim().toLowerCase() + "\u0000" + String(row.url).trim();
+        if (seen.has(key)) {
+            try { await db.from("settings").delete().eq("id", row.id); } catch (_) {}
+            continue;
+        }
+        seen.set(key, row.id);
+        unique.push(row);
+    }
+
+    // If the separate homepage library has not yet been created, import the
+    // current featured gallery media once so the admin never starts empty.
+    if (!unique.length) {
+        try {
+            const featured = await db.from("gallery_items")
+                .select("title,image_url,description,display_order,featured,active")
+                .eq("featured", true).eq("active", true)
+                .order("display_order", {ascending:true});
+            if (!featured.error && featured.data?.length) {
+                for (const row of featured.data) {
+                    const key = homepageMediaKey(row.title || "Featured Media", row.image_url || "");
+                    const value = JSON.stringify({
+                        title: row.title || "Featured Collection",
+                        url: row.image_url || "",
+                        order: row.display_order || 1,
+                        description: row.description || "",
+                        active: true
+                    });
+                    await safeSettingUpsert(key, value);
+                }
+                return getHomepageMediaRows();
+            }
+        } catch (_) {}
+    }
+    return unique;
 }
 
 async function loadHomepageCollectionName() {
@@ -1067,7 +1107,7 @@ function setupHomepageMediaForm() {
                     .eq("id", id);
                 if (result.error) throw result.error;
             } else {
-                await safeSettingUpsert(homepageMediaKey(title), value);
+                await safeSettingUpsert(homepageMediaKey(title, url), value);
             }
 
             form.reset();
@@ -1095,27 +1135,58 @@ function setupHomepageMediaForm() {
 
 function setupDirectCustomerLinks() {
     const links = {
+        website: new URL("../index.html", window.location.href).href,
         order: new URL("../quotes.html#quoteForm", window.location.href).href,
         training: new URL("../training.html#training-registration-form", window.location.href).href,
         gallery: new URL("../gallery.html", window.location.href).href
     };
 
+    const labels = {
+        website: "Main Website",
+        order: "Order / Request a Quote",
+        training: "Training Registration",
+        gallery: "Gallery"
+    };
+
     const list = document.getElementById("directLinksList");
     if (list) {
         list.innerHTML = Object.entries(links).map(([key, url]) =>
-            `<p style="margin:8px 0;"><strong>${key === "order" ? "Order / Request a Quote" : key === "training" ? "Training Registration" : "Gallery"}:</strong> <a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a></p>`
+            `<div class="direct-link-row" style="margin:10px 0;padding:10px;border:1px solid #aaa;border-radius:5px;">
+                <strong>${labels[key]}:</strong><br>
+                <a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <button type="button" class="secondary" data-copy-direct-link="${key}">Copy</button>
+                    <button type="button" class="secondary" data-share-direct-link="${key}">Share</button>
+                </div>
+            </div>`
         ).join("");
     }
 
     document.querySelectorAll("[data-copy-direct-link]").forEach(button => {
         button.onclick = async () => {
             const url = links[button.dataset.copyDirectLink];
+            if (!url) return;
             try {
                 await navigator.clipboard.writeText(url);
-                message("Direct link copied. You can send it to the customer.", "success");
+                message("Link copied. You can send it to the customer.", "success");
             } catch (_) {
                 window.prompt("Copy this direct link:", url);
             }
+        };
+    });
+
+    document.querySelectorAll("[data-share-direct-link]").forEach(button => {
+        button.onclick = async () => {
+            const url = links[button.dataset.shareDirectLink];
+            if (!url) return;
+            const title = labels[button.dataset.shareDirectLink] || "Aprils Signature";
+            if (navigator.share) {
+                try {
+                    await navigator.share({title, text: "Aprils Signature — " + title, url});
+                    return;
+                } catch (_) {}
+            }
+            window.open("https://wa.me/?text=" + encodeURIComponent("Aprils Signature — " + title + "\n" + url), "_blank", "noopener,noreferrer");
         };
     });
 }
@@ -1143,10 +1214,37 @@ async function getInvoicePriceMap() {
 }
 
 function invoicePriceFor(map, name) {
-    return map.get(normalizeInvoiceName(name)) ?? 0;
+    const normalized = normalizeInvoiceName(name);
+    if (map.has(normalized)) return map.get(normalized) ?? 0;
+
+    // Training prices are stored as "Training - Programme Name".
+    const trainingKey = normalizeInvoiceName("Training - " + name);
+    if (map.has(trainingKey)) return map.get(trainingKey) ?? 0;
+
+    // Be tolerant of common product-name punctuation / set-name differences.
+    const aliases = {
+        "t shirt": ["t shirts", "t shirt"],
+        "t shirts": ["t shirts", "t shirt"],
+        "hoodies joggers set": ["hoodies joggers set"],
+        "t shirt shorts set": ["t shirts shorts set", "t shirt shorts set"],
+        "t shirt sweatpants set": ["t shirt sweatpants set"]
+    };
+    for (const alias of (aliases[normalized] || [])) {
+        if (map.has(alias)) return map.get(alias) ?? 0;
+    }
+    return 0;
 }
 
 function buildInvoiceLinesFromQuote(row, details, priceMap) {
+    if (Array.isArray(details?.manualLines)) {
+        return details.manualLines.map(line => ({
+            description: String(line.description || "").trim(),
+            quantity: Math.max(1, Number(line.quantity || 1)),
+            unitPrice: Number(line.unitPrice || 0),
+            details: String(line.details || "")
+        })).filter(line => line.description);
+    }
+
     const lines = [];
 
     if (details?.streetwear && typeof details.streetwear === "object") {
@@ -1207,8 +1305,75 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
     return lines;
 }
 
+
+function invoicePaymentStorageKey(invoiceNumber, stamp) {
+    return "invoice_payment_record_" + contentSlug(invoiceNumber) + "_" + String(stamp || Date.now());
+}
+
+async function getInvoicePayments(invoiceNumber) {
+    const rows = await getRows("settings");
+    return rows
+        .filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
+        .map(r => {
+            try { return { ...JSON.parse(r.setting_value || "{}"), id: r.id, key: r.setting_key }; }
+            catch (_) { return null; }
+        })
+        .filter(r => r && String(r.invoiceNumber || "") === String(invoiceNumber || ""))
+        .sort((a,b) => String(a.date || "").localeCompare(String(b.date || "")));
+}
+
+async function saveInvoicePayment(payment) {
+    const key = invoicePaymentStorageKey(payment.invoiceNumber, Date.now());
+    return safeSettingUpsert(key, JSON.stringify(payment));
+}
+
+async function getInvoiceSavedRecord(invoiceNumber) {
+    try {
+        const row = await getSettingValue("invoice_record_" + contentSlug(invoiceNumber));
+        if (!row?.setting_value) return null;
+        return JSON.parse(row.setting_value);
+    } catch (_) { return null; }
+}
+
+async function saveInvoiceRecord(invoiceNumber, record) {
+    return safeSettingUpsert("invoice_record_" + contentSlug(invoiceNumber), JSON.stringify(record));
+}
+
+
+async function getDiscountForCustomer(row) {
+    const phone = String(row?.phone || row?.whatsapp || "").replace(/\D/g, "");
+    const email = String(row?.email || "").trim().toLowerCase();
+    if (!phone && !email) return null;
+
+    try {
+        const codes = (await getRows("settings"))
+            .filter(r => String(r.setting_key || "").startsWith("discount_code_"))
+            .map(r => {
+                try { return { ...JSON.parse(r.setting_value || "{}"), id: r.id }; } catch (_) { return null; }
+            }).filter(r => r && r.code && r.active !== false);
+
+        const redemptionResult = await db.from("discount_redemptions").select("*").eq("status", "pending").order("created_at", {ascending:false});
+        if (redemptionResult.error) return null;
+
+        for (const redemption of redemptionResult.data || []) {
+            const samePhone = phone && String(redemption.phone || "").replace(/\D/g, "") === phone;
+            const sameEmail = email && String(redemption.email || "").trim().toLowerCase() === email;
+            if (!samePhone && !sameEmail) continue;
+
+            const code = codes.find(c => String(c.code).trim().toLowerCase() === String(redemption.code || "").trim().toLowerCase());
+            if (!code) continue;
+
+            const percent = Math.max(0, Math.min(100, Number(code.percent || 0)));
+            if (!percent) continue;
+            return { ...code, redemptionId: redemption.id, percent };
+        }
+    } catch (_) {}
+    return null;
+}
+
 async function openInvoiceGenerator(row, details) {
     const priceMap = await getInvoicePriceMap();
+    const discountOffer = await getDiscountForCustomer(row);
     const paymentRows = await getRows("settings");
     const payment = {};
     paymentRows.filter(r => /^invoice_payment_/.test(String(r.setting_key || ""))).forEach(r => payment[r.setting_key] = r.setting_value || "");
@@ -1230,6 +1395,7 @@ async function openInvoiceGenerator(row, details) {
 
     const invoiceNumber = "AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase();
     const detailsLines = buildInvoiceLinesFromQuote(row, details, priceMap);
+    const savedPayments = await getInvoicePayments(invoiceNumber);
 
     modal.innerHTML = `
         <div class="invoice-generator-toolbar">
@@ -1257,7 +1423,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="form-group"><label>Email</label><input id="generatedInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
                 <div class="form-group"><label>Location / Address</label><input id="generatedInvoiceAddress" value="${escapeHTML(row.location || "")}"></div>
             </div>
-            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
+            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || "Thank you for choosing Aprils Signature.")}</textarea></div>
         </div>
         <div id="generatedInvoicePreview"></div>
     `;
@@ -1265,7 +1431,7 @@ async function openInvoiceGenerator(row, details) {
     const preview = modal.querySelector("#generatedInvoicePreview");
     function renderInvoice() {
         const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit").value) || 0));
-        const discount = Number(document.getElementById("generatedInvoiceDiscount")?.value || 0);
+        const discountPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDiscountPercent")?.value || 0)));
         const lines = Array.from(modal.querySelectorAll("#invoiceLineRows .invoice-edit-row")).map(rowEl => ({
             description: rowEl.querySelector(".invoice-line-description")?.value || "",
             quantity: Number(rowEl.querySelector(".invoice-line-qty")?.value || 0),
@@ -1273,9 +1439,13 @@ async function openInvoiceGenerator(row, details) {
             details: rowEl.querySelector(".invoice-line-details")?.value || ""
         }));
         const subtotal = lines.reduce((sum, l) => sum + (l.quantity * l.unitPrice), 0);
+        const discount = subtotal * discountPercent / 100;
         const total = Math.max(0, subtotal - discount);
         const deposit = total * depositPercent / 100;
         const balance = total - deposit;
+        const paidAmount = Number(savedPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0));
+        const outstanding = Math.max(0, total - paidAmount);
+        const paymentStatus = paidAmount >= total && total > 0 ? "PAID IN FULL" : (paidAmount > 0 ? "PART PAYMENT RECEIVED" : "PAYMENT PENDING");
 
         const logoSrc = new URL("../icons/Aprils Signature logo.jpeg", window.location.href).href;
         preview.innerHTML = `
@@ -1290,10 +1460,12 @@ async function openInvoiceGenerator(row, details) {
                 <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
                 <div class="invoice-summary">
                     <p>Subtotal: <strong>GHS ${subtotal.toFixed(2)}</strong></p>
-                    <p>Discount: <strong>GHS ${discount.toFixed(2)}</strong></p>
+                    <p>Discount (${discountPercent.toFixed(2)}%): <strong>GHS ${discount.toFixed(2)}</strong></p>
                     <p>Grand Total: <strong>GHS ${total.toFixed(2)}</strong></p>
                     <p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>
-                    <p>Balance: <strong>GHS ${balance.toFixed(2)}</strong></p>
+                    <p>Amount Paid: <strong>GHS ${paidAmount.toFixed(2)}</strong></p>
+                    <p>Balance: <strong>GHS ${outstanding.toFixed(2)}</strong></p>
+                    <p class="invoice-payment-status"><strong>${paymentStatus}</strong></p>
                 </div>
                 <div class="invoice-payment"><strong>Payment Details</strong><br>
                     ${escapeHTML(payment.invoice_payment_network || "")} ${escapeHTML(payment.invoice_payment_number || "")}<br>
@@ -1313,7 +1485,7 @@ async function openInvoiceGenerator(row, details) {
         <h3>Invoice Items</h3>
         <div id="invoiceLineRows"></div>
         <div class="form-grid">
-            <div class="form-group"><label>Discount (GHS)</label><input id="generatedInvoiceDiscount" type="number" min="0" step="0.01" value="0"></div>
+            <div class="form-group"><label>Discount (%)</label><input id="generatedInvoiceDiscountPercent" type="number" min="0" max="100" step="0.01" value="${Number(discountOffer?.percent || 0)}"></div>
         </div>
         <button type="button" class="secondary" id="invoiceAddLine">+ Add Line</button>
     `;
@@ -1347,14 +1519,56 @@ async function openInvoiceGenerator(row, details) {
     modal.querySelector("#invoicePrint").onclick = () => printGeneratedInvoice();
     modal.querySelector("#invoiceWhatsApp").onclick = () => shareGeneratedInvoiceWhatsApp();
     modal.querySelector("#invoiceEmail").onclick = () => shareGeneratedInvoiceEmail();
+    modal.querySelector("#saveGeneratedInvoice").onclick = async () => {
+        try {
+            statefulSaveGeneratedInvoice(row, details, savedPayments);
+        } catch (error) {
+            message("Invoice could not be saved: " + error.message, "error");
+        }
+    };
     modal.querySelector("#generateReceiptFromInvoice").onclick = () => openReceiptGenerator();
 
     backdrop.style.display = "block";
     modal.classList.add("open");
 
-    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, payment };
+    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, payment, savedPayments, discountOffer };
 }
 
+
+async function statefulSaveGeneratedInvoice(row, details, savedPayments) {
+    const state = window._aprilsCurrentInvoice;
+    if (!state) return;
+    state.renderInvoice();
+    const invoiceNumber = document.getElementById("generatedInvoiceNumber")?.value || "";
+    const lines = Array.from(document.querySelectorAll("#invoiceLineRows .invoice-edit-row")).map(el => ({
+        description: el.querySelector(".invoice-line-description")?.value || "",
+        details: el.querySelector(".invoice-line-details")?.value || "",
+        quantity: Number(el.querySelector(".invoice-line-qty")?.value || 0),
+        unitPrice: Number(el.querySelector(".invoice-line-price")?.value || 0)
+    })).filter(x => x.description);
+    const subtotal = lines.reduce((sum,l) => sum + l.quantity*l.unitPrice, 0);
+    const discountPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDiscountPercent")?.value || 0)));
+    const discount = subtotal * discountPercent / 100;
+    const total = Math.max(0, subtotal - discount);
+    const record = {
+        invoiceNumber,
+        date: document.getElementById("generatedInvoiceDate")?.value || "",
+        dueDate: document.getElementById("generatedInvoiceDueDate")?.value || "",
+        depositPercent: Number(document.getElementById("generatedInvoiceDeposit")?.value || 75),
+        customer: document.getElementById("generatedInvoiceCustomer")?.value || "",
+        phone: document.getElementById("generatedInvoicePhone")?.value || "",
+        email: document.getElementById("generatedInvoiceEmail")?.value || "",
+        address: document.getElementById("generatedInvoiceAddress")?.value || "",
+        notes: document.getElementById("generatedInvoiceNotes")?.value || "",
+        lines, discount, discountPercent, total,
+        savedAt: new Date().toISOString()
+    };
+    await saveInvoiceRecord(invoiceNumber, record);
+    if (state.discountOffer?.redemptionId) {
+        try { await db.from("discount_redemptions").update({status:"used"}).eq("id", state.discountOffer.redemptionId); } catch (_) {}
+    }
+    message("Invoice " + invoiceNumber + " saved.", "success");
+}
 function closeInvoiceGenerator() {
     document.getElementById("invoiceGeneratorBackdrop")?.remove();
     document.getElementById("invoiceGeneratorModal")?.remove();
@@ -1408,9 +1622,20 @@ function getGeneratedInvoiceShareText() {
     return `Aprils Signature Invoice ${number}\nCustomer: ${customer}\nPlease see the attached invoice PDF for the full details.`;
 }
 
-function shareGeneratedInvoiceWhatsApp() {
-    const text = encodeURIComponent(getGeneratedInvoiceShareText());
-    window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
+async function shareGeneratedInvoiceWhatsApp() {
+    // On devices that support file sharing, this sends the generated PDF through
+    // the system share sheet, where WhatsApp can be selected. Otherwise, save
+    // the PDF and open WhatsApp with the invoice message ready.
+    try {
+        await generateInvoicePdf(true);
+        if (!navigator.share) {
+            const text = encodeURIComponent(getGeneratedInvoiceShareText());
+            window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
+        }
+    } catch (_) {
+        const text = encodeURIComponent(getGeneratedInvoiceShareText());
+        window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
+    }
 }
 
 function shareGeneratedInvoiceEmail() {
@@ -1454,7 +1679,8 @@ function getCurrentInvoiceTotals() {
         details: rowEl.querySelector(".invoice-line-details")?.value || ""
     })).filter(x => x.description || x.quantity || x.unitPrice);
     const subtotal = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
-    const discount = Number(document.getElementById("generatedInvoiceDiscount")?.value || 0);
+    const discountPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDiscountPercent")?.value || 0)));
+    const discount = subtotal * discountPercent / 100;
     const total = Math.max(0, subtotal - discount);
     const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 0)));
     return { total, paidDue: total * depositPercent / 100, balance: total * (1 - depositPercent / 100), lines };
@@ -1500,6 +1726,7 @@ function openReceiptGenerator() {
                 <button type="button" class="secondary" id="receiptPrint">Print</button>
                 <button type="button" class="secondary" id="receiptWhatsApp">WhatsApp</button>
                 <button type="button" class="secondary" id="receiptEmail">Email</button>
+                <button type="button" class="primary" id="receiptSavePayment">Save Payment</button>
             </div>
         </div>
         <div class="invoice-generator-editor receipt-editor">
@@ -1507,7 +1734,7 @@ function openReceiptGenerator() {
                 <div class="form-group"><label>Receipt Number</label><input id="generatedReceiptNumber" value="${escapeHTML(receiptNumber)}"></div>
                 <div class="form-group"><label>Receipt Date</label><input id="generatedReceiptDate" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
                 <div class="form-group"><label>Invoice Number</label><input id="generatedReceiptInvoiceNumber" value="${escapeHTML(invoiceNumber)}" readonly></div>
-                <div class="form-group"><label>Amount Received (GHS)</label><input id="generatedReceiptAmount" type="number" min="0" step="0.01" value="${totals.paidDue.toFixed(2)}"></div>
+                <div class="form-group"><label>Amount Received (GHS)</label><input id="generatedReceiptAmount" type="number" min="0" step="0.01" value="${Math.min(totals.paidDue, Math.max(0, totals.total - Number((invoiceState.savedPayments || []).reduce((s,p)=>s+Number(p.amount||0),0)))).toFixed(2)}"></div>
                 <div class="form-group"><label>Payment Method</label><select id="generatedReceiptMethod"><option>Mobile Money</option><option>Bank Transfer</option><option>Cash</option><option>Card</option><option>Other</option></select></div>
                 <div class="form-group"><label>Transaction / Reference</label><input id="generatedReceiptReference" placeholder="Optional transaction reference"></div>
             </div>
@@ -1560,6 +1787,37 @@ function openReceiptGenerator() {
     modal.querySelector("#receiptPrint").onclick = () => printGeneratedReceipt();
     modal.querySelector("#receiptWhatsApp").onclick = () => shareGeneratedReceiptWhatsApp();
     modal.querySelector("#receiptEmail").onclick = () => shareGeneratedReceiptEmail();
+    modal.querySelector("#receiptSavePayment").onclick = async () => {
+        const amount = Number(document.getElementById("generatedReceiptAmount")?.value || 0);
+        if (amount <= 0) { message("Enter the amount actually received before saving the payment.", "error"); return; }
+        try {
+            await saveInvoicePayment({
+                invoiceNumber: document.getElementById("generatedReceiptInvoiceNumber")?.value || "",
+                receiptNumber: document.getElementById("generatedReceiptNumber")?.value || "",
+                customer: document.getElementById("generatedReceiptCustomer")?.value || "",
+                phone: document.getElementById("generatedReceiptPhone")?.value || "",
+                email: document.getElementById("generatedReceiptEmail")?.value || "",
+                amount,
+                method: document.getElementById("generatedReceiptMethod")?.value || "",
+                reference: document.getElementById("generatedReceiptReference")?.value || "",
+                date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10)
+            });
+            const latest = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
+            if (invoiceState) {
+                invoiceState.savedPayments = latest;
+                try {
+                    const record = invoiceState.row || {};
+                    if (record.id) {
+                        await setAdminRecordStatus(record.course ? "training_status" : "quote_status", record.id, "payment_received");
+                    }
+                } catch (_) {}
+            }
+            message("Payment saved. The invoice balance will update when the invoice is reopened.", "success");
+            renderReceipt();
+        } catch (error) {
+            message("Payment could not be saved: " + error.message, "error");
+        }
+    };
     backdrop.style.display = "block";
     modal.classList.add("open");
     window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals };
@@ -1614,8 +1872,15 @@ function getGeneratedReceiptShareText() {
     return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nAmount Received: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
 }
 
-function shareGeneratedReceiptWhatsApp() {
-    window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
+async function shareGeneratedReceiptWhatsApp() {
+    try {
+        await generateReceiptPdf(true);
+        if (!navigator.share) {
+            window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
+        }
+    } catch (_) {
+        window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
+    }
 }
 
 function shareGeneratedReceiptEmail() {
@@ -1873,6 +2138,11 @@ function buildQuoteDetailRows(row, details) {
 
     add("Selected Services", selected.join(", "));
 
+    if (selected.includes("Streetwear")) {
+        add("Streetwear Size (UK) / Measurements", details.streetwearSizeMeasurements);
+        add("Streetwear Colour (S)", details.streetwearColour);
+    }
+
     if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
         Object.entries(details.streetwear).forEach(([key, item]) => {
             if (!item) return;
@@ -2100,14 +2370,45 @@ function closeSubmissionDetails(){
    READ-ONLY CUSTOMER SUBMISSIONS
 ========================================================= */
 
+
+const ADMIN_STATUS_OPTIONS = [
+    ["request_received", "Request Received"],
+    ["reviewed", "Reviewed"],
+    ["invoice_sent", "Invoice Sent"],
+    ["payment_received", "Payment Received"],
+    ["work_in_progress", "Work in Progress"],
+    ["completed", "Completed"],
+    ["delivered", "Delivered"]
+];
+
+async function getAdminRecordStatus(prefix, id) {
+    try {
+        const row = await getSettingValue(prefix + "_" + id);
+        return row?.setting_value || "request_received";
+    } catch (_) { return "request_received"; }
+}
+
+async function setAdminRecordStatus(prefix, id, status) {
+    return safeSettingUpsert(prefix + "_" + id, status);
+}
+
+function statusSelectHTML(prefix, id, value) {
+    return `<select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
+        ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
+    </select>`;
+}
+
 async function loadRegistrations() {
     const rows = await getRows("training_registrations");
     const list = document.getElementById("registrationList");
     if (!list) return;
 
+    const statuses = new Map();
+    for (const row of rows) statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
+
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Action</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Status</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => `<tr>
             <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
@@ -2116,18 +2417,47 @@ async function loadRegistrations() {
             <td>${escapeHTML(row.course)}</td>
             <td>${escapeHTML(row.location)}</td>
             <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
+            <td>${statusSelectHTML("training_status", row.id, statuses.get(String(row.id)))}</td>
             <td>
-    <button type="button" class="secondary" data-view-registration="${row.id}">View Full Details</button>
-    <button type="button" class="danger" data-delete-registration="${row.id}">Delete</button>
-</td>
+                <button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button>
+                <button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
+                <button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button>
+            </td>
         </tr>`).join("")}
         </tbody></table>
     ` : `<div class="empty">No training registrations received.</div>`;
+
+    list.querySelectorAll("[data-status-id]").forEach(select => {
+        select.addEventListener("change", async () => {
+            try {
+                await setAdminRecordStatus(select.dataset.statusPrefix, select.dataset.statusId, select.value);
+                message("Status updated.", "success");
+            } catch (error) {
+                message("Status could not be updated: " + error.message, "error");
+            }
+        });
+    });
 
     list.querySelectorAll("[data-view-registration]").forEach(button => {
         button.onclick = () => {
             const row = rows.find(item => String(item.id) === String(button.dataset.viewRegistration));
             if (row) showSubmissionDetails("Training Registration Details", row, row.message || row.request_details || row.details || "");
+        };
+    });
+
+    list.querySelectorAll("[data-generate-training-invoice]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.generateTrainingInvoice));
+            if (!row) return;
+            const priceMap = await getInvoicePriceMap();
+            const course = row.course || "Practical Fashion Training";
+            const unitPrice = invoicePriceFor(priceMap, "Training - " + course) || invoicePriceFor(priceMap, course);
+            const notes = row.message || row.request_details || row.details || "";
+            await openInvoiceGenerator(row, {
+                manualLines: [{description: course, quantity: 1, unitPrice, details: notes}],
+                training: course
+            });
+            try { await setAdminRecordStatus("training_status", row.id, "invoice_sent"); } catch (_) {}
         };
     });
 
@@ -2140,6 +2470,7 @@ async function loadRegistrations() {
                 message("Training registration could not be deleted.", "error");
                 return;
             }
+            await db.from("settings").delete().eq("setting_key", "training_status_" + button.dataset.deleteRegistration);
             message("Training registration deleted.", "success");
             await loadRegistrations();
             await loadDashboard();
@@ -2178,6 +2509,11 @@ function summarizeQuoteDetails(row) {
         : String(row?.service || "").split(",").map(v => v.trim()).filter(Boolean);
     const parts = [selected.join(", ")];
 
+    if (selected.includes("Streetwear")) {
+        const globalStreetwear = [details.streetwearSizeMeasurements, details.streetwearColour].filter(Boolean).join(" • ");
+        if (globalStreetwear) parts.push("Streetwear: " + globalStreetwear);
+    }
+
     if (selected.includes("Streetwear") && details.streetwear) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
@@ -2201,15 +2537,28 @@ function summarizeQuoteDetails(row) {
 
 
 async function loadQuotes() {
-    const rawRows = await getRows("quote_requests");
+    let rawRows;
+    try {
+        rawRows = await getRows("quote_requests");
+    } catch (error) {
+        console.error("QUOTE REQUEST LOAD ERROR:", error);
+        const list = document.getElementById("quoteList");
+        if (list) list.innerHTML = `<div class="empty"><strong>Order / quote requests could not be loaded.</strong><br><small>${escapeHTML(error.message || "Supabase could not load this section.")}</small><br><button type="button" class="primary" id="retryQuotes">Retry</button></div>`;
+        document.getElementById("retryQuotes")?.addEventListener("click", loadQuotes);
+        throw error;
+    }
+
     const rows = groupDuplicateQuotes(rawRows);
     const list = document.getElementById("quoteList");
     if (!list) return;
 
+    const statuses = new Map();
+    for (const row of rows) statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
+
     list.innerHTML = rows.length ? `
         <table>
             <thead><tr>
-                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Action</th>
+                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Status</th><th>Action</th>
             </tr></thead>
             <tbody>
             ${rows.map(row => {
@@ -2230,8 +2579,9 @@ async function loadQuotes() {
                     <td>${escapeHTML(row.whatsapp)}</td>
                     <td>${escapeHTML(row.location)}</td>
                     <td>${escapeHTML(row.service)}${duplicateNote}</td>
-                    <td><span style="display:block;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
-                    <td><span style="display:block;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHTML(preview)}</span></td>
+                    <td><span style="display:block;white-space:normal">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
+                    <td><span style="display:block;white-space:normal">${escapeHTML(preview)}</span></td>
+                    <td>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</td>
                     <td>
                         <button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button>
                         <button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
@@ -2242,6 +2592,17 @@ async function loadQuotes() {
             </tbody>
         </table>
     ` : `<div class="empty">No quote requests received.</div>`;
+
+    list.querySelectorAll("[data-status-id]").forEach(select => {
+        select.addEventListener("change", async () => {
+            try {
+                await setAdminRecordStatus(select.dataset.statusPrefix, select.dataset.statusId, select.value);
+                message("Status updated.", "success");
+            } catch (error) {
+                message("Status could not be updated: " + error.message, "error");
+            }
+        });
+    });
 
     list.querySelectorAll("[data-view-quote]").forEach(button => {
         button.onclick = () => {
@@ -2263,6 +2624,7 @@ async function loadQuotes() {
             if (!row) return;
             const details = parseSubmissionDetails(row.journey || row.request_details || row.details || row.message || "");
             await openInvoiceGenerator(row, details);
+            try { await setAdminRecordStatus("quote_status", row.id, "invoice_sent"); } catch (_) {}
         };
     });
 
@@ -2279,6 +2641,7 @@ async function loadQuotes() {
                 for (const id of row._ids || [row.id]) {
                     const result = await db.from("quote_requests").delete().eq("id", id);
                     if (result.error) throw result.error;
+                    await db.from("settings").delete().eq("setting_key", "quote_status_" + id);
                 }
                 message(count > 1 ? "Grouped duplicate quote records deleted." : "Order / quote request deleted.", "success");
                 await loadQuotes();
@@ -2891,6 +3254,8 @@ async function loadInvoicePaymentDetails() {
         saved.innerHTML = entries.length
             ? `<table><thead><tr><th>Field</th><th>Saved Value</th></tr></thead><tbody>${entries.map(([key,label])=>`<tr><th>${escapeHTML(label)}</th><td>${escapeHTML(values[key])}</td></tr>`).join("")}</tbody></table>`
             : `<div class="empty">No invoice payment details have been saved yet.</div>`;
+        const form = document.getElementById("invoicePaymentForm");
+        if (form) form.style.display = entries.length ? "none" : "";
     }
 }
 function setupInvoicePaymentForm(){
@@ -2910,6 +3275,8 @@ function setupInvoicePaymentForm(){
     });
     document.getElementById("editInvoicePaymentDetails")?.addEventListener("click", async () => {
         await loadInvoicePaymentDetails();
+        const form = document.getElementById("invoicePaymentForm");
+        if (form) form.style.display = "";
         document.getElementById("invoicePaymentForm")?.scrollIntoView({behavior:"smooth",block:"start"});
     });
     document.getElementById("deleteInvoicePaymentDetails")?.addEventListener("click", async () => {
@@ -2919,6 +3286,8 @@ function setupInvoicePaymentForm(){
             const result = await db.from("settings").delete().in("setting_key", keys);
             if (result.error) throw result.error;
             message("Saved invoice payment details cleared.", "success");
+            const form = document.getElementById("invoicePaymentForm");
+            if (form) form.style.display = "";
             await loadInvoicePaymentDetails();
         } catch (error) {
             message("Saved invoice payment details could not be cleared: " + error.message, "error");
@@ -3127,8 +3496,90 @@ function setupWebsiteLinksForm() {
     });
 }
 
-async function loadSocial(){const rows=await getRows("settings"),sr=rows.filter(r=>String(r.setting_key||"").toLowerCase().startsWith("social_")),list=document.getElementById("socialList");if(!list)return;list.innerHTML=sr.length?`<table><thead><tr><th>Platform</th><th>Link / Number</th><th>Actions</th></tr></thead><tbody>${sr.map(r=>`<tr><td>${escapeHTML(String(r.setting_key).replace(/^social_/i,"").replace(/_/g," "))}</td><td>${escapeHTML(r.setting_value||"")}</td><td><button type="button" class="secondary" data-edit-social="${r.id}">Edit</button> <button type="button" class="danger" data-delete-social="${r.id}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No social links have been added yet.</div>`;list.querySelectorAll("[data-edit-social]").forEach(b=>b.onclick=()=>{const r=sr.find(x=>String(x.id)===String(b.dataset.editSocial));if(!r)return;document.getElementById("socialId").value=r.id||"";const p=String(r.setting_key||"").replace(/^social_/i,"").replace(/_/g," ");document.getElementById("socialPlatform").value=["TikTok","Instagram","Facebook","WhatsApp","Other"].includes(p)?p:"Other";document.getElementById("socialUrl").value=r.setting_value||"";document.getElementById("socialForm").scrollIntoView({behavior:"smooth",block:"start"});});list.querySelectorAll("[data-delete-social]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this social link?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteSocial);if(r.error){message("Social link could not be deleted.","error");return;}message("Social link deleted.","success");await loadSocial();});}
-function setupSocialForm(){const f=document.getElementById("socialForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";f.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("socialId").value.trim(),p=document.getElementById("socialPlatform").value.trim(),v=document.getElementById("socialUrl").value.trim(),k="social_"+p.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");try{let r;if(id){r=await db.from("settings").update({setting_key:k,setting_value:v,updated_at:new Date().toISOString()}).eq("id",id);if(r.error)throw r.error;}else{await safeSettingUpsert(k,v);}f.reset();document.getElementById("socialId").value="";message("Social link saved.","success");await loadSocial();}catch(err){console.error(err);message("Social link could not be saved: "+err.message,"error");}});document.getElementById("socialCancel")?.addEventListener("click",()=>{f.reset();document.getElementById("socialId").value="";});}
+async function loadSocial() {
+    const rows = await getRows("settings");
+    const sr = rows.filter(r => String(r.setting_key || "").toLowerCase().startsWith("social_"));
+    const list = document.getElementById("socialList");
+    if (!list) return;
+
+    list.innerHTML = sr.length ? `<table><thead><tr><th>Platform</th><th>Link / Number</th><th>Actions</th></tr></thead><tbody>
+    ${sr.map(r => `<tr><td>${escapeHTML(String(r.setting_key).replace(/^social_/i,"").replace(/_/g," "))}</td><td>${escapeHTML(r.setting_value || "")}</td>
+    <td><button type="button" class="secondary" data-edit-social="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-social="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
+    </tbody></table>` : `<div class="empty">No social links have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-social]").forEach(b => b.onclick = () => {
+        const r = sr.find(x => String(x.id) === String(b.dataset.editSocial));
+        if (!r) return;
+        document.getElementById("socialId").value = r.id || "";
+        const p = String(r.setting_key || "").replace(/^social_/i,"").replace(/_/g," ");
+        const select = document.getElementById("socialPlatform");
+        const known = ["TikTok","Instagram","Facebook","WhatsApp"];
+        select.value = known.includes(p) ? p : "Other";
+        const custom = document.getElementById("socialCustomName");
+        const wrap = document.getElementById("socialCustomNameWrap");
+        if (custom) custom.value = known.includes(p) ? "" : p;
+        if (wrap) wrap.style.display = known.includes(p) ? "none" : "block";
+        document.getElementById("socialUrl").value = r.setting_value || "";
+        document.getElementById("socialForm").scrollIntoView({behavior:"smooth",block:"start"});
+    });
+    list.querySelectorAll("[data-delete-social]").forEach(b => b.onclick = async () => {
+        if (!confirm("Delete this social link?")) return;
+        const r = await db.from("settings").delete().eq("id", b.dataset.deleteSocial);
+        if (r.error) { message("Social link could not be deleted.","error"); return; }
+        message("Social link deleted.","success");
+        await loadSocial();
+    });
+}
+
+function setupSocialForm() {
+    const f = document.getElementById("socialForm");
+    if (!f || f.dataset.bound) return;
+    f.dataset.bound = "1";
+    const platform = document.getElementById("socialPlatform");
+    const custom = document.getElementById("socialCustomName");
+    const wrap = document.getElementById("socialCustomNameWrap");
+
+    const updateCustom = () => {
+        const show = platform?.value === "Other";
+        if (wrap) wrap.style.display = show ? "block" : "none";
+        if (custom) custom.required = show;
+    };
+    platform?.addEventListener("change", updateCustom);
+    updateCustom();
+
+    f.addEventListener("submit", async e => {
+        e.preventDefault();
+        const id = document.getElementById("socialId").value.trim();
+        const p = platform.value.trim();
+        const customName = custom?.value.trim() || "";
+        const label = p === "Other" ? customName : p;
+        const v = document.getElementById("socialUrl").value.trim();
+        if (!label || !v) { message("Please enter the platform name and link / number.","error"); return; }
+        const k = "social_" + label.toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+        try {
+            let r;
+            if (id) {
+                r = await db.from("settings").update({setting_key:k,setting_value:v,updated_at:new Date().toISOString()}).eq("id",id);
+                if (r.error) throw r.error;
+            } else {
+                await safeSettingUpsert(k,v);
+            }
+            f.reset();
+            document.getElementById("socialId").value = "";
+            updateCustom();
+            message("Social link saved.","success");
+            await loadSocial();
+        } catch (err) {
+            console.error(err);
+            message("Social link could not be saved: " + err.message,"error");
+        }
+    });
+    document.getElementById("socialCancel")?.addEventListener("click",() => {
+        f.reset();
+        document.getElementById("socialId").value = "";
+        updateCustom();
+    });
+}
 
 async function loadContact() {
     try {
@@ -3310,17 +3761,15 @@ async function loadLogoSettings() {
             preview.innerHTML = `
                 <div class="current-logo-preview">
                     <strong>Current Public Logo</strong>
-                    <img src="${escapeHTML(logo.setting_value)}"
-                         alt="Current saved logo">
-                    <button type="button" class="danger" id="deleteCurrentLogo">
-                        Delete Current Logo
-                    </button>
+                    <img src="${escapeHTML(logo.setting_value)}" alt="Current saved logo">
+                    <button type="button" class="danger" id="deleteCurrentLogo">Delete Current Logo</button>
                 </div>`;
         } else {
             preview.innerHTML = `
-                <div class="current-logo-preview empty-logo">
-                    <strong>No saved public logo</strong>
-                    <span>The original project logo remains available as a project file.</span>
+                <div class="current-logo-preview">
+                    <strong>Project Logo — Currently Available</strong>
+                    <img src="../icons/Aprils Signature logo.jpeg" alt="Aprils Signature project logo">
+                    <span>The logo above is the original project logo used by the website. You do not need to save it manually just to keep using it.</span>
                 </div>`;
         }
 
@@ -3444,9 +3893,13 @@ async function loadSettings() {
     const rows = allRows.filter(row => {
         const key = String(row.setting_key || "");
         return !key.startsWith("invoice_price_")
+            && !key.startsWith("invoice_record_")
+            && !key.startsWith("invoice_payment_record_")
             && !key.startsWith("site_link_")
             && !key.startsWith("hidden_content_")
             && !key.startsWith("social_")
+            && !key.startsWith("quote_status_")
+            && !key.startsWith("training_status_")
             && !key.startsWith("homepage_featured_");
     });
     const list = document.getElementById("settingsList");
@@ -3536,6 +3989,7 @@ const INITIAL_GALLERY_ITEMS = [
     ["Hoodie Set","Streetwear Collection","images/photo (6).jpeg"],
     ["Hoodie","Streetwear Collection","images/photo (7).jpeg"],
     ["T-Shirt & Shorts","Streetwear Collection","images/photo (8).jpeg"],
+    ["T-Shirt — Back View","Streetwear Collection","images/photo (9).jpeg"],
     ["Tank Top & Joggers","Streetwear Collection","images/photo (10).jpeg"],
     ["Jersey","Streetwear Collection","images/photo (11).jpeg"],
     ["Rhinestone Kaftan","Rhinestone Embellishment","images/photo (12).jpeg"],
@@ -3552,10 +4006,10 @@ const INITIAL_GALLERY_ITEMS = [
 
 const INITIAL_GALLERY_COLLECTIONS = [
     ["Streetwear Collection",1],
-    ["Rhinestone Embellishment",2],
-    ["Fashion Creations",3],
-    ["Featured Collection",4],
-    ["Embellishment Projects",5]
+    ["Featured Collection",2],
+    ["Embellishment Projects",3],
+    ["Fashion Creations",4],
+    ["Rhinestone Embellishment",5]
 ];
 
 const INITIAL_SERVICES = [
@@ -3587,6 +4041,19 @@ async function seedInitialPublicContent() {
             if (missing.length) {
                 const result = await db.from("gallery_collections").insert(missing);
                 if (result.error) console.warn("Gallery collections initial import skipped:", result.error);
+            }
+            // Apply the requested default order once. After that, the admin is
+            // free to change the collection order without the seed resetting it.
+            const orderMarker = await db.from("settings").select("id").eq("setting_key","gallery_collection_default_order_v2").limit(1);
+            if (!orderMarker.error && !orderMarker.data?.length) {
+                const currentRows = collections.data || [];
+                for (const [name, display_order] of INITIAL_GALLERY_COLLECTIONS) {
+                    const row = currentRows.find(r => String(r.name || "").trim().toLowerCase() === name.toLowerCase());
+                    if (row && Number(row.display_order) !== display_order) {
+                        await db.from("gallery_collections").update({display_order}).eq("id", row.id);
+                    }
+                }
+                await safeSettingUpsert("gallery_collection_default_order_v2", "true");
             }
         }
     } catch (e) { console.warn("Gallery collections initial import unavailable:", e); }
@@ -3625,7 +4092,7 @@ async function seedInitialPublicContent() {
                 .eq("featured", true).eq("active", true).order("display_order", {ascending:true});
             if (!featured.error && featured.data?.length) {
                 for (const row of featured.data) {
-                    const key = homepageMediaKey(row.title || "Featured Media");
+                    const key = homepageMediaKey(row.title || "Featured Media", row.image_url || "");
                     await db.from("settings").insert({
                         setting_key: key,
                         setting_value: JSON.stringify({
@@ -3757,6 +4224,202 @@ async function seedInitialPublicContent() {
     } catch (e) { console.warn("Contact information initial import unavailable:", e); }
 }
 
+
+
+/* =========================================================
+   DISCOUNT CODES
+========================================================= */
+
+function discountStorageKey(code) {
+    return "discount_code_" + contentSlug(code);
+}
+
+async function loadDiscountCodes() {
+    const list = document.getElementById("discountList");
+    const linkBox = document.getElementById("discountRedemptionLink");
+    if (!list) return;
+
+    const rows = await getRows("settings");
+    const codes = rows.filter(r => String(r.setting_key || "").startsWith("discount_code_")).map(r => {
+        try { return { ...JSON.parse(r.setting_value || "{}"), id: r.id, setting_key: r.setting_key }; }
+        catch (_) { return null; }
+    }).filter(Boolean);
+
+    list.innerHTML = codes.length ? `<table><thead><tr><th>Code</th><th>Percentage</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+        ${codes.map(r => `<tr><td>${escapeHTML(r.code)}</td><td>${Number(r.percent || 0).toFixed(2)}%</td><td>${r.active === false ? "Inactive" : "Active"}</td>
+        <td><button type="button" class="secondary" data-edit-discount="${escapeHTML(r.id)}">Edit</button>
+        <button type="button" class="danger" data-delete-discount="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
+    </tbody></table>` : `<div class="empty">No discount codes have been added yet.</div>`;
+
+    list.querySelectorAll("[data-edit-discount]").forEach(btn => {
+        btn.onclick = () => {
+            const r = codes.find(x => String(x.id) === String(btn.dataset.editDiscount));
+            if (!r) return;
+            document.getElementById("discountId").value = r.id || "";
+            document.getElementById("discountCode").value = r.code || "";
+            document.getElementById("discountPercent").value = r.percent ?? "";
+            document.getElementById("discountActive").value = r.active === false ? "false" : "true";
+            document.getElementById("discountForm").scrollIntoView({behavior:"smooth",block:"start"});
+        };
+    });
+    list.querySelectorAll("[data-delete-discount]").forEach(btn => {
+        btn.onclick = async () => {
+            if (!confirm("Delete this discount code?")) return;
+            const result = await db.from("settings").delete().eq("id", btn.dataset.deleteDiscount);
+            if (result.error) { message("Discount code could not be deleted: " + result.error.message, "error"); return; }
+            message("Discount code deleted.", "success");
+            await loadDiscountCodes();
+        };
+    });
+
+    const redemptionList = document.getElementById("discountRedemptionList");
+    if (redemptionList) {
+        try {
+            const redemptionResult = await db.from("discount_redemptions").select("*").order("created_at", {ascending:false});
+            const redemptions = redemptionResult.error ? [] : (redemptionResult.data || []);
+            redemptionList.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Email</th><th>Code</th><th>Reference</th><th>Status</th><th>Action</th></tr></thead><tbody>
+            ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? new Date(r.created_at).toLocaleString() : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
+            </tbody></table>` : `<div class="empty">No customer discount redemptions have been received yet.</div>`;
+            redemptionList.querySelectorAll("[data-delete-redemption]").forEach(btn => btn.onclick = async () => {
+                if (!confirm("Delete this redemption record?")) return;
+                const result = await db.from("discount_redemptions").delete().eq("id", btn.dataset.deleteRedemption);
+                if (result.error) { message("Redemption could not be deleted: " + result.error.message, "error"); return; }
+                await loadDiscountCodes();
+            });
+        } catch (_) {
+            redemptionList.innerHTML = `<div class="empty">The redemption table is not available yet. Run the included discount-redemption.sql file in Supabase.</div>`;
+        }
+    }
+
+    if (linkBox) {
+        const url = new URL("../redeem.html", window.location.href).href;
+        linkBox.innerHTML = `<p><a href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${escapeHTML(url)}</a></p>
+        <button type="button" class="secondary" id="copyDiscountPage">Copy Redemption Page Link</button>
+        <button type="button" class="secondary" id="shareDiscountPage">Share Redemption Page Link</button>`;
+        document.getElementById("copyDiscountPage")?.addEventListener("click", async () => {
+            try { await navigator.clipboard.writeText(url); message("Discount page link copied.", "success"); }
+            catch (_) { window.prompt("Copy this link:", url); }
+        });
+        document.getElementById("shareDiscountPage")?.addEventListener("click", async () => {
+            if (navigator.share) {
+                try { await navigator.share({title:"Aprils Signature Discount", url}); return; } catch (_) {}
+            }
+            window.open("https://wa.me/?text=" + encodeURIComponent("Aprils Signature discount redemption page:\n" + url), "_blank", "noopener,noreferrer");
+        });
+    }
+}
+
+function setupDiscountForm() {
+    const form = document.getElementById("discountForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const id = document.getElementById("discountId").value.trim();
+        const code = document.getElementById("discountCode").value.trim();
+        const percent = Number(document.getElementById("discountPercent").value);
+        const active = document.getElementById("discountActive").value === "true";
+        if (!code || Number.isNaN(percent) || percent < 0 || percent > 100) {
+            message("Enter a valid code and a percentage between 0 and 100.", "error");
+            return;
+        }
+        const payload = {
+            setting_key: discountStorageKey(code),
+            setting_value: JSON.stringify({code, percent, active, updatedAt:new Date().toISOString()}),
+            updated_at: new Date().toISOString()
+        };
+        try {
+            if (id) {
+                const result = await db.from("settings").update(payload).eq("id", id);
+                if (result.error) throw result.error;
+            } else {
+                await safeSettingUpsert(payload.setting_key, payload.setting_value);
+            }
+            form.reset();
+            document.getElementById("discountId").value = "";
+            document.getElementById("discountActive").value = "true";
+            message("Discount code saved.", "success");
+            await loadDiscountCodes();
+        } catch (error) {
+            message("Discount code could not be saved: " + error.message, "error");
+        }
+    });
+    document.getElementById("discountCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("discountId").value = "";
+        document.getElementById("discountActive").value = "true";
+    });
+}
+
+/* =========================================================
+   MANUAL INVOICE
+========================================================= */
+
+function addManualInvoiceLine(line = {}) {
+    const wrap = document.getElementById("manualInvoiceLines");
+    if (!wrap) return;
+    const row = document.createElement("div");
+    row.className = "manual-invoice-line";
+    row.innerHTML = `
+        <div><label>Item / Service</label><input class="manual-line-description" value="${escapeHTML(line.description || "")}" placeholder="e.g. Custom Dress"></div>
+        <div><label>Details</label><input class="manual-line-details" value="${escapeHTML(line.details || "")}" placeholder="Optional"></div>
+        <div><label>Quantity</label><input class="manual-line-qty" type="number" min="1" value="${Number(line.quantity || 1)}"></div>
+        <div><label>Unit Price (GHS)</label><input class="manual-line-price" type="number" min="0" step="0.01" value="${Number(line.unitPrice || 0)}" placeholder="0.00"></div>
+        <button type="button" class="danger manual-line-remove">Remove</button>
+    `;
+    row.querySelector(".manual-line-remove").onclick = () => row.remove();
+    wrap.appendChild(row);
+}
+
+function setupManualInvoiceForm() {
+    const form = document.getElementById("manualInvoiceForm");
+    const wrap = document.getElementById("manualInvoiceLines");
+    if (!form || !wrap || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    if (!wrap.children.length) addManualInvoiceLine();
+
+    document.getElementById("manualAddLine")?.addEventListener("click", () => addManualInvoiceLine());
+
+    document.getElementById("manualInvoiceReset")?.addEventListener("click", () => {
+        form.reset();
+        wrap.innerHTML = "";
+        addManualInvoiceLine();
+    });
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const lines = Array.from(wrap.querySelectorAll(".manual-invoice-line")).map(row => ({
+            description: row.querySelector(".manual-line-description")?.value.trim() || "",
+            details: row.querySelector(".manual-line-details")?.value.trim() || "",
+            quantity: Number(row.querySelector(".manual-line-qty")?.value || 1),
+            unitPrice: Number(row.querySelector(".manual-line-price")?.value || 0)
+        })).filter(line => line.description);
+
+        if (!lines.length) {
+            message("Please add at least one invoice item.", "error");
+            return;
+        }
+
+        const row = {
+            full_name: document.getElementById("manualInvoiceCustomer").value.trim(),
+            phone: document.getElementById("manualInvoicePhone").value.trim(),
+            whatsapp: document.getElementById("manualInvoicePhone").value.trim(),
+            email: document.getElementById("manualInvoiceEmail").value.trim(),
+            location: document.getElementById("manualInvoiceAddress").value.trim()
+        };
+        if (!row.full_name) {
+            message("Please enter the customer's name.", "error");
+            return;
+        }
+
+        await openInvoiceGenerator(row, {
+            manualLines: lines,
+            notes: document.getElementById("manualInvoiceNotes").value.trim()
+        });
+    });
+}
+
 /* =========================================================
    STARTUP
 ========================================================= */
@@ -3783,6 +4446,8 @@ async function startAdmin() {
     setupContentForm();
     setupInvoiceForm();
     setupInvoicePaymentForm();
+    setupManualInvoiceForm();
+    setupDiscountForm();
     setupWebsiteLinksForm();
     setupDirectCustomerLinks();
     setupContactForm();
