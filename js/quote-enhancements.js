@@ -2,7 +2,7 @@
 "use strict";
 
 const STREETWEAR_STRUCTURE = [
-  {heading:"Tops", items:["Jersey","T-shirt","Polo shirt","Hoodies","Ladies tank top","Men's tank top","Sweatshirt","Varsity jacket"]},
+  {heading:"Tops", items:["Jersey","T-shirt","Polo shirt","Hoodies","Ladies tank top","Men's tank top","Sweatshirklklt","Varsity jacket"]},
   {heading:"Bottoms", subgroups:[
     {heading:"Joggers", items:["Super thick cotton joggers","Everyday wear joggers"]},
     {heading:null, items:["Jogger shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]}
