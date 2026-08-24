@@ -167,17 +167,13 @@ PUBLIC FORM FIXES
                     streetwear: {},
                     streetwearSizeMeasurements: String(data.get("streetwearSizeMeasurements") || "").trim(),
                     streetwearColour: String(data.get("streetwearColour") || "").trim(),
-                    streetwearOther: String(data.get("streetwearOther") || "").trim(),
+                    streetwearOther: String(data.get("streetwearOtherRequest") || data.get("streetwearOther") || "").trim(),
                     ladiesWear: String(data.get("ladiesWearDetails") || "").trim(),
                     ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
                     ladiesWearColour: String(data.get("ladiesWearColour") || "").trim(),
                     ladiesWearQuantity: String(data.get("ladiesWearQuantity") || "0").trim(),
-                    ladiesWearProducts: (() => {
-                        try { return JSON.parse(String(data.get("ladiesWearProductsJson") || "[]")); } catch (_) { return []; }
-                    })(),
-                    otherProductDetails: (() => {
-                        try { return JSON.parse(String(data.get("quoteOtherProductsJson") || "{}")); } catch (_) { return {}; }
-                    })(),
+                    ladiesWearProducts: {},
+                    ladiesWearOther: String(data.get("ladiesWearOther") || "").trim(),
                     kidsWear: String(data.get("kidsWearDetails") || "").trim(),
                     kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
                     kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
@@ -185,9 +181,7 @@ PUBLIC FORM FIXES
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
-                    embellishmentDetails: (() => {
-                        try { return JSON.parse(String(data.get("embellishmentDetailsJson") || "[]")); } catch (_) { return []; }
-                    })(),
+                    embellishmentDetails: {},
                     serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
@@ -196,7 +190,7 @@ PUBLIC FORM FIXES
                     submittedFrom: window.location.href
                 };
 
-                if (details.embellishment.length && !Array.isArray(details.embellishmentDetails)) {
+                if (details.embellishment.length) {
                     details.embellishmentDetails = {
                         selected: details.embellishment,
                         other: details.embellishmentOther
@@ -263,6 +257,31 @@ PUBLIC FORM FIXES
                             colour: details.streetwearColour
                         };
                     }
+                });
+
+
+                Array.from(form.querySelectorAll('input[data-ladieswear-product="true"]:checked')).forEach(function(input) {
+                    const item = input.closest(".catalogue-item");
+                    const box = item?.querySelector(".catalogue-detail-box");
+                    const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
+                    details.ladiesWearProducts[input.value] = {
+                        product: input.value,
+                        size: get("size") || details.ladiesWearSize,
+                        measurements: get("measurements"),
+                        colour: get("colour") || details.ladiesWearColour,
+                        quantity: get("quantity") || details.ladiesWearQuantity || "1",
+                        details: get("details")
+                    };
+                });
+
+                Array.from(form.querySelectorAll('input[data-embellishment-product="true"]:checked')).forEach(function(input) {
+                    const item = input.closest(".catalogue-item");
+                    const box = item?.querySelector(".catalogue-detail-box");
+                    const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
+                    details.embellishmentDetails[input.value] = {
+                        service: input.value, size: get("size"), measurements: get("measurements"),
+                        colour: get("colour"), quantity: get("quantity") || "1", details: get("details")
+                    };
                 });
 
                 const payload = {
