@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Order / Request a Quote | Aprils Signature</titl
+    <title>Order / Request a Quote | Aprils Signature</title>
 
     <meta
         name="description"
@@ -136,19 +136,23 @@
 
         .quantity-row {
             display: grid;
-            grid-template-columns: 1fr 100px;
-            gap: 15px;
-            align-items: end;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            align-items: stretch;
             margin-bottom: 15px;
         }
 
         .streetwear-product-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            align-items: end;
-            padding: 15px 0;
+            display: block;
+            width: 100%;
+            padding: 8px 0 14px;
+            margin-bottom: 8px;
             border-bottom: 1px solid #e5e5e5;
+        }
+
+        .streetwear-product-row input[type="number"] {
+            width: 100%;
+            min-height: 46px;
         }
 
         .streetwear-product-row .form-group {
