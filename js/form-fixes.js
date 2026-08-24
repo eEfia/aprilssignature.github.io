@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.upabase || null;
+        return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
@@ -172,6 +172,12 @@ PUBLIC FORM FIXES
                     ladiesWearSize: String(data.get("ladiesWearSize") || "").trim(),
                     ladiesWearColour: String(data.get("ladiesWearColour") || "").trim(),
                     ladiesWearQuantity: String(data.get("ladiesWearQuantity") || "0").trim(),
+                    ladiesWearProducts: (() => {
+                        try { return JSON.parse(String(data.get("ladiesWearProductsJson") || "[]")); } catch (_) { return []; }
+                    })(),
+                    otherProductDetails: (() => {
+                        try { return JSON.parse(String(data.get("quoteOtherProductsJson") || "{}")); } catch (_) { return {}; }
+                    })(),
                     kidsWear: String(data.get("kidsWearDetails") || "").trim(),
                     kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
                     kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
@@ -179,7 +185,9 @@ PUBLIC FORM FIXES
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
-                    embellishmentDetails: {},
+                    embellishmentDetails: (() => {
+                        try { return JSON.parse(String(data.get("embellishmentDetailsJson") || "[]")); } catch (_) { return []; }
+                    })(),
                     serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
@@ -188,7 +196,7 @@ PUBLIC FORM FIXES
                     submittedFrom: window.location.href
                 };
 
-                if (details.embellishment.length) {
+                if (details.embellishment.length && !Array.isArray(details.embellishmentDetails)) {
                     details.embellishmentDetails = {
                         selected: details.embellishment,
                         other: details.embellishmentOther
