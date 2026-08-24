@@ -881,15 +881,38 @@ async function loadPublicStreetwearProducts() {
         .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
     const renderProducts = products => {
-        container.innerHTML = products.map(row => {
+        const singleNames = new Set([
+            "jerseys", "hoodies", "joggers — super thick cotton joggers",
+            "joggers — everyday wear type", "t-shirts", "polo shirts",
+            "sweatshirts", "sweatpants"
+        ]);
+        const tankNames = new Set(["ladies tank tops", "men's tank tops"]);
+        const otherNames = new Set(["varsity jackets", "cargo pants", "cargo skirts", "jogger shorts"]);
+        const setNames = new Set([
+            "hoodies & joggers set", "t-shirts & shorts set",
+            "t-shirt & sweatpants set", "sweatshirts & shorts set",
+            "sweatshirts & sweatpants set"
+        ]);
+        const key = name => String(name || "").trim().toLowerCase();
+        const makeRow = row => {
             const id = "product_" + slug(row.name);
             return `<div class="quantity-row streetwear-product-row" data-streetwear-row="${escapeHTML(row.name)}">
                 <div class="form-group">
-                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)} — Quantity</label>
+                    <label for="${escapeHTML(id)}">${escapeHTML(row.name)}</label>
                     <input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(row.name)}">
                 </div>
             </div>`;
-        }).join("");
+        };
+        const singles = products.filter(r => singleNames.has(key(r.name)));
+        const tanks = products.filter(r => tankNames.has(key(r.name)));
+        const others = products.filter(r => otherNames.has(key(r.name)));
+        const sets = products.filter(r => setNames.has(key(r.name)));
+        const extras = products.filter(r => !singleNames.has(key(r.name)) && !tankNames.has(key(r.name)) && !otherNames.has(key(r.name)) && !setNames.has(key(r.name)));
+        const section = (title, rows) => rows.length ? `<h3>${escapeHTML(title)}</h3>${rows.map(makeRow).join("")}` : "";
+        container.innerHTML = section("Streetwear Products", [...singles, ...extras]) +
+            section("Tank Tops Options", tanks) +
+            section("Other Products", others) +
+            section("Sets", sets);
     };
 
     try {
@@ -909,8 +932,8 @@ async function loadPublicStreetwearProducts() {
         const requestedStreetwearOrder = [
             "jerseys",
             "hoodies",
-            "joggers super thick cotton joggers",
-            "joggers everyday wear type",
+            "joggers — super thick cotton joggers",
+            "joggers — everyday wear type",
             "t-shirts",
             "polo shirts",
             "sweatshirts",
@@ -1232,23 +1255,23 @@ async function loadPublicTraining() {
 
     const desired = [
         {
-            title: "3 Months Beginners Fashion Training",
-            aliases: ["3 months beginners fashion training", "3 months beginner's fashion training"],
+            title: "Three Months Beginners Fashion Training",
+            aliases: ["three months beginners fashion training", "3 months beginners fashion training", "3 months beginner's fashion training"],
             fallback: "A practical programme designed for beginners who want to develop foundational fashion skills."
         },
         {
-            title: "6 Months Fashion Training",
-            aliases: ["6 months fashion training"],
+            title: "Six Months Fashion Training",
+            aliases: ["six months fashion training", "6 months fashion training"],
             fallback: "A more detailed training programme for learners who want to improve their fashion knowledge and practical skills."
         },
         {
-            title: "1 Year Fashion Training",
-            aliases: ["1 year fashion training"],
+            title: "One Year Fashion Training",
+            aliases: ["one year fashion training", "1 year fashion training"],
             fallback: "A comprehensive programme covering a wider range of fashion techniques and production skills."
         },
         {
-            title: "3 Years Apprenticeship Training",
-            aliases: ["3 years apprenticeship training"],
+            title: "Three Years Apprenticeship Training",
+            aliases: ["three years apprenticeship training", "3 years apprenticeship training"],
             fallback: "A long-term practical apprenticeship programme focused on developing professional fashion skills."
         },
         {
@@ -1587,8 +1610,7 @@ async function loadPublicManagedContent() {
                                         "Delivery or pickup details",
                                         "Measurements",
                                         "Uploaded garments photos or mockups",
-                                        "Any other information you may choose to provide",
-                                        "The order request code from the selection area"
+                                        "Any other information you may choose to provide"
                                     ].forEach(item => {
                                         const li = document.createElement("li");
                                         li.textContent = item;
