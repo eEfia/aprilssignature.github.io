@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redeem Your Discount | Aprils Signature</title>
 <meta name="description" content="Enter your Aprils Signature discount code and customer details.">
-<link rel="stylesheet" href="css/style.css
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body class="redeem-page">
 <header class="site-header">
@@ -92,9 +92,19 @@ async function run(){
      status:"pending"
    };
    try{
-     const result=await supabase.from("discount_redemptions").insert(payload);
+     const result=await supabase.rpc("redeem_discount_code", {
+       p_full_name: payload.full_name,
+       p_phone: payload.phone,
+       p_email: payload.email,
+       p_code: payload.code
+     });
      if(result.error)throw result.error;
-     show("Thank you. Your discount code has been recorded. Aprils Signature will apply the discount to your invoice.",true);
+     const response = result.data || {};
+     if(!response.success){
+       show(String(response.message || "That discount code is not valid. Please check the code and try again."),false);
+       return;
+     }
+     show(String(response.message || "Thank you. Your discount code has been recorded. Aprils Signature will apply the discount to your invoice."),true);
      form.reset();
    }catch(error){
      console.error("DISCOUNT REDEMPTION ERROR:",error);
