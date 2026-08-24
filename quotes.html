@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Order / Request a Quote | Aprils Signature<itle>
+    <title>Order / Request a Quote | Aprils Signature</title>
 
     <meta
         name="description"
@@ -155,9 +155,15 @@
             min-height: 46px;
         }
 
-        .streetwear-product-row .form-group {
-            margin-bottom: 0;
-        }
+        .streetwear-product-row .form-group { margin-bottom: 0; }
+
+        .service-global-details { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+        .catalogue-group-title { margin:22px 0 10px; padding:10px 12px; background:#111; color:#d6a542; border-radius:4px; }
+        .catalogue-other-row { border:1px solid #ddd; padding:12px; margin-top:10px; border-radius:5px; }
+        .catalogue-detail-box { display:none; margin:10px 0 16px; padding:14px; border-left:4px solid #008080; background:#f8f8f8; }
+        .catalogue-detail-box.is-open { display:block; }
+        .catalogue-detail-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+        .catalogue-detail-grid textarea { min-height:80px; }
 
         @media (max-width: 760px) {
             .streetwear-product-row {
@@ -250,6 +256,7 @@
         }
 
         @media(max-width:700px) {
+            .service-global-details, .catalogue-detail-grid { grid-template-columns:1fr; }
 
             .quote-form {
                 padding: 22px;
@@ -606,9 +613,8 @@
 <!-- LADIES WEAR -->
 <section class="form-section hidden-section" id="ladiesWearSection">
     <h2>Ladies Wear Product Selection</h2>
-    <p>Select the ladies wear products you need. Enter the size / measurements, colour(s), and quantity information requested for your order.</p>
-
-    <div class="ladieswear-global-details">
+    <p>Select the ladieswear products you need. Size/measurements and colour apply to the request. Use the quantity box beside a product when selecting multiple products; the general quantity box remains available as a fallback.</p>
+    <div class="service-global-details">
         <div class="form-group">
             <label for="ladiesWearSize">Size (UK) / Measurements</label>
             <textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
@@ -618,14 +624,12 @@
             <input type="text" id="ladiesWearColour" name="ladiesWearColour" placeholder="e.g. Black, Navy Blue">
         </div>
         <div class="form-group">
-            <label for="ladiesWearQuantity">Quantity</label>
+            <label for="ladiesWearQuantity">General Quantity (optional)</label>
             <input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1">
         </div>
     </div>
-
-    <div id="ladiesWearProductsDynamic">
-        <div class="empty">Loading ladies wear options…</div>
-    </div>
+    <div id="ladiesWearProductsDynamic"><div class="empty">Loading ladieswear options…</div></div>
+    <input type="hidden" id="ladiesWearOther" name="ladiesWearOther" value="">
 </section>
 
 <!-- KIDS WEAR -->
@@ -652,8 +656,8 @@
 <!-- EMBELLISHMENT -->
 <section class="form-section hidden-section" id="embellishmentSection">
     <h2>Embellishment Services Selection</h2>
-    <p class="field-help">Select one or more embellishment services. The size / measurements, colour(s), quantity and any service-specific details appear only after you select an individual service.</p>
-    <div class="product-options"></div>
+    <p class="field-help">Select one or more embellishment services. The detail box opens only for the service you select.</p>
+    <div id="embellishmentProductsDynamic"><div class="empty">Loading embellishment services…</div></div>
 </section>
 
 <!-- ADDITIONAL DETAILS -->
