@@ -143,68 +143,6 @@ async function cleanupExactDuplicates() {
         }
     }
 
-    // Normalise the obsolete streetwear names that were introduced by earlier
-    // versions. The corrected catalogue is the source of truth.
-    try {
-        const result = await db.from("settings").select("id,setting_key,setting_value").like("setting_key","product_%");
-        if (!result.error) {
-            const renames = new Map([
-                ["super thick cutting joggers","Super thick cotton joggers"],
-                ["joggers — super thick cotton joggers","Super thick cotton joggers"],
-                ["joggers - super thick cotton joggers","Super thick cotton joggers"],
-                ["everyday wear type","Everyday wear joggers"],
-                ["joggers — everyday wear type","Everyday wear joggers"],
-                ["joggers - everyday wear type","Everyday wear joggers"]
-            ]);
-            for (const row of result.data || []) {
-                let value = {};
-                try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
-                const oldName = String(value.name || "").trim().toLowerCase();
-                if (oldName === "hoodies & joggers set" || oldName === "hoodies and joggers set" || oldName === "hoodies and joggers") {
-                    await db.from("settings").delete().eq("id", row.id);
-                    continue;
-                }
-                const nextName = renames.get(oldName);
-                if (!nextName) continue;
-                const nextKey = productKeyFromName(nextName);
-                const existing = await db.from("settings").select("id").eq("setting_key", nextKey).limit(1);
-                if (existing.data?.length) {
-                    await db.from("settings").delete().eq("id", row.id);
-                } else {
-                    value.name = nextName;
-                    await db.from("settings").update({
-                        setting_key: nextKey,
-                        setting_value: JSON.stringify(value),
-                        updated_at: new Date().toISOString()
-                    }).eq("id", row.id);
-                }
-            }
-        }
-    } catch (e) { console.warn("Streetwear product migration skipped:", e); }
-
-    // Product records can also be duplicated under different setting keys after
-    // an old name was renamed. Keep one copy of the same product/category/content.
-    try {
-        const result = await db.from("settings").select("id,setting_key,setting_value,created_at,updated_at").like("setting_key","product_%");
-        if (!result.error) {
-            const groups = new Map();
-            for (const row of result.data || []) {
-                let value = {};
-                try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
-                const key = [value.name, value.category, value.public_price, value.notes, value.display_order, value.active]
-                    .map(v => String(v ?? "").trim().toLowerCase()).join("\u0000");
-                if (!groups.has(key)) groups.set(key, []);
-                groups.get(key).push(row);
-            }
-            for (const group of groups.values()) {
-                if (group.length > 1) {
-                    group.sort((x,y) => String(x.created_at || x.updated_at || "").localeCompare(String(y.created_at || y.updated_at || "")));
-                    await db.from("settings").delete().in("id", group.slice(1).map(x => x.id));
-                }
-            }
-        }
-    } catch (e) { console.warn("Product duplicate cleanup skipped:", e); }
-
     // Settings keys are intended to be unique in practice. Clean duplicate
     // records for managed prefixes so editing an item never leaves a second copy.
     try {
@@ -419,6 +357,9 @@ async function loadSection(id) {
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
+        if (id === "inventory" && window.loadInventory) await window.loadInventory();
+        if (id === "checkout" && window.loadCheckoutOrders) await window.loadCheckoutOrders();
+        if (id === "errors" && window.loadErrorLog) await window.loadErrorLog();
         if (id === "accounting") await loadAccounting();
         if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
@@ -960,24 +901,20 @@ async function getTrainingCategories() {
 ========================================================= */
 
 const DEFAULT_PRODUCTS = [
-    ["Streetwear","Jersey",1],
-    ["Streetwear","T-shirt",2],
-    ["Streetwear","Polo shirt",3],
-    ["Streetwear","Hoodies",4],
-    ["Streetwear","Ladies tank top",5],
-    ["Streetwear","Men's tank top",6],
-    ["Streetwear","Super thick cutting joggers",7],
-    ["Streetwear","Everyday wear type",8],
-    ["Streetwear","Joggers shorts",9],
-    ["Streetwear","Sweatpants",10],
-    ["Streetwear","Cargo pants",11],
-    ["Streetwear","Cargo skirts",12],
-    ["Streetwear","Jorts",13],
-    ["Streetwear","Hoodies and joggers",14],
-    ["Streetwear","T-shirt and shorts",15],
-    ["Streetwear","T-shirt and sweatpants",16],
-    ["Streetwear","Sweatshirt and shorts",17],
-    ["Streetwear","Sweatshirt and sweatpants",18]
+    ["Streetwear","Jersey",1,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tops"],["Streetwear","Men's tank top",7,"Tops"],["Streetwear","Varsity Jacket",8,"Tops"],
+    ["Streetwear","Super thick cotton joggers",9,"Bottoms"],["Streetwear","Everyday wear type",10,"Bottoms"],["Streetwear","Joggers shorts",11,"Bottoms"],["Streetwear","Sweatpants",12,"Bottoms"],["Streetwear","Cargo pants",13,"Bottoms"],["Streetwear","Cargo skirts",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],
+    ["Streetwear","T-shirt and shorts",16,"Sets"],["Streetwear","T-shirt and sweatpants",17,"Sets"],["Streetwear","Sweatshirt and shorts",18,"Sets"],["Streetwear","Sweatshirt and sweatpants",19,"Sets"]
+];
+
+const DEFAULT_LADIES_PRODUCTS = [
+    ["Ladies Wear","Short gown/dress",1,"Dresses and Gowns"],["Ladies Wear","Long gown/dress",2,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (short)",3,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (long)",4,"Dresses and Gowns"],["Ladies Wear","Bubu Kaftan",5,"Dresses and Gowns"],
+    ["Ladies Wear","Top/blouse",6,"Tops & Blouses"],["Ladies Wear","Corset top",7,"Tops & Blouses"],["Ladies Wear","Base corset",8,"Tops & Blouses"],
+    ["Ladies Wear","Trousers",9,"Bottoms"],["Ladies Wear","Palazzo pants",10,"Bottoms"],["Ladies Wear","Palazzo shorts",11,"Bottoms"],["Ladies Wear","Wrap shorts",12,"Bottoms"],
+    ["Ladies Wear","Trousers & short top",13,"Two-Piece Outfits"],["Ladies Wear","Trousers & long top",14,"Two-Piece Outfits"],["Ladies Wear","Skirt & short top",15,"Two-Piece Outfits"],["Ladies Wear","Skirt & long top",16,"Two-Piece Outfits"],
+    ["Ladies Wear","Standard kaba and slit/skirt",17,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (with corset)",18,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (kente)",19,"Kaba and Slit/Skirt"]
+];
+const DEFAULT_EMBELLISHMENT_PRODUCTS = [
+    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","Add-ons",4,"Embellishment"]
 ];
 
 const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
@@ -986,7 +923,7 @@ const LEGACY_STREETWEAR_NAMES = new Set([
     "jerseys", "joggers — super thick cotton joggers", "joggers — everyday wear type",
     "t-shirts", "polo shirts", "sweatshirts", "ladies tank tops", "men's tank tops",
     "varsity jackets", "jogger shorts",
-    "hoodies & joggers set", "t-shirts & shorts set", "t-shirt & sweatpants set",
+    "hoodies & joggers set", "hoodies and joggers", "t-shirts & shorts set", "t-shirt & sweatpants set",
     "sweatshirts & shorts set", "sweatshirts & sweatpants set"
 ]);
 
@@ -1019,14 +956,13 @@ async function seedDefaultProducts() {
     try {
         const marker = await db.from("settings").select("id").eq("setting_key","products_catalogue_seeded").limit(1);
         if (marker.error) return;
-        if (marker.data?.length) return;
-        for (const [category,name,order] of DEFAULT_PRODUCTS) {
+        for (const [category,name,order,subcategory] of [...DEFAULT_PRODUCTS, ...DEFAULT_LADIES_PRODUCTS, ...DEFAULT_EMBELLISHMENT_PRODUCTS]) {
             const key = productKeyFromName(name);
             const existing = await db.from("settings").select("id").eq("setting_key",key).limit(1);
             if (existing.error || existing.data?.length) continue;
             await db.from("settings").insert({
                 setting_key:key,
-                setting_value:JSON.stringify({name,category,price:null,notes:"",display_order:order,active:true}),
+                setting_value:JSON.stringify({name,category,price:null,public_price:null,subcategory:subcategory||"",notes:"",display_order:order,active:true}),
                 updated_at:new Date().toISOString()
             });
         }
@@ -1043,7 +979,7 @@ async function seedDefaultProducts() {
 
 async function ensureStreetwearCatalogue() {
     try {
-        const marker = await db.from("settings").select("id").eq("setting_key","streetwear_catalogue_normalized_v2").limit(1);
+        const marker = await db.from("settings").select("id").eq("setting_key","streetwear_catalogue_normalized_v3").limit(1);
         if (!marker.error && marker.data?.length) return;
 
         const result = await db.from("settings").select("id,setting_key,setting_value").like("setting_key","product_%");
@@ -1073,12 +1009,12 @@ async function ensureStreetwearCatalogue() {
         }
 
         // Ensure every approved Streetwear option exists once and has the requested order.
-        for (const [category,name,order] of DEFAULT_PRODUCTS) {
+        for (const [category,name,order,subcategory] of DEFAULT_PRODUCTS) {
             const key = productKeyFromName(name);
             const existing = await db.from("settings").select("id,setting_value").eq("setting_key",key).limit(1);
             if (existing.error) continue;
             const payload = {
-                name, category, price: null, public_price: null, notes: "",
+                name, category, price: null, public_price: null, subcategory: subcategory || "", notes: "",
                 display_order: order, active: true
             };
             if (!existing.data?.length) {
@@ -1098,7 +1034,7 @@ async function ensureStreetwearCatalogue() {
             }
         }
         await db.from("settings").insert({
-            setting_key: "streetwear_catalogue_normalized_v2",
+            setting_key: "streetwear_catalogue_normalized_v3",
             setting_value: "true",
             updated_at: new Date().toISOString()
         });
@@ -1126,8 +1062,8 @@ async function loadProducts() {
     const settings=await getRows("settings"); const invoiceMap=new Map();
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -1148,6 +1084,7 @@ function setupProductForm() {
             name,
             category,
             public_price: publicPrice,
+            subcategory: document.getElementById("adminProductSubcategory")?.value.trim() || "",
             notes: document.getElementById("adminProductNotes").value.trim(),
             display_order: Number(document.getElementById("adminProductOrder").value) || 1,
             active: document.getElementById("adminProductActive").checked
@@ -1203,6 +1140,7 @@ function setupProductForm() {
             document.getElementById("adminProductId").value = "";
             document.getElementById("adminProductActive").checked = true;
             document.getElementById("adminProductOrder").value = 1;
+            document.getElementById("adminProductSubcategory").value = "";
             message("Product saved successfully.", "success");
             await loadProducts();
         } catch (error) {
@@ -1216,6 +1154,7 @@ function setupProductForm() {
         document.getElementById("adminProductId").value = "";
         document.getElementById("adminProductActive").checked = true;
         document.getElementById("adminProductOrder").value = 1;
+        document.getElementById("adminProductSubcategory").value = "";
     });
 }
 
@@ -1587,11 +1526,21 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
         });
     }
 
+    if (details?.ladiesWearProducts && typeof details.ladiesWearProducts === "object") {
+        Object.values(details.ladiesWearProducts).forEach(item => {
+            if (!item) return;
+            const product = item.product || "Ladies Wear";
+            const quantity = Math.max(1, Number(item.quantity || 1));
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")});
+        });
+    }
+
     const simpleLines = [
         ["Ladies Wear", details?.ladiesWearQuantity, details?.ladiesWear, details?.ladiesWearSize, details?.ladiesWearColour],
         ["Kids Wear", details?.kidsWearQuantity, details?.kidsWear, details?.kidsWearSize, details?.kidsWearColour]
     ];
     simpleLines.forEach(([name, qty, request, size, colour]) => {
+        if (name === "Ladies Wear" && details?.ladiesWearProducts && Object.keys(details.ladiesWearProducts).length) return;
         const quantity = Number(qty || 0);
         if (quantity > 0 || request) {
             lines.push({
@@ -1609,9 +1558,9 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             const request = item.details || details.embellishmentOther || "";
             lines.push({
                 description: serviceName,
-                quantity: 1,
+                quantity: Math.max(1, Number(item.quantity || 1)),
                 unitPrice: invoicePriceFor(priceMap, serviceName),
-                details: [request].filter(Boolean).join(" • ")
+                details: [item.size, item.measurements, item.colour, request].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1800,25 +1749,10 @@ async function loadAccounting() {
         paymentMap.get(key).push(item);
     });
 
-    let checkoutRecords = [];
-    try {
-        const checkoutResult = await db.from("checkout_orders").select("*").order("created_at", {ascending:false});
-        if (!checkoutResult.error) {
-            checkoutRecords = (checkoutResult.data || []).map(order => ({
-                id: order.id,
-                invoiceNumber: order.order_number,
-                date: order.created_at ? String(order.created_at).slice(0,10) : "",
-                training: false,
-                customer: order.customer_name || "",
-                total: Number(order.total || 0),
-                discount: 0,
-                checkout: true,
-                paidAmount: Number(order.paid_amount || (order.payment_status === "paid" ? order.total : 0)),
-                status: order.order_status || order.payment_status || "Pending"
-            }));
-        }
-    } catch (_) {}
-    const records = [...invoiceMap.values(), ...checkoutRecords].sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
+    const records = [...invoiceMap.values()].filter(invoice => {
+        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p)=>sum+Number(p.amount||0),0);
+        return paid > 0;
+    }).sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
     let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1826,9 +1760,7 @@ async function loadAccounting() {
     const body = records.map(invoice => {
         const total = Number(invoice.total || 0);
         const discount = Number(invoice.discount || 0);
-        const paid = invoice.checkout
-            ? Number(invoice.paidAmount || 0)
-            : (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
         const balance = Math.max(0, total - paid);
         totalSales += total;
         totalReceived += paid;
@@ -1838,13 +1770,13 @@ async function loadAccounting() {
         return `<tr>
             <td>${escapeHTML(invoice.date || "")}</td>
             <td>${escapeHTML(invoice.invoiceNumber || "")}</td>
-            <td>${escapeHTML(invoice.checkout ? "Checkout Sale" : (invoice.checkout ? "Checkout Sale" : (invoice.training ? "Training" : "Order / Quote")))}</td>
+            <td>${escapeHTML(invoice.training ? "Training" : "Order / Quote")}</td>
             <td>${escapeHTML(invoice.customer || "")}</td>
             <td>GHS ${total.toFixed(2)}</td>
             <td>GHS ${discount.toFixed(2)}</td>
             <td>GHS ${paid.toFixed(2)}</td>
             <td>GHS ${balance.toFixed(2)}</td>
-            <td>${escapeHTML(invoice.checkout ? (invoice.status || (balance <= 0 ? "Paid in full" : "Unpaid")) : (balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"))}</td>
+            <td>${balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"}</td>
         </tr>`;
     }).join("");
 
@@ -1915,17 +1847,14 @@ async function loadAccounting() {
         exportButton.dataset.bound = "1";
         exportButton.onclick = () => {
             const header = ["Date","Invoice","Type","Customer","Sale (GHS)","Discount (GHS)","Received (GHS)","Balance (GHS)","Status"];
-            const rows = [header, ...records.map(invoice => {
+            const csv = [header, ...records.map(invoice => {
                 const total = Number(invoice.total || 0);
                 const discount = Number(invoice.discount || 0);
-                const paid = invoice.checkout
-                    ? Number(invoice.paidAmount || 0)
-                    : (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+                const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
                 const balance = Math.max(0, total - paid);
                 return [invoice.date || "", invoice.invoiceNumber || "", invoice.training ? "Training" : "Order / Quote", invoice.customer || "", total.toFixed(2), discount.toFixed(2), paid.toFixed(2), balance.toFixed(2), balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"];
-            })];
-            const csv = "\ufeffsep=,\r\n" + rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
-            const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+            })].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\\n");
+            const blob = new Blob(["\ufeff" + csv.replace(/\n/g,"\r\n")], {type:"text/csv;charset=utf-8"});
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -2152,7 +2081,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="form-group"><label>Email</label><input id="generatedInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
                 <div class="form-group"><label>Location / Address</label><input id="generatedInvoiceAddress" value="${escapeHTML(row.location || "")}"></div>
             </div>
-            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || (isTrainingInvoice ? "Full payment is expected to be made before class begins." : "Payment of the 75% deposit is required before production begins. Thank you for choosing Aprils Signature."))}</textarea></div>
+            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || (isTrainingInvoice ? "Kindly note that full payment is expected to be made before class begins.\n\nThank you for choosing Aprils Signature." : "Kindly note that production begins only after the initial deposit of 75% has been paid and confirmed.\n\nThank you for choosing Aprils Signature."))}</textarea></div>
         </div>
         <div id="generatedInvoicePreview"></div>
     `;
@@ -2207,7 +2136,7 @@ async function openInvoiceGenerator(row, details) {
                     </div>
                     ${!isTrainingInvoice && paymentAccounts.filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${paymentAccounts.filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
-                <div class="invoice-note">${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</div>
+                <div class="invoice-note"><strong><em>${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</em></strong></div>
             </div>
         `;
     }
@@ -2334,16 +2263,17 @@ function closeInvoiceGenerator() {
     window._aprilsCurrentInvoice = null;
 }
 
-async function waitForPdfAssets(container) {
-    const images = Array.from(container?.querySelectorAll("img") || []);
-    await Promise.all(images.map(img => new Promise(resolve => {
-        if (img.complete && img.naturalWidth > 0) return resolve();
-        const done = () => { img.removeEventListener("load", done); img.removeEventListener("error", done); resolve(); };
-        img.addEventListener("load", done); img.addEventListener("error", done);
-        setTimeout(done, 4000);
-    })));
-    if (document.fonts?.ready) { try { await document.fonts.ready; } catch (_) {} }
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+async function ensureHtml2Pdf() {
+    if (window.html2pdf) return window.html2pdf;
+    return new Promise(resolve => {
+        const existing = document.querySelector('script[data-aprils-html2pdf]');
+        if (existing) { existing.addEventListener("load", () => resolve(window.html2pdf)); setTimeout(() => resolve(window.html2pdf), 4000); return; }
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+        script.async = true; script.dataset.aprilsHtml2pdf = "1";
+        script.onload = () => resolve(window.html2pdf); script.onerror = () => resolve(null);
+        document.head.appendChild(script);
+    });
 }
 
 async function generateInvoicePdf(share) {
@@ -2352,9 +2282,9 @@ async function generateInvoicePdf(share) {
     state.renderInvoice();
     const paper = document.getElementById("invoicePaper");
     if (!paper) return false;
-    await waitForPdfAssets(paper);
 
-    if (!window.html2pdf) {
+    const html2pdf = await ensureHtml2Pdf();
+    if (!html2pdf) {
         printGeneratedInvoice();
         message("PDF library is unavailable, so the invoice has been opened in print view. Choose Save as PDF there.", "success");
         return false;
@@ -2368,7 +2298,7 @@ async function generateInvoicePdf(share) {
             html2canvas: {scale:2, useCORS:true},
             jsPDF: {unit:"in", format:"a4", orientation:"portrait"}
         };
-        const worker = window.html2pdf().set(options).from(paper);
+        const worker = html2pdf().set(options).from(paper);
         if (share && navigator.share && navigator.canShare) {
             const blob = await worker.outputPdf("blob");
             const file = new File([blob], options.filename, {type:"application/pdf"});
@@ -2601,7 +2531,6 @@ function openReceiptGenerator() {
                             <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
-                    ${!invoiceState.isTrainingInvoice && (invoiceState.paymentAccounts || []).filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${(invoiceState.paymentAccounts || []).filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
                 <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
                 <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
@@ -2663,7 +2592,12 @@ function openReceiptGenerator() {
                 try {
                     const record = invoiceState.row || {};
                     if (record.id) {
-                        await setAdminRecordStatus(invoiceState.isTrainingInvoice ? "training_status" : "quote_status", record.id, "payment_received");
+                        const total = Number(totals.total || 0);
+                        const payments = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
+                        const paidTotal = payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
+                        const paymentStage = paidTotal >= total && total > 0 ? "fully_paid" : (paidTotal > 0 ? (invoiceState.isTrainingInvoice ? "fully_paid" : "part_paid") : "under_review");
+                        await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
+                        await setAdminRecordStatus(invoiceState.isTrainingInvoice ? "training_status" : "quote_status", record.id, "receipt_generated");
                     }
                 } catch (_) {}
             }
@@ -2692,8 +2626,8 @@ async function generateReceiptPdf(share) {
     state.renderReceipt();
     const paper = document.getElementById("receiptPaper");
     if (!paper) return false;
-    await waitForPdfAssets(paper);
-    if (!window.html2pdf) {
+    const html2pdf = await ensureHtml2Pdf();
+    if (!html2pdf) {
         printGeneratedReceipt();
         message("PDF library is unavailable, so the receipt has been opened in print view. Choose Save as PDF there.", "success");
         return false;
@@ -2706,7 +2640,7 @@ async function generateReceiptPdf(share) {
             html2canvas: {scale:2,useCORS:true},
             jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
         };
-        const worker = window.html2pdf().set(options).from(paper);
+        const worker = html2pdf().set(options).from(paper);
         if (share && navigator.share && navigator.canShare) {
             const blob = await worker.outputPdf("blob");
             const file = new File([blob], options.filename, {type:"application/pdf"});
@@ -3041,7 +2975,14 @@ function buildQuoteDetailRows(row, details) {
     if (selected.includes("Ladies Wear")) {
         add("Ladies Wear Size (UK)", details.ladiesWearSize);
         add("Ladies Wear Colour", details.ladiesWearColour);
-        add("Ladies Wear Quantity", details.ladiesWearQuantity);
+        add("Ladies Wear General Quantity", details.ladiesWearQuantity);
+        if (details.ladiesWearProducts && typeof details.ladiesWearProducts === "object") {
+            Object.entries(details.ladiesWearProducts).forEach(([name,item]) => {
+                if (!item) return;
+                add("Ladies Wear — " + name, [item.quantity ? `Quantity: ${item.quantity}` : "", item.size ? `Size: ${item.size}` : "", item.measurements ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : "", item.details ? `Details: ${item.details}` : ""].filter(Boolean).join(" • "));
+            });
+        }
+        add("Ladies Wear Other Request", details.ladiesWearOther);
         add("Ladies Wear Details / Style Request", details.ladiesWear);
     }
 
@@ -3169,6 +3110,7 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     const body = modal.querySelector(".submission-modal-body");
     const details = parseSubmissionDetails(detailsText);
     const isQuote = /quote|order/i.test(title);
+    const isTraining = /training/i.test(title);
     let rows;
 
     if (isQuote) {
@@ -3223,7 +3165,7 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
             <div class="submission-modal-actions">
                 <button type="button" class="primary submission-export-button" id="exportSubmissionDetails">Export Details</button>
                 <button type="button" class="secondary" id="shareSubmissionDetails">Share</button>
-                ${isQuote ? '<button type="button" class="primary" id="generateInvoiceFromOrder">Generate Invoice</button>' : ''}
+                ${(isQuote || isTraining) ? '<button type="button" class="primary" id="generateInvoiceFromOrder">Generate Invoice</button>' : ''}
             </div>
         </div>
         <div class="submission-fields">${fields || '<div class="submission-field"><strong>Details</strong><div>No additional details were supplied.</div></div>'}</div>
@@ -3237,7 +3179,7 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
         shareText(title, buildShareText(title, row || {}, detailsText));
     });
     document.getElementById("generateInvoiceFromOrder")?.addEventListener("click", () => {
-        openInvoiceGenerator(row || {}, details);
+        openInvoiceGenerator(row || {}, {...details, training: isTraining});
     });
 
     backdrop.style.display = "block";
@@ -3254,20 +3196,24 @@ function closeSubmissionDetails(){
 
 
 const ADMIN_STATUS_OPTIONS = [
-    ["request_received", "Request Received"],
-    ["reviewed", "Reviewed"],
-    ["invoice_sent", "Invoice Sent"],
-    ["payment_received", "Payment Received"],
-    ["work_in_progress", "Work in Progress"],
+    ["under_review", "New Customer — Under Review"],
+    ["invoice_generated", "Invoice Generated"],
+    ["deposit_paid", "Deposit Paid"],
+    ["part_paid", "Part Paid"],
+    ["fully_paid", "Fully Paid"],
+    ["receipt_generated", "Receipt Generated"],
+    ["in_production", "In Production"],
+    ["ready", "Ready for Collection / Delivery"],
     ["completed", "Completed"],
-    ["delivered", "Delivered"]
+    ["dispatched", "Dispatched"],
+    ["received", "Received by Customer"]
 ];
 
 async function getAdminRecordStatus(prefix, id) {
     try {
         const row = await getSettingValue(prefix + "_" + id);
-        return row?.setting_value || "request_received";
-    } catch (_) { return "request_received"; }
+        return row?.setting_value || "under_review";
+    } catch (_) { return "under_review"; }
 }
 
 async function setAdminRecordStatus(prefix, id, status) {
@@ -3275,6 +3221,8 @@ async function setAdminRecordStatus(prefix, id, status) {
 }
 
 function statusSelectHTML(prefix, id, value) {
+    const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
+    value = legacy[value] || value || "under_review";
     return `<select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
         ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
     </select>`;
@@ -3297,11 +3245,16 @@ async function loadRegistrations() {
     if (!list) return;
 
     const statuses = new Map();
-    for (const row of rows) statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
+    const paymentStatuses = new Map();
+    for (const row of rows) {
+        statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
+        const p = await getSettingValue("payment_status_training_" + row.id);
+        paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
+    }
 
     list.innerHTML = rows.length ? `
         <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Status</th><th>Action</th>
+            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Order Status</th><th>Payment Status</th><th>Action</th>
         </tr></thead><tbody>
         ${rows.map(row => `<tr>
             <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
@@ -3311,6 +3264,7 @@ async function loadRegistrations() {
             <td>${escapeHTML(row.location)}</td>
             <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
             <td>${statusSelectHTML("training_status", row.id, statuses.get(String(row.id)))}</td>
+            <td>${escapeHTML((paymentStatuses.get(String(row.id)) || "unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</td>
             <td>
                 <button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button>
                 <button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
@@ -3350,7 +3304,7 @@ async function loadRegistrations() {
                 manualLines: [{description: course, quantity: 1, unitPrice, details: notes}],
                 training: course
             });
-            try { await setAdminRecordStatus("training_status", row.id, "invoice_sent"); } catch (_) {}
+            try { await setAdminRecordStatus("training_status", row.id, "invoice_generated"); } catch (_) {}
         };
     });
 
@@ -3384,26 +3338,15 @@ function summarizeQuoteQuantities(row) {
             if (product && quantity) quantities.push(`${product}: ${quantity}`);
         });
     }
-    if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: ${details.ladiesWearQuantity}`);
+    if (details?.ladiesWearProducts && typeof details.ladiesWearProducts === "object" && Object.keys(details.ladiesWearProducts).length) {
+        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: ${item.quantity}`); });
+    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: ${details.ladiesWearQuantity}`);
     if (details?.kidsWearQuantity) quantities.push(`Kids Wear: ${details.kidsWearQuantity}`);
-    if (Array.isArray(details?.embellishmentDetails)) {
-        details.embellishmentDetails.forEach(item => {
-            if (item?.service && item?.quantity) quantities.push(`${item.service}: ${item.quantity}`);
-        });
-    } else if (details?.embellishmentDetails) {
+    if (details?.embellishmentDetails) {
         Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
             if (item?.quantity) quantities.push(`${name}: ${item.quantity}`);
         });
     }
-    if (Array.isArray(details?.ladiesWearProducts)) {
-        details.ladiesWearProducts.forEach(item => {
-            if (item?.product && item?.quantity) quantities.push(`${item.product}: ${item.quantity}`);
-        });
-    }
-    const otherStreetQty = Number(details?.otherProductDetails?.streetwear?.quantity || 0);
-    const otherLadiesQty = Number(details?.otherProductDetails?.ladiesWear?.quantity || 0);
-    if (otherStreetQty > 0) quantities.push(`Streetwear Other: ${otherStreetQty}`);
-    if (otherLadiesQty > 0) quantities.push(`Ladies Wear Other: ${otherLadiesQty}`);
     return quantities.join(" • ") || "—";
 }
 
@@ -3424,41 +3367,18 @@ function summarizeQuoteDetails(row) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
-            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour, item.quantity ? "Qty " + item.quantity : ""].filter(Boolean).join(" • ") : "";
+            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
             if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
-    if (details.otherProductDetails?.streetwear?.request) {
-        const o = details.otherProductDetails.streetwear;
-        parts.push(["Streetwear Other", o.request, o.sizeMeasurements, o.colour, o.quantity ? "Qty " + o.quantity : ""].filter(Boolean).join(" • "));
-    }
-    if (selected.includes("Ladies Wear")) {
-        parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
-        if (details.otherProductDetails?.ladiesWear?.request) {
-            const o = details.otherProductDetails.ladiesWear;
-            parts.push(["Ladies Wear Other", o.request, o.sizeMeasurements, o.colour, o.quantity ? "Qty " + o.quantity : ""].filter(Boolean).join(" • "));
-        }
-        if (Array.isArray(details.ladiesWearProducts)) {
-            details.ladiesWearProducts.forEach(item => {
-                if (item?.product) parts.push(`${item.product}: quantity ${item.quantity}`);
-            });
-        }
-    }
+    if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
     if (selected.includes("Kids Wear")) parts.push(["Kids Wear", details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
     if (selected.includes("Embellishment Services") && Array.isArray(details.embellishment)) {
-        if (Array.isArray(details.embellishmentDetails)) {
-            details.embellishmentDetails.forEach(item => {
-                if (!item?.service) return;
-                const bits = [item.sizeMeasurements, item.colour, item.quantity ? "Qty " + item.quantity : "", item.specification].filter(Boolean);
-                parts.push(`${item.service}${bits.length ? ": " + bits.join(" • ") : ""}`);
-            });
-        } else {
-            details.embellishment.forEach(name => {
-                const item = details.embellishmentDetails?.[name] || {};
-                const detail = item.details || (name === "Others" ? details.embellishmentOther : "");
-                parts.push(`${name}${detail ? ": " + detail : ""}`);
-            });
-        }
+        details.embellishment.forEach(name => {
+            const item = details.embellishmentDetails?.[name] || {};
+            const detail = item.details || (name === "Others" ? details.embellishmentOther : "");
+            parts.push(`${name}${detail ? ": " + detail : ""}`);
+        });
         if (details.embellishmentOther && !details.embellishment.includes("Others")) {
             parts.push("Embellishment request: " + details.embellishmentOther);
         }
@@ -3468,24 +3388,6 @@ function summarizeQuoteDetails(row) {
     return parts.filter(Boolean).join(" | ");
 }
 
-
-
-function groupDuplicateQuotes(rows) {
-    const groups = new Map();
-    (rows || []).forEach(row => {
-        const copy = {...row};
-        delete copy.id; delete copy.created_at; delete copy.updated_at;
-        const key = JSON.stringify(copy, Object.keys(copy).sort());
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(row);
-    });
-    return [...groups.values()].map(group => {
-        const first = {...group[0]};
-        first._ids = group.map(r => r.id).filter(Boolean);
-        first._duplicateCount = group.length;
-        return first;
-    }).sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
-}
 
 async function loadQuotes() {
     let rawRows = [];
@@ -3502,12 +3404,17 @@ async function loadQuotes() {
     if (!list) return;
 
     const statuses = new Map();
-    for (const row of rows) statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
+    const paymentStatuses = new Map();
+    for (const row of rows) {
+        statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
+        const p = await getSettingValue("payment_status_quote_" + row.id);
+        paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
+    }
 
     list.innerHTML = rows.length ? `
         <table>
             <thead><tr>
-                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Status</th><th>Action</th>
+                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Order Status</th><th>Payment Status</th><th>Action</th>
             </tr></thead>
             <tbody>
             ${rows.map(row => {
@@ -3531,6 +3438,7 @@ async function loadQuotes() {
                     <td><span style="display:block;white-space:normal">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
                     <td><span style="display:block;white-space:normal">${escapeHTML(preview)}</span></td>
                     <td>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</td>
+                    <td>${escapeHTML((paymentStatuses.get(String(row.id)) || "unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</td>
                     <td>
                         <button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button>
                         <button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
@@ -3573,7 +3481,7 @@ async function loadQuotes() {
             if (!row) return;
             const details = parseSubmissionDetails(row.journey || row.request_details || row.details || row.message || "");
             await openInvoiceGenerator(row, details);
-            try { await setAdminRecordStatus("quote_status", row.id, "invoice_sent"); } catch (_) {}
+            try { await setAdminRecordStatus("quote_status", row.id, "invoice_generated"); } catch (_) {}
         };
     });
 
@@ -5115,7 +5023,7 @@ async function loadSettings() {
             && !key.startsWith("site_logo_library_")
             && !key.startsWith("accounting_expense_")
             && !key.startsWith("products_catalogue_seeded")
-            && !key.startsWith("streetwear_catalogue_normalized_v2");
+            && !key.startsWith("streetwear_catalogue_normalized_v3");
     });
     const list = document.getElementById("settingsList");
     if (!list) return;
@@ -5416,10 +5324,11 @@ async function seedInitialPublicContent() {
         ["site_link_about", { label: "About", url: "about.html", order: 2, location: "header", active: true }],
         ["site_link_services", { label: "Services", url: "services.html", order: 3, location: "header", active: true }],
         ["site_link_gallery", { label: "Gallery", url: "gallery.html", order: 4, location: "header", active: true }],
-        ["site_link_training", { label: "Training", url: "training.html", order: 5, location: "header", active: true }],
-        ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 6, location: "header", active: true }],
-        ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 7, location: "header", active: true }],
-        ["site_link_contact", { label: "Contact", url: "contact.html", order: 8, location: "header", active: true }]
+        ["site_link_shop", { label: "Shop", url: "shop.html", order: 5, location: "header", active: true }],
+        ["site_link_training", { label: "Training", url: "training.html", order: 6, location: "header", active: true }],
+        ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 7, location: "header", active: true }],
+        ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 8, location: "header", active: true }],
+        ["site_link_contact", { label: "Contact", url: "contact.html", order: 9, location: "header", active: true }]
     ];
     try {
         const existing = await db.from("settings").select("setting_key").like("setting_key", "site_link_%");
@@ -5695,6 +5604,7 @@ async function startAdmin() {
     setupSocialForm();
     setupSettingsForm();
     setupLogoForm();
+    if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 
     if (!db) {
         if (hasCachedAdminSession()) {
