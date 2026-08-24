@@ -1284,6 +1284,10 @@ function invoicePriceFor(map, name) {
 
     // Be tolerant of common product-name punctuation / set-name differences.
     const aliases = {
+        "three months beginners fashion training": ["3 months beginners fashion training", "three months beginners fashion training"],
+        "six months fashion training": ["6 months fashion training", "six months fashion training"],
+        "one year fashion training": ["1 year fashion training", "one year fashion training"],
+        "three years apprenticeship training": ["3 years apprenticeship training", "three years apprenticeship training"],
         "t shirt": ["t shirts", "t shirt"],
         "t shirts": ["t shirts", "t shirt"],
         "hoodies joggers set": ["hoodies joggers set"],
@@ -1302,7 +1306,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
         return details.manualLines.map(line => ({
             description: String(line.description || "").trim(),
             quantity: Math.max(1, Number(line.quantity || 1)),
-            unitPrice: Number(line.unitPrice || 0),
+            unitPrice: Number(line.unitPrice || invoicePriceFor(priceMap, line.description) || 0),
             details: String(line.details || "")
         })).filter(line => line.description);
     }
@@ -1423,7 +1427,7 @@ async function loadSavedInvoiceReceiptRecords() {
                 <tbody>
                 ${records.map(r => {
                     const amount = r.type === "Receipt" ? Number(r.amount || 0) : Number(r.total || 0);
-                    const status = r.type === "Receipt" ? "Payment recorded" : (r.training ? "Training • Full payment" : "Invoice saved");
+                    const status = r.type === "Receipt" ? (r.status || "Payment recorded") : (r.training ? "Training • Full payment" : "Invoice saved");
                     return `<tr>
                         <td>${escapeHTML(r.type)}</td>
                         <td>${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}</td>
@@ -1455,7 +1459,8 @@ async function loadSavedInvoiceReceiptRecords() {
                     manualLines: row.lines || [],
                     notes: row.notes || "",
                     training: !!row.training,
-                    invoiceNumber: row.invoiceNumber
+                    invoiceNumber: row.invoiceNumber,
+                    discountPercent: Number(row.discountPercent || 0)
                 });
             };
         });
@@ -1533,6 +1538,21 @@ async function getDiscountForCustomer(row) {
     return null;
 }
 
+function normalizeWhatsAppNumber(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    let digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.startsWith("0")) digits = "233" + digits.slice(1);
+    if (digits.length >= 9 && !digits.startsWith("233")) digits = "233" + digits;
+    return digits;
+}
+
+function customerWhatsAppUrl(value, text) {
+    const number = normalizeWhatsAppNumber(value);
+    return number ? `https://wa.me/${number}?text=${encodeURIComponent(text || "")}` : `https://wa.me/?text=${encodeURIComponent(text || "")}`;
+}
+
 async function openInvoiceGenerator(row, details) {
     const priceMap = await getInvoicePriceMap();
     const discountOffer = await getDiscountForCustomer(row);
@@ -1555,7 +1575,10 @@ async function openInvoiceGenerator(row, details) {
     }
 
     const invoiceNumber = details?.invoiceNumber || ("AS-" + new Date().toISOString().slice(0,10).replace(/-/g,"") + "-" + Math.random().toString(36).slice(2,7).toUpperCase());
-    const detailsLines = buildInvoiceLinesFromQuote(row, details, priceMap);
+    const detailsLines = buildInvoiceLinesFromQuote(row, details, priceMap).map(line => ({
+        ...line,
+        unitPrice: Number(line.unitPrice || invoicePriceFor(priceMap, line.description) || 0)
+    }));
     const savedPayments = await getInvoicePayments(invoiceNumber);
 
     modal.innerHTML = `
@@ -1632,13 +1655,13 @@ async function openInvoiceGenerator(row, details) {
                     <p class="invoice-payment-status"><strong>${paymentStatus}</strong></p>
                 </div>
                 <div class="invoice-payment"><strong>Payment Details</strong>
-                    ${paymentAccounts.map((item,index)=>`<div style="margin-top:10px;padding-top:8px;border-top:${index ? "1px solid #ccc" : "0"};">
-                        <strong>${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}</strong><br>
-                        ${escapeHTML(item.name || "")}<br>
-                        <div class="invoice-payment-note" style="margin-top:6px;font-weight:700;border-left:4px solid #c9a227;padding:7px 10px;">
-                            *** Payment Note ***<br>${escapeHTML(item.note || "")}
-                        </div>
-                    </div>`).join("")}
+                    <div class="invoice-payment-grid ${paymentAccounts.length > 1 ? "two" : "one"}">
+                        ${paymentAccounts.map(item=>`<div class="invoice-payment-account">
+                            <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
+                            <span>${escapeHTML(item.name || "")}</span>
+                        </div>`).join("")}
+                    </div>
+                    ${paymentAccounts.filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${paymentAccounts.filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
                 <div class="invoice-note">${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</div>
             </div>
@@ -1653,7 +1676,7 @@ async function openInvoiceGenerator(row, details) {
         <h3>Invoice Items</h3>
         <div id="invoiceLineRows"></div>
         <div class="form-grid">
-            <div class="form-group"><label>Discount (%)</label><input id="generatedInvoiceDiscountPercent" type="number" min="0" max="100" step="0.01" value="${Number(discountOffer?.percent || 0)}"></div>
+            <div class="form-group"><label>Discount (%)</label><input id="generatedInvoiceDiscountPercent" type="number" min="0" max="100" step="0.01" value="${Number(discountOffer?.percent ?? details?.discountPercent ?? 0)}"></div>
         </div>
         <button type="button" class="secondary" id="invoiceAddLine">+ Add Line</button>
     `;
@@ -1688,8 +1711,17 @@ async function openInvoiceGenerator(row, details) {
     lineEditor.querySelector("#invoiceAddLine").onclick = () => { addLine(); renderInvoice(); };
 
     // First render after all lines exist.
-    ["input","change"].forEach(evt => modal.addEventListener(evt, renderInvoice));
+    ["input","change"].forEach(evt => modal.addEventListener(evt, () => {
+        renderInvoice();
+        clearTimeout(window._aprilsAutoSaveInvoiceTimer);
+        window._aprilsAutoSaveInvoiceTimer = setTimeout(autoSaveInvoice, 900);
+    }));
     renderInvoice();
+
+    window._aprilsAutoSaveInvoiceTimer && clearTimeout(window._aprilsAutoSaveInvoiceTimer);
+    const autoSaveInvoice = async () => {
+        try { await statefulSaveGeneratedInvoice(row, details, savedPayments, true); } catch (error) { console.warn("Automatic invoice save skipped:", error); }
+    };
 
     modal.querySelector("#invoiceDownloadPdf").onclick = () => generateInvoicePdf(false);
     modal.querySelector("#invoiceSharePdf").onclick = () => generateInvoicePdf(true);
@@ -1709,10 +1741,11 @@ async function openInvoiceGenerator(row, details) {
     modal.classList.add("open");
 
     window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice };
+    setTimeout(autoSaveInvoice, 150);
 }
 
 
-async function statefulSaveGeneratedInvoice(row, details, savedPayments) {
+async function statefulSaveGeneratedInvoice(row, details, savedPayments, automatic = false) {
     const state = window._aprilsCurrentInvoice;
     if (!state) return;
     state.renderInvoice();
@@ -1739,14 +1772,17 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments) {
         address: document.getElementById("generatedInvoiceAddress")?.value || "",
         notes: document.getElementById("generatedInvoiceNotes")?.value || "",
         lines, discount, discountPercent, total,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        saveType: automatic ? "automatic" : "manual"
     };
     await saveInvoiceRecord(invoiceNumber, record);
-    if (state.discountOffer?.redemptionId) {
+    if (!automatic && state.discountOffer?.redemptionId) {
         try { await db.from("discount_redemptions").update({status:"used"}).eq("id", state.discountOffer.redemptionId); } catch (_) {}
     }
-    message("Invoice " + invoiceNumber + " saved.", "success");
-    await loadSavedInvoiceReceiptRecords();
+    if (!automatic) {
+        message("Invoice " + invoiceNumber + " saved.", "success");
+        await loadSavedInvoiceReceiptRecords();
+    }
 }
 function closeInvoiceGenerator() {
     document.getElementById("invoiceGeneratorBackdrop")?.remove();
@@ -1805,14 +1841,14 @@ function getGeneratedInvoiceShareText() {
 
 async function shareGeneratedInvoiceWhatsApp() {
     try {
-        const sharedFile = await generateInvoicePdf(true);
-        if (!sharedFile) {
-            const text = encodeURIComponent(getGeneratedInvoiceShareText());
-            window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
-        }
+        await generateInvoicePdf(false);
+        const text = getGeneratedInvoiceShareText() + "\nThe invoice PDF has been saved on this device.";
+        const customer = document.getElementById("generatedInvoicePhone")?.value || "";
+        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
     } catch (_) {
-        const text = encodeURIComponent(getGeneratedInvoiceShareText());
-        window.open("https://wa.me/?text=" + text, "_blank", "noopener,noreferrer");
+        const text = getGeneratedInvoiceShareText();
+        const customer = document.getElementById("generatedInvoicePhone")?.value || "";
+        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
     }
 }
 
@@ -1862,6 +1898,29 @@ function getCurrentInvoiceTotals() {
     const total = Math.max(0, subtotal - discount);
     const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 0)));
     return { total, paidDue: total * depositPercent / 100, balance: total * (1 - depositPercent / 100), lines };
+}
+
+async function saveReceiptRecordDraft() {
+    const state = window._aprilsCurrentReceipt;
+    if (!state) return;
+    const receiptNumber = document.getElementById("generatedReceiptNumber")?.value || "";
+    if (!receiptNumber) return;
+    const invoiceNumber = document.getElementById("generatedReceiptInvoiceNumber")?.value || "";
+    const amount = Number(document.getElementById("generatedReceiptAmount")?.value || 0);
+    const record = {
+        receiptNumber, invoiceNumber,
+        customer: document.getElementById("generatedReceiptCustomer")?.value || "",
+        phone: document.getElementById("generatedReceiptPhone")?.value || "",
+        email: document.getElementById("generatedReceiptEmail")?.value || "",
+        amount,
+        method: document.getElementById("generatedReceiptMethod")?.value || "",
+        reference: document.getElementById("generatedReceiptReference")?.value || "",
+        date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10),
+        status: "Draft — payment not yet recorded",
+        savedAt: new Date().toISOString(),
+        saveType: "automatic"
+    };
+    await safeSettingUpsert("receipt_record_" + contentSlug(receiptNumber), JSON.stringify(record));
 }
 
 function openReceiptGenerator() {
@@ -1950,7 +2009,16 @@ function openReceiptGenerator() {
                 <div class="receipt-summary">
                     <p>Invoice Total: <strong>GHS ${totals.total.toFixed(2)}</strong></p>
                     <p>Amount Received: <strong>GHS ${amount.toFixed(2)}</strong></p>
-                    <p>Balance Remaining: <strong>GHS ${remaining.toFixed(2)}</strong></p>
+                    ${invoiceState.isTrainingInvoice ? "" : `<p>Balance Remaining: <strong>GHS ${remaining.toFixed(2)}</strong></p>`}
+                </div>
+                <div class="receipt-payment"><strong>Payment Details</strong>
+                    <div class="invoice-payment-grid ${(invoiceState.paymentAccounts || []).length > 1 ? "two" : "one"}">
+                        ${(invoiceState.paymentAccounts || []).map(item=>`<div class="invoice-payment-account">
+                            <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
+                            <span>${escapeHTML(item.name || "")}</span>
+                        </div>`).join("")}
+                    </div>
+                    ${(invoiceState.paymentAccounts || []).filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${(invoiceState.paymentAccounts || []).filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
                 <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
                 <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
@@ -1958,7 +2026,12 @@ function openReceiptGenerator() {
         `;
     }
 
-    ["input","change"].forEach(evt => modal.addEventListener(evt, renderReceipt));
+    let receiptAutoSaveTimer = null;
+    const autoSaveReceiptDraft = () => {
+        clearTimeout(receiptAutoSaveTimer);
+        receiptAutoSaveTimer = setTimeout(() => saveReceiptRecordDraft().catch(error => console.warn("Automatic receipt save skipped:", error)), 700);
+    };
+    ["input","change"].forEach(evt => modal.addEventListener(evt, () => { renderReceipt(); autoSaveReceiptDraft(); }));
     renderReceipt();
     modal.querySelector("#receiptDownloadPdf").onclick = () => generateReceiptPdf(false);
     modal.querySelector("#receiptSharePdf").onclick = () => generateReceiptPdf(true);
@@ -1996,7 +2069,9 @@ function openReceiptGenerator() {
                     method: document.getElementById("generatedReceiptMethod")?.value || "",
                     reference: document.getElementById("generatedReceiptReference")?.value || "",
                     date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10),
-                    savedAt: new Date().toISOString()
+                    status: "Payment recorded",
+                    savedAt: new Date().toISOString(),
+                    saveType: "manual"
                 })
             );
             const latest = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
@@ -2005,7 +2080,7 @@ function openReceiptGenerator() {
                 try {
                     const record = invoiceState.row || {};
                     if (record.id) {
-                        await setAdminRecordStatus(record.course ? "training_status" : "quote_status", record.id, "payment_received");
+                        await setAdminRecordStatus(invoiceState.isTrainingInvoice ? "training_status" : "quote_status", record.id, "payment_received");
                     }
                 } catch (_) {}
             }
@@ -2019,6 +2094,7 @@ function openReceiptGenerator() {
     backdrop.style.display = "block";
     modal.classList.add("open");
     window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals };
+    setTimeout(autoSaveReceiptDraft, 150);
 }
 
 function closeReceiptGenerator() {
@@ -2074,12 +2150,14 @@ function getGeneratedReceiptShareText() {
 
 async function shareGeneratedReceiptWhatsApp() {
     try {
-        const sharedFile = await generateReceiptPdf(true);
-        if (!sharedFile) {
-            window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
-        }
+        await generateReceiptPdf(false);
+        const text = getGeneratedReceiptShareText() + "\nThe receipt PDF has been saved on this device.";
+        const customer = document.getElementById("generatedReceiptPhone")?.value || "";
+        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
     } catch (_) {
-        window.open("https://wa.me/?text=" + encodeURIComponent(getGeneratedReceiptShareText()), "_blank", "noopener,noreferrer");
+        const text = getGeneratedReceiptShareText();
+        const customer = document.getElementById("generatedReceiptPhone")?.value || "";
+        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
     }
 }
 
@@ -2174,8 +2252,8 @@ async function loadTraining() {
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"start"});});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -3084,7 +3162,7 @@ async function loadPolicies() {
     list.innerHTML = rows.length ? `
         <table><thead><tr><th>Policy</th><th>Key</th><th>Content</th><th>Actions</th></tr></thead><tbody>
         ${rows.map(row => `<tr>
-            <td>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
+            <td><span class="policy-number-badge">${policyRank[String(row.policy_key||"").toLowerCase()] || ""}</span>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
             <td>${escapeHTML(row.policy_key)}</td>
             <td><pre style="white-space:pre-wrap;max-width:550px;font-family:inherit">${escapeHTML(row.content)}</pre></td>
             <td>
@@ -3963,6 +4041,12 @@ function setupSocialForm() {
             message("Social link could not be saved: " + err.message,"error");
         }
     });
+    document.getElementById("newSocialButton")?.addEventListener("click", () => {
+        f.reset();
+        document.getElementById("socialId").value = "";
+        updateCustom();
+        f.scrollIntoView({behavior:"smooth",block:"start"});
+    });
     document.getElementById("socialCancel")?.addEventListener("click",() => {
         f.reset();
         document.getElementById("socialId").value = "";
@@ -4607,14 +4691,23 @@ async function seedInitialPublicContent() {
         ["Payment Policy", "payment_policy", "A minimum of 75% of the total cost must be paid before production begins.\n\nFor orders being picked up or collected, the remaining balance must be paid before or at the time of collection.\n\nFor delivery orders, the remaining balance must be paid in full before the order is dispatched.\n\nFor any form of fashion training\nFull payment must be made before start of class or section."],
         ["Refund Policy", "refund_policy", "At Aprils Signature, every order is custom-made or made-to-order with care and attention to detail. For this reason, we encourage customers to review all order details carefully before confirming their orders.\n\nThe 75% deposit paid before production begins is non-refundable once production has started.\n\nIf a customer chooses to cancel an order before production begins, any refund will be considered on a case-by-case basis, depending on any costs already incurred.\n\nRefunds will not be issued for changes of mind after production has commenced.\n\nIf an item is found to have a genuine workmanship defect, customers should contact us within 48 hours of receiving the item so we can assess the issue and provide an appropriate solution, which may include alterations, repairs, or another suitable remedy where applicable.\n\nRefunds do not apply to issues arising from incorrect measurements or information provided by the customer.\n\nCustomer satisfaction is important to us. We encourage all customers to communicate any concerns as soon as possible so that we can work together to find a fair and satisfactory solution.\n\nFor any form of training\nPayments made are not refundable or transferrable as such, prospective trainees must do their due diligence and be certain of taking the class before any payment is made."],
         ["Delivery & Collection Policy", "delivery_collection_policy", "At Aprils Signature, every item is custom-made or made-to-order. Completion and delivery times vary depending on the design, order complexity, and current workload.\n\nCustomers will be informed of the estimated completion date after their order has been confirmed.\n\nCustomers who choose pickup/collection will be notified when their order is ready.\n\nFor delivery orders, dispatch will be arranged after the order has been completed and the outstanding balance has been paid in full.\n\nDelivery charges, where applicable, will be communicated before dispatch.\n\nWhile we make every effort to meet agreed timelines, unforeseen circumstances may occasionally cause delays. In such cases, customers will be informed promptly.\n\nWe also encourage customers to provide accurate delivery information to ensure a smooth delivery process."],
-        ["Privacy Policy", "privacy_policy", "At Aprils Signature, we value your privacy and are committed to protecting your personal information.\n\nAny information you provide through our website, including contact forms, quote requests, training applications, and order enquiries, is used solely to provide our services and communicate with you regarding your request.\n\nThe information we may collect includes: Name; Phone number; Email address; Delivery or pickup details; Measurements; Uploaded photos or mock-ups; Any other information you choose to provide.\n\nYour personal information will not be sold, rented, or shared with third parties except where necessary to provide our services or where required by law.\n\nWe take reasonable steps to keep your information secure and use it only for legitimate business purposes.\n\nIf you have any questions about how your personal information is used, please contact us and we will be happy to assist you.\n\nBy using our website and submitting your information, you agree to the terms of this Privacy Policy."]
+        ["Privacy Policy", "privacy_policy", "At Aprils Signature, we value your privacy and are committed to protecting your personal information.\n\nAny information you provide through our website, including contact forms, quote requests, training applications, and order enquiries, is used solely to provide our services and communicate with you regarding your request.\n\nThe information we may collect includes:\n- Name\n- Phone number\n- Email address\n- Delivery or pickup details\n- Measurements\n- Uploaded garments photos or mockups\n- Any other information you may choose to provide\n\nYour personal information will not be sold, rented, or shared with third parties except where necessary to provide our services or where required by law.\n\nWe take reasonable steps to keep your information secure and use it only for legitimate business purposes.\n\nIf you have any questions about how your personal information is used, please contact us and we will be happy to assist you.\n\nBy using our website and submitting your information, you agree to the terms of this Privacy Policy."],
     ];
     try {
-        const existing = await db.from("policies").select("id,policy_key");
+        const existing = await db.from("policies").select("id,policy_key,content");
         if (!existing.error) {
             const keys = new Set((existing.data || []).map(r => String(r.policy_key || "").toLowerCase()));
             const missing = INITIAL_POLICIES.filter(([,k]) => !keys.has(k.toLowerCase())).map(([title, policy_key, content]) => ({title, policy_key, content}));
             if (missing.length) await db.from("policies").insert(missing);
+
+            // Bring the privacy-policy record in line with the approved public wording
+            // only when the older version is still present. Once the admin has made a
+            // deliberate edit, do not overwrite it.
+            const privacy = (existing.data || []).find(r => String(r.policy_key || "").toLowerCase() === "privacy_policy");
+            if (privacy && /order request code from the selection area/i.test(String(privacy.content || ""))) {
+                const approved = INITIAL_POLICIES.find(([,k]) => k === "privacy_policy");
+                if (approved) await db.from("policies").update({content: approved[2], updated_at:new Date().toISOString()}).eq("id", privacy.id);
+            }
         }
     } catch (e) { console.warn("Policy initial import unavailable:", e); }
 
@@ -4722,7 +4815,17 @@ async function loadDiscountCodes() {
     if (redemptionList) {
         try {
             const redemptionResult = await db.from("discount_redemptions").select("*").order("created_at", {ascending:false});
-            const redemptions = redemptionResult.error ? [] : (redemptionResult.data || []);
+            let redemptions = redemptionResult.error ? [] : (redemptionResult.data || []);
+            // Older versions accepted any code. Mark those legacy pending entries as rejected
+            // when the code is not currently registered and active.
+            if (redemptions.length && codes.length) {
+                const validCodes = new Set(codes.map(c => String(c.code || "").trim().toLowerCase()));
+                for (const redemption of redemptions) {
+                    if (String(redemption.status || "pending") === "pending" && !validCodes.has(String(redemption.code || "").trim().toLowerCase())) {
+                        try { await db.from("discount_redemptions").update({status:"rejected"}).eq("id", redemption.id); redemption.status = "rejected"; } catch (_) {}
+                    }
+                }
+            }
             redemptionList.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Email</th><th>Code</th><th>Reference</th><th>Status</th><th>Action</th></tr></thead><tbody>
             ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? new Date(r.created_at).toLocaleString() : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
             </tbody></table>` : `<div class="empty">No customer discount redemptions have been received yet.</div>`;
@@ -4814,6 +4917,16 @@ function addManualInvoiceLine(line = {}) {
         <button type="button" class="danger manual-line-remove">Remove</button>
     `;
     row.querySelector(".manual-line-remove").onclick = () => row.remove();
+    const descriptionInput = row.querySelector(".manual-line-description");
+    const priceInput = row.querySelector(".manual-line-price");
+    descriptionInput?.addEventListener("change", async () => {
+        if (Number(priceInput?.value || 0) > 0) return;
+        try {
+            const map = await getInvoicePriceMap();
+            const suggested = invoicePriceFor(map, descriptionInput.value || "");
+            if (suggested > 0 && priceInput) priceInput.value = suggested.toFixed(2);
+        } catch (_) {}
+    });
     wrap.appendChild(row);
 }
 
