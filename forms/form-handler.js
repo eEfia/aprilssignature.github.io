@@ -7,7 +7,7 @@ FORMS CONTROLLER
 This file prepares the website forms for submission.
 
 Forms covered:
-1. Order / Quote Requests
+1. Order / Quote Reqsts
 2. Training Registration
 3. Contact Messages
 
