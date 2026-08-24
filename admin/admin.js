@@ -143,6 +143,68 @@ async function cleanupExactDuplicates() {
         }
     }
 
+    // Normalise the obsolete streetwear names that were introduced by earlier
+    // versions. The corrected catalogue is the source of truth.
+    try {
+        const result = await db.from("settings").select("id,setting_key,setting_value").like("setting_key","product_%");
+        if (!result.error) {
+            const renames = new Map([
+                ["super thick cutting joggers","Super thick cotton joggers"],
+                ["joggers — super thick cotton joggers","Super thick cotton joggers"],
+                ["joggers - super thick cotton joggers","Super thick cotton joggers"],
+                ["everyday wear type","Everyday wear joggers"],
+                ["joggers — everyday wear type","Everyday wear joggers"],
+                ["joggers - everyday wear type","Everyday wear joggers"]
+            ]);
+            for (const row of result.data || []) {
+                let value = {};
+                try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+                const oldName = String(value.name || "").trim().toLowerCase();
+                if (oldName === "hoodies & joggers set" || oldName === "hoodies and joggers set" || oldName === "hoodies and joggers") {
+                    await db.from("settings").delete().eq("id", row.id);
+                    continue;
+                }
+                const nextName = renames.get(oldName);
+                if (!nextName) continue;
+                const nextKey = productKeyFromName(nextName);
+                const existing = await db.from("settings").select("id").eq("setting_key", nextKey).limit(1);
+                if (existing.data?.length) {
+                    await db.from("settings").delete().eq("id", row.id);
+                } else {
+                    value.name = nextName;
+                    await db.from("settings").update({
+                        setting_key: nextKey,
+                        setting_value: JSON.stringify(value),
+                        updated_at: new Date().toISOString()
+                    }).eq("id", row.id);
+                }
+            }
+        }
+    } catch (e) { console.warn("Streetwear product migration skipped:", e); }
+
+    // Product records can also be duplicated under different setting keys after
+    // an old name was renamed. Keep one copy of the same product/category/content.
+    try {
+        const result = await db.from("settings").select("id,setting_key,setting_value,created_at,updated_at").like("setting_key","product_%");
+        if (!result.error) {
+            const groups = new Map();
+            for (const row of result.data || []) {
+                let value = {};
+                try { value = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+                const key = [value.name, value.category, value.public_price, value.notes, value.display_order, value.active]
+                    .map(v => String(v ?? "").trim().toLowerCase()).join("\u0000");
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            }
+            for (const group of groups.values()) {
+                if (group.length > 1) {
+                    group.sort((x,y) => String(x.created_at || x.updated_at || "").localeCompare(String(y.created_at || y.updated_at || "")));
+                    await db.from("settings").delete().in("id", group.slice(1).map(x => x.id));
+                }
+            }
+        }
+    } catch (e) { console.warn("Product duplicate cleanup skipped:", e); }
+
     // Settings keys are intended to be unique in practice. Clean duplicate
     // records for managed prefixes so editing an item never leaves a second copy.
     try {
@@ -1738,7 +1800,25 @@ async function loadAccounting() {
         paymentMap.get(key).push(item);
     });
 
-    const records = [...invoiceMap.values()].sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
+    let checkoutRecords = [];
+    try {
+        const checkoutResult = await db.from("checkout_orders").select("*").order("created_at", {ascending:false});
+        if (!checkoutResult.error) {
+            checkoutRecords = (checkoutResult.data || []).map(order => ({
+                id: order.id,
+                invoiceNumber: order.order_number,
+                date: order.created_at ? String(order.created_at).slice(0,10) : "",
+                training: false,
+                customer: order.customer_name || "",
+                total: Number(order.total || 0),
+                discount: 0,
+                checkout: true,
+                paidAmount: Number(order.paid_amount || (order.payment_status === "paid" ? order.total : 0)),
+                status: order.order_status || order.payment_status || "Pending"
+            }));
+        }
+    } catch (_) {}
+    const records = [...invoiceMap.values(), ...checkoutRecords].sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
     let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -1746,7 +1826,9 @@ async function loadAccounting() {
     const body = records.map(invoice => {
         const total = Number(invoice.total || 0);
         const discount = Number(invoice.discount || 0);
-        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+        const paid = invoice.checkout
+            ? Number(invoice.paidAmount || 0)
+            : (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
         const balance = Math.max(0, total - paid);
         totalSales += total;
         totalReceived += paid;
@@ -1756,13 +1838,13 @@ async function loadAccounting() {
         return `<tr>
             <td>${escapeHTML(invoice.date || "")}</td>
             <td>${escapeHTML(invoice.invoiceNumber || "")}</td>
-            <td>${escapeHTML(invoice.training ? "Training" : "Order / Quote")}</td>
+            <td>${escapeHTML(invoice.checkout ? "Checkout Sale" : (invoice.checkout ? "Checkout Sale" : (invoice.training ? "Training" : "Order / Quote")))}</td>
             <td>${escapeHTML(invoice.customer || "")}</td>
             <td>GHS ${total.toFixed(2)}</td>
             <td>GHS ${discount.toFixed(2)}</td>
             <td>GHS ${paid.toFixed(2)}</td>
             <td>GHS ${balance.toFixed(2)}</td>
-            <td>${balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"}</td>
+            <td>${escapeHTML(invoice.checkout ? (invoice.status || (balance <= 0 ? "Paid in full" : "Unpaid")) : (balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"))}</td>
         </tr>`;
     }).join("");
 
@@ -1833,13 +1915,16 @@ async function loadAccounting() {
         exportButton.dataset.bound = "1";
         exportButton.onclick = () => {
             const header = ["Date","Invoice","Type","Customer","Sale (GHS)","Discount (GHS)","Received (GHS)","Balance (GHS)","Status"];
-            const csv = [header, ...records.map(invoice => {
+            const rows = [header, ...records.map(invoice => {
                 const total = Number(invoice.total || 0);
                 const discount = Number(invoice.discount || 0);
-                const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+                const paid = invoice.checkout
+                    ? Number(invoice.paidAmount || 0)
+                    : (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
                 const balance = Math.max(0, total - paid);
                 return [invoice.date || "", invoice.invoiceNumber || "", invoice.training ? "Training" : "Order / Quote", invoice.customer || "", total.toFixed(2), discount.toFixed(2), paid.toFixed(2), balance.toFixed(2), balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"];
-            })].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\\n");
+            })];
+            const csv = "\ufeffsep=,\r\n" + rows.map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
             const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -2067,7 +2152,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="form-group"><label>Email</label><input id="generatedInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
                 <div class="form-group"><label>Location / Address</label><input id="generatedInvoiceAddress" value="${escapeHTML(row.location || "")}"></div>
             </div>
-            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || "Thank you for choosing Aprils Signature.")}</textarea></div>
+            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || (isTrainingInvoice ? "Full payment is expected to be made before class begins." : "Payment of the 75% deposit is required before production begins. Thank you for choosing Aprils Signature."))}</textarea></div>
         </div>
         <div id="generatedInvoicePreview"></div>
     `;
@@ -2249,12 +2334,25 @@ function closeInvoiceGenerator() {
     window._aprilsCurrentInvoice = null;
 }
 
+async function waitForPdfAssets(container) {
+    const images = Array.from(container?.querySelectorAll("img") || []);
+    await Promise.all(images.map(img => new Promise(resolve => {
+        if (img.complete && img.naturalWidth > 0) return resolve();
+        const done = () => { img.removeEventListener("load", done); img.removeEventListener("error", done); resolve(); };
+        img.addEventListener("load", done); img.addEventListener("error", done);
+        setTimeout(done, 4000);
+    })));
+    if (document.fonts?.ready) { try { await document.fonts.ready; } catch (_) {} }
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 async function generateInvoicePdf(share) {
     const state = window._aprilsCurrentInvoice;
     if (!state) return false;
     state.renderInvoice();
     const paper = document.getElementById("invoicePaper");
     if (!paper) return false;
+    await waitForPdfAssets(paper);
 
     if (!window.html2pdf) {
         printGeneratedInvoice();
@@ -2594,6 +2692,7 @@ async function generateReceiptPdf(share) {
     state.renderReceipt();
     const paper = document.getElementById("receiptPaper");
     if (!paper) return false;
+    await waitForPdfAssets(paper);
     if (!window.html2pdf) {
         printGeneratedReceipt();
         message("PDF library is unavailable, so the receipt has been opened in print view. Choose Save as PDF there.", "success");
@@ -3287,11 +3386,24 @@ function summarizeQuoteQuantities(row) {
     }
     if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: ${details.ladiesWearQuantity}`);
     if (details?.kidsWearQuantity) quantities.push(`Kids Wear: ${details.kidsWearQuantity}`);
-    if (details?.embellishmentDetails) {
+    if (Array.isArray(details?.embellishmentDetails)) {
+        details.embellishmentDetails.forEach(item => {
+            if (item?.service && item?.quantity) quantities.push(`${item.service}: ${item.quantity}`);
+        });
+    } else if (details?.embellishmentDetails) {
         Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
             if (item?.quantity) quantities.push(`${name}: ${item.quantity}`);
         });
     }
+    if (Array.isArray(details?.ladiesWearProducts)) {
+        details.ladiesWearProducts.forEach(item => {
+            if (item?.product && item?.quantity) quantities.push(`${item.product}: ${item.quantity}`);
+        });
+    }
+    const otherStreetQty = Number(details?.otherProductDetails?.streetwear?.quantity || 0);
+    const otherLadiesQty = Number(details?.otherProductDetails?.ladiesWear?.quantity || 0);
+    if (otherStreetQty > 0) quantities.push(`Streetwear Other: ${otherStreetQty}`);
+    if (otherLadiesQty > 0) quantities.push(`Ladies Wear Other: ${otherLadiesQty}`);
     return quantities.join(" • ") || "—";
 }
 
@@ -3312,18 +3424,41 @@ function summarizeQuoteDetails(row) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
-            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
+            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour, item.quantity ? "Qty " + item.quantity : ""].filter(Boolean).join(" • ") : "";
             if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
-    if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
+    if (details.otherProductDetails?.streetwear?.request) {
+        const o = details.otherProductDetails.streetwear;
+        parts.push(["Streetwear Other", o.request, o.sizeMeasurements, o.colour, o.quantity ? "Qty " + o.quantity : ""].filter(Boolean).join(" • "));
+    }
+    if (selected.includes("Ladies Wear")) {
+        parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
+        if (details.otherProductDetails?.ladiesWear?.request) {
+            const o = details.otherProductDetails.ladiesWear;
+            parts.push(["Ladies Wear Other", o.request, o.sizeMeasurements, o.colour, o.quantity ? "Qty " + o.quantity : ""].filter(Boolean).join(" • "));
+        }
+        if (Array.isArray(details.ladiesWearProducts)) {
+            details.ladiesWearProducts.forEach(item => {
+                if (item?.product) parts.push(`${item.product}: quantity ${item.quantity}`);
+            });
+        }
+    }
     if (selected.includes("Kids Wear")) parts.push(["Kids Wear", details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
     if (selected.includes("Embellishment Services") && Array.isArray(details.embellishment)) {
-        details.embellishment.forEach(name => {
-            const item = details.embellishmentDetails?.[name] || {};
-            const detail = item.details || (name === "Others" ? details.embellishmentOther : "");
-            parts.push(`${name}${detail ? ": " + detail : ""}`);
-        });
+        if (Array.isArray(details.embellishmentDetails)) {
+            details.embellishmentDetails.forEach(item => {
+                if (!item?.service) return;
+                const bits = [item.sizeMeasurements, item.colour, item.quantity ? "Qty " + item.quantity : "", item.specification].filter(Boolean);
+                parts.push(`${item.service}${bits.length ? ": " + bits.join(" • ") : ""}`);
+            });
+        } else {
+            details.embellishment.forEach(name => {
+                const item = details.embellishmentDetails?.[name] || {};
+                const detail = item.details || (name === "Others" ? details.embellishmentOther : "");
+                parts.push(`${name}${detail ? ": " + detail : ""}`);
+            });
+        }
         if (details.embellishmentOther && !details.embellishment.includes("Others")) {
             parts.push("Embellishment request: " + details.embellishmentOther);
         }
@@ -3333,6 +3468,24 @@ function summarizeQuoteDetails(row) {
     return parts.filter(Boolean).join(" | ");
 }
 
+
+
+function groupDuplicateQuotes(rows) {
+    const groups = new Map();
+    (rows || []).forEach(row => {
+        const copy = {...row};
+        delete copy.id; delete copy.created_at; delete copy.updated_at;
+        const key = JSON.stringify(copy, Object.keys(copy).sort());
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(row);
+    });
+    return [...groups.values()].map(group => {
+        const first = {...group[0]};
+        first._ids = group.map(r => r.id).filter(Boolean);
+        first._duplicateCount = group.length;
+        return first;
+    }).sort((a,b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+}
 
 async function loadQuotes() {
     let rawRows = [];

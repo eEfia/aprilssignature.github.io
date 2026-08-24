@@ -624,6 +624,9 @@ data-section="accounting"
 >
 Sales &amp; Accounting
 </button>
+<button data-section="inventory">Inventory &amp; Stock</button>
+<button data-section="checkout">Checkout</button>
+<button data-section="errors">System Error Log</button>
 
 <button
 data-section="links"
@@ -1505,7 +1508,7 @@ INVOICE PRICING
 <input type="hidden" id="invoiceId">
 <div class="form-grid">
 <div class="form-group">
-<label for="invoiceItem">Item / Service</label>
+<label for="invoiceItem">Product / Service</label>
 <input id="invoiceItem" required placeholder="Example: Custom Hoodie">
 </div>
 <div class="form-group">
@@ -1530,13 +1533,13 @@ INVOICE PRICING
 <div id="invoiceProductList" class="table-wrap"></div>
 
 <div class="form-card" style="margin-top:20px;">
-<h3 style="color:#008c95;margin-bottom:10px;">Training Invoice Pricing</h3>
+<h3 style="color:#008c95;margin-bottom:10px;">Program / Class Invoice Pricing</h3>
 <p class="intro">Training prices are kept separately so training registrations automatically use the correct full-payment price.</p>
 <form id="trainingInvoiceForm">
 <input type="hidden" id="trainingInvoiceId">
 <div class="form-grid">
 <div class="form-group">
-<label for="trainingInvoiceItem">Training Programme / Class</label>
+<label for="trainingInvoiceItem">Program / Class</label>
 <input id="trainingInvoiceItem" required placeholder="Example: 6 Months Fashion Training">
 </div>
 <div class="form-group">
@@ -1838,6 +1841,66 @@ You can also remove the current public logo without deleting the original projec
 <div id="settingsList" class="table-wrap"></div>
 </section>
 
+
+<section id="inventory" class="section">
+<h2>Inventory &amp; Stock Control</h2>
+<p class="intro">Keep a simple live stock record for garments and collection items. Stock changes are recorded in the system so you can see what is available, what has sold, and what is out of stock.</p>
+<div class="notice"><strong>How it works:</strong> add an item and its opening quantity. When a checkout is marked paid, the system deducts the sold quantity. A zero balance is automatically shown as <strong>Out of Stock</strong> on the public inventory display.</div>
+<div class="form-card">
+<form id="inventoryForm">
+<input type="hidden" id="inventoryId">
+<div class="form-grid">
+<div class="form-group"><label>Item / Garment</label><input id="inventoryName" required placeholder="e.g. Black Cargo Skirt"></div>
+<div class="form-group"><label>SKU / Reference</label><input id="inventorySku" placeholder="Optional"></div>
+<div class="form-group"><label>Collection</label><input id="inventoryCollection" placeholder="e.g. April Essentials"></div>
+<div class="form-group"><label>Category</label><input id="inventoryCategory" placeholder="Streetwear, Ladies Wear, etc."></div>
+<div class="form-group"><label>Opening / Current Quantity</label><input id="inventoryQuantity" type="number" min="0" step="1" required value="0"></div>
+<div class="form-group"><label>Public Price (GHS)</label><input id="inventoryPrice" type="number" min="0" step="0.01" placeholder="Optional"></div>
+</div>
+<label class="checkbox"><input type="checkbox" id="inventoryActive" checked> Active on the public stock display</label><br>
+<button class="primary" type="submit">Save Inventory Item</button>
+<button class="secondary" type="button" id="inventoryCancel">Cancel</button>
+</form>
+</div>
+<div id="inventoryList" class="table-wrap"></div>
+<div class="form-card">
+<h3>Stock Activity</h3>
+<div id="inventoryTransactionsList" class="table-wrap"></div>
+</div>
+</section>
+
+<section id="checkout" class="section">
+<h2>Checkout</h2>
+<p class="intro">A ready-to-use internal checkout screen for when you begin taking direct stock sales. It can create an order, record the payment method, and deduct stock after the order is marked paid.</p>
+<div class="notice"><strong>Payment gateway note:</strong> the checkout is prepared for payment recording, but automatic Mobile Money or bank confirmation requires a connected payment provider/API. Your bank and MoMo credentials are never stored in the public website.</div>
+<div class="form-card">
+<form id="checkoutForm">
+<div class="form-grid">
+<div class="form-group"><label>Customer Name</label><input id="checkoutCustomer" required></div>
+<div class="form-group"><label>Phone / WhatsApp</label><input id="checkoutPhone"></div>
+<div class="form-group"><label>Payment Method</label><select id="checkoutPaymentMethod"><option>Cash</option><option>Mobile Money</option><option>Bank Transfer</option><option>Card</option><option>Other</option></select></div>
+<div class="form-group"><label>Payment Status</label><select id="checkoutPaymentStatus"><option value="pending">Pending</option><option value="paid">Paid</option><option value="part_paid">Part Paid</option></select></div>
+<div class="form-group"><label>Amount Received (GHS)</label><input id="checkoutPaidAmount" type="number" min="0" step="0.01" value="0"></div>
+</div>
+<div class="form-group"><label>Stock Item</label><select id="checkoutItem" required><option value="">Loading stock…</option></select></div>
+<div class="form-grid">
+<div class="form-group"><label>Quantity</label><input id="checkoutQuantity" type="number" min="1" step="1" value="1" required></div>
+<div class="form-group"><label>Unit Price (GHS)</label><input id="checkoutUnitPrice" type="number" min="0" step="0.01" required></div>
+<div class="form-group"><label>Payment / Transaction Reference</label><input id="checkoutReference" placeholder="Optional"></div>
+</div>
+<button class="primary" type="submit">Create Checkout Order</button>
+</form>
+</div>
+<div id="checkoutList" class="table-wrap"></div>
+</section>
+
+<section id="errors" class="section">
+<h2>System Error Log</h2>
+<p class="intro">The system records browser and application errors here with the page, time and technical details so they can be diagnosed instead of disappearing silently.</p>
+<div class="notice"><strong>Notifications:</strong> the error log is stored in the admin system. Automatic email/WhatsApp delivery needs a server-side notification service; the dashboard does not expose your email credentials or WhatsApp credentials to the public site.</div>
+<div class="toolbar"><button class="secondary" type="button" id="errorRefresh">Refresh</button><button class="danger" type="button" id="errorClear">Clear Error Log</button></div>
+<div id="errorLogList" class="table-wrap"></div>
+</section>
 </main>
 
 </div>
