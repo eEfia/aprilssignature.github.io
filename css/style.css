@@ -5,7 +5,7 @@
 
 
 /* =========================================================
-   1. BASIC RESET'kj
+   1. BASIC RESET
    ========================================================= */
 
 * {
@@ -3122,34 +3122,3 @@ table td {
         grid-template-columns: 1fr;
     }
 }
-
-
-/* Quote catalogue refinements */
-.quote-product-group{margin:24px 0;padding:18px;border:1.5px solid #8a8a8a;border-radius:7px;background:#fff;}
-.quote-product-group h3{margin:0 0 14px;color:#008c95;}
-.quote-product-group h4{margin:16px 0 8px;color:#222;}
-.quote-product-row{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid #ddd;}
-.quote-product-row:last-child{border-bottom:0;}
-.quote-product-name{font-weight:600;}
-.quote-product-qty{font-size:13px;font-weight:600;}
-.quote-product-qty input{display:block;margin-top:6px;width:100%;}
-.embellishment-details-wrap{margin-top:18px;}
-.embellishment-detail-card{margin:14px 0;padding:18px;border:1.5px solid #8a8a8a;border-radius:7px;background:#fafafa;}
-.embellishment-detail-card h4{margin:0 0 14px;color:#008c95;}
-.ladieswear-global-details{display:grid;grid-template-columns:2fr 1fr 160px;gap:18px;}
-@media(max-width:760px){
- .quote-product-row{grid-template-columns:1fr;}
- .ladieswear-global-details{grid-template-columns:1fr;}
-}
-
-/* Homepage hero side garment rotators */
-.hero-content-with-sides{position:relative;display:grid;grid-template-columns:minmax(110px,17%) minmax(0,1fr) minmax(110px,17%);align-items:center;gap:18px;}
-.hero-copy{position:relative;z-index:2;}
-.hero-side-media{height:260px;display:flex;align-items:center;justify-content:center;pointer-events:none;}
-.hero-side-frame{width:100%;height:100%;max-width:170px;border-radius:10px;overflow:hidden;opacity:0;transform:translateY(8px) scale(.98);transition:opacity .65s ease,transform .65s ease;box-shadow:0 10px 28px rgba(0,0,0,.18);background:rgba(255,255,255,.08);}
-.hero-side-frame.is-visible{opacity:1;transform:translateY(0) scale(1);}
-.hero-side-frame img,.hero-side-frame video{width:100%;height:100%;object-fit:cover;display:block;}
-@media(max-width:900px){.hero-content-with-sides{grid-template-columns:90px minmax(0,1fr) 90px;gap:10px}.hero-side-media{height:210px}.hero-side-frame{max-width:90px;}}
-@media(max-width:650px){.hero-content-with-sides{grid-template-columns:1fr;}.hero-side-media{display:none;}}
-
-.inventory-stock-badge{display:inline-block;margin:10px 0 0;padding:7px 11px;border-radius:5px;background:#008c95;color:#fff;font-size:13px;font-weight:700}.inventory-stock-badge.out{background:#b00020}.gallery-item{position:relative}.featured-card{position:relative}
