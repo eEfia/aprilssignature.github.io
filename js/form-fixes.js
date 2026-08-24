@@ -178,6 +178,7 @@ PUBLIC FORM FIXES
                     kidsWearQuantity: String(data.get("kidsWearQuantity") || "0").trim(),
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
+                    embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
                     embellishmentDetails: {},
                     serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
@@ -187,21 +188,12 @@ PUBLIC FORM FIXES
                     submittedFrom: window.location.href
                 };
 
-                details.embellishment.forEach(function(serviceName) {
-                    const size = String(data.get(`embellishmentSize[${serviceName}]`) || "").trim();
-                    const measurements = String(data.get(`embellishmentMeasurements[${serviceName}]`) || "").trim();
-                    const colour = String(data.get(`embellishmentColour[${serviceName}]`) || "").trim();
-                    const quantity = String(data.get(`embellishmentQuantity[${serviceName}]`) || "0").trim();
-                    const request = String(data.get(`embellishmentDetails[${serviceName}]`) || "").trim();
-
-                    details.embellishmentDetails[serviceName] = {
-                        size,
-                        measurements,
-                        colour,
-                        quantity,
-                        details: request
+                if (details.embellishment.length) {
+                    details.embellishmentDetails = {
+                        selected: details.embellishment,
+                        other: details.embellishmentOther
                     };
-                });
+                }
 
 
 
@@ -356,6 +348,12 @@ PUBLIC FORM FIXES
                         console.error("QUOTE ERROR:", result.error);
                         throw result.error;
                     }
+
+                    try {
+                        const cached = JSON.parse(localStorage.getItem("aprils_cache_quote_requests") || "[]");
+                        cached.push({...payload, id: result.data?.[0]?.id || ("local-" + Date.now()), created_at: new Date().toISOString()});
+                        localStorage.setItem("aprils_cache_quote_requests", JSON.stringify(cached.slice(-200)));
+                    } catch (_) {}
 
 
                     message(
@@ -561,6 +559,12 @@ PUBLIC FORM FIXES
                         console.error("TRAINING ERROR:", result.error);
                         throw result.error;
                     }
+
+                    try {
+                        const cached = JSON.parse(localStorage.getItem("aprils_cache_training_registrations") || "[]");
+                        cached.push({...payload, id: result.data?.[0]?.id || ("local-" + Date.now()), created_at: new Date().toISOString()});
+                        localStorage.setItem("aprils_cache_training_registrations", JSON.stringify(cached.slice(-200)));
+                    } catch (_) {}
 
 
                     message(

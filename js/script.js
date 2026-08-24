@@ -15,7 +15,7 @@
 
 function escapeHTML(value) {
     return String(value ?? "")
-        .replace(/&/g, "mp;")
+        .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
@@ -845,11 +845,14 @@ function setupQuoteForm() {
             const showEmbellishment = selected.includes("Embellishment Services");
             embellishment.style.display = showEmbellishment ? "block" : "none";
 
-            embellishment.querySelectorAll("[data-embellishment-detail]").forEach(panel => {
-                const serviceName = panel.getAttribute("data-embellishment-detail");
-                const checkbox = embellishment.querySelector(`input[name="embellishment[]"][value="${CSS.escape(serviceName)}"]`);
-                panel.style.display = showEmbellishment && checkbox?.checked ? "block" : "none";
-            });
+            const embellishmentOtherWrap = document.getElementById("embellishmentOtherWrap");
+            const embellishmentOtherInput = document.getElementById("embellishmentOther");
+            const otherEmbellishmentSelected = showEmbellishment && !!embellishment.querySelector('input[name="embellishment[]"][value="Others"]:checked');
+            if (embellishmentOtherWrap) embellishmentOtherWrap.style.display = otherEmbellishmentSelected ? "block" : "none";
+            if (embellishmentOtherInput) {
+                embellishmentOtherInput.required = otherEmbellishmentSelected;
+                if (!otherEmbellishmentSelected) embellishmentOtherInput.value = "";
+            }
         }
     }
 
@@ -880,20 +883,68 @@ async function loadPublicStreetwearProducts() {
     const slug = name => String(name || "").toLowerCase()
         .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
+    const canonical = [
+        {name:"Jersey", key:"jersey"},
+        {name:"T-shirt", key:"t-shirt"},
+        {name:"Polo shirt", key:"polo shirt"},
+        {name:"Hoodies", key:"hoodies"},
+        {name:"Ladies tank top", key:"ladies tank top"},
+        {name:"Men's tank top", key:"men's tank top"},
+        {name:"Super thick cutting joggers", key:"super thick cutting joggers"},
+        {name:"Everyday wear type", key:"everyday wear type"},
+        {name:"Joggers shorts", key:"joggers shorts"},
+        {name:"Sweatpants", key:"sweatpants"},
+        {name:"Cargo pants", key:"cargo pants"},
+        {name:"Cargo skirts", key:"cargo skirts"},
+        {name:"Jorts", key:"jorts"},
+        {name:"Hoodies and joggers", key:"hoodies and joggers"},
+        {name:"T-shirt and shorts", key:"t-shirt and shorts"},
+        {name:"T-shirt and sweatpants", key:"t-shirt and sweatpants"},
+        {name:"Sweatshirt and shorts", key:"sweatshirt and shorts"},
+        {name:"Sweatshirt and sweatpants", key:"sweatshirt and sweatpants"}
+    ];
+    const key = name => String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+    const legacyMap = new Map([
+        ["jerseys","jersey"],
+        ["t-shirts","t-shirt"],
+        ["polo shirts","polo shirt"],
+        ["hoodies","hoodies"],
+        ["ladies tank tops","ladies tank top"],
+        ["men's tank tops","men's tank top"],
+        ["joggers — super thick cotton joggers","super thick cutting joggers"],
+        ["joggers — everyday wear type","everyday wear type"],
+        ["joggers - super thick cotton joggers","super thick cutting joggers"],
+        ["joggers - everyday wear type","everyday wear type"],
+        ["jogger shorts","joggers shorts"],
+        ["cargo pants","cargo pants"],
+        ["cargo skirts","cargo skirts"],
+        ["sweatpants","sweatpants"],
+        ["sweatshirts","sweatshirt"],
+        ["hoodies & joggers set","hoodies and joggers"],
+        ["t-shirts & shorts set","t-shirt and shorts"],
+        ["t-shirt & sweatpants set","t-shirt and sweatpants"],
+        ["sweatshirts & shorts set","sweatshirt and shorts"],
+        ["sweatshirts & sweatpants set","sweatshirt and sweatpants"]
+    ]);
+
     const renderProducts = products => {
-        const singleNames = new Set([
-            "jerseys", "hoodies", "joggers — super thick cotton joggers",
-            "joggers — everyday wear type", "t-shirts", "polo shirts",
-            "sweatshirts", "sweatpants"
-        ]);
-        const tankNames = new Set(["ladies tank tops", "men's tank tops"]);
-        const otherNames = new Set(["varsity jackets", "cargo pants", "cargo skirts", "jogger shorts"]);
-        const setNames = new Set([
-            "hoodies & joggers set", "t-shirts & shorts set",
-            "t-shirt & sweatpants set", "sweatshirts & shorts set",
-            "sweatshirts & sweatpants set"
-        ]);
-        const key = name => String(name || "").trim().toLowerCase();
+        const byKey = new Map();
+        products.forEach(row => {
+            const raw = key(row.name);
+            const canonicalKey = legacyMap.get(raw) || raw;
+            const approved = canonical.find(item => item.key === canonicalKey);
+            if (!approved || byKey.has(approved.key)) return;
+            byKey.set(approved.key, {...row, name: approved.name, canonicalOrder: canonical.findIndex(item => item.key === approved.key)});
+        });
+
+        const ordered = canonical.map(item => byKey.get(item.key)).filter(Boolean);
+        const extras = products.filter(row => {
+            const raw = key(row.name);
+            const canonicalKey = legacyMap.get(raw) || raw;
+            return !canonical.some(item => item.key === canonicalKey);
+        }).filter((row,index,self) => self.findIndex(x => key(x.name) === key(row.name)) === index)
+          .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999) || String(a.name || "").localeCompare(String(b.name || "")));
         const makeRow = row => {
             const id = "product_" + slug(row.name);
             return `<div class="quantity-row streetwear-product-row" data-streetwear-row="${escapeHTML(row.name)}">
@@ -903,22 +954,34 @@ async function loadPublicStreetwearProducts() {
                 </div>
             </div>`;
         };
-        const singles = products.filter(r => singleNames.has(key(r.name)));
-        const tanks = products.filter(r => tankNames.has(key(r.name)));
-        const others = products.filter(r => otherNames.has(key(r.name)));
-        const sets = products.filter(r => setNames.has(key(r.name)));
-        const extras = products.filter(r => !singleNames.has(key(r.name)) && !tankNames.has(key(r.name)) && !otherNames.has(key(r.name)) && !setNames.has(key(r.name)));
-        const section = (title, rows) => rows.length ? `<h3>${escapeHTML(title)}</h3>${rows.map(makeRow).join("")}` : "";
-        container.innerHTML = section("Streetwear Products", [...singles, ...extras]) +
-            section("Tank Tops Options", tanks) +
-            section("Other Products", others) +
-            section("Sets", sets);
+
+        const tops = ordered.slice(0,4);
+        const tanks = ordered.slice(4,6);
+        const bottoms = ordered.slice(6,13);
+        const sets = ordered.slice(13);
+
+        const section = (title, rows) => rows.length
+            ? `<h3>${escapeHTML(title)}</h3>${rows.map(makeRow).join("")}`
+            : "";
+
+        const joggers = bottoms.filter(r => ["super thick cutting joggers","everyday wear type"].includes(key(r.name)));
+        const otherBottoms = bottoms.filter(r => !joggers.includes(r));
+
+        container.innerHTML =
+            section("Tops", tops) +
+            section("Tank Top Options", tanks) +
+            (joggers.length ? `<h3>Bottoms</h3><h4>Joggers</h4>${joggers.map(makeRow).join("")}${otherBottoms.map(makeRow).join("")}` : section("Bottoms", otherBottoms)) +
+            section("Sets", sets) +
+            section("Additional Streetwear Options", extras) +
+            (!ordered.length && !extras.length ? `<div class="empty">No streetwear options are currently available.</div>` : "");
     };
+
+    // Keep the form usable even when the public Supabase read is temporarily unavailable.
+    renderProducts(canonical.map(item => ({name:item.name, category:"Streetwear", active:true})));
 
     try {
         const supabase = await waitForSupabase();
         if (!supabase) return;
-
         const result = await supabase.from("settings")
             .select("setting_key,setting_value")
             .like("setting_key","product_%");
@@ -927,41 +990,10 @@ async function loadPublicStreetwearProducts() {
         const products = (result.data || []).map(row => {
             try { return {...JSON.parse(row.setting_value || "{}"), setting_key: row.setting_key}; }
             catch (_) { return null; }
-        }).filter(row => row && row.name && row.active !== false);
+        }).filter(row => row && row.name && row.active !== false &&
+            String(row.category || "").toLowerCase() === "streetwear");
 
-        const requestedStreetwearOrder = [
-            "jerseys",
-            "hoodies",
-            "joggers — super thick cotton joggers",
-            "joggers — everyday wear type",
-            "t-shirts",
-            "polo shirts",
-            "sweatshirts",
-            "sweatpants",
-            "ladies tank tops",
-            "men's tank tops",
-            "varsity jackets",
-            "cargo pants",
-            "cargo skirts",
-            "jogger shorts",
-            "hoodies & joggers set",
-            "t-shirts & shorts set",
-            "t-shirt & sweatpants set",
-            "sweatshirts & shorts set",
-            "sweatshirts & sweatpants set"
-        ];
-        const requestedOrder = new Map(requestedStreetwearOrder.map((name, index) => [name, index + 1]));
-        const streetwear = products
-            .filter(row => String(row.category || "").toLowerCase() === "streetwear")
-            .sort((a,b) => {
-                const an = String(a.name || "").trim().toLowerCase();
-                const bn = String(b.name || "").trim().toLowerCase();
-                const ao = requestedOrder.has(an) ? requestedOrder.get(an) : 9999;
-                const bo = requestedOrder.has(bn) ? requestedOrder.get(bn) : 9999;
-                return ao - bo || String(a.name || "").localeCompare(String(b.name || ""));
-            });
-
-        if (streetwear.length) renderProducts(streetwear);
+        renderProducts(products);
     } catch (error) {
         console.warn("Public streetwear catalogue unavailable:", error);
     }
