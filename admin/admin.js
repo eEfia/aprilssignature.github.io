@@ -92,7 +92,7 @@ async function cleanupExactDuplicates() {
     const configs = [
         ["settings", ["setting_key", "setting_value"]],
         ["gallery_collections", ["name"]],
-        ["gallery_items", ["title", "image_url", "category"]],
+        ["gallery_items", ["title", "image_url"]],
         ["training_programs", ["title", "duration", "category", "description"]],
         ["testimonials", ["customer_name", "testimonial"]],
         ["faqs", ["question", "answer"]],
@@ -166,19 +166,80 @@ async function cleanupExactDuplicates() {
     } catch (e) { console.warn("Managed settings duplicate cleanup skipped:", e); }
 }
 
-async function checkSession() {
+function hasCachedAdminSession() {
+    try {
+        return Object.keys(localStorage).some(key => /auth-token/i.test(key));
+    } catch (_) {
+        return false;
+    }
+}
+
+async function syncOfflineInvoiceRecords() {
     if (!db) return;
-    const result = await db.auth.getSession();
+    try {
+        const invoices = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]");
+        for (const record of invoices) {
+            if (record.invoiceNumber) {
+                const key = "invoice_record_" + contentSlug(record.invoiceNumber);
+                await safeSettingUpsert(key, JSON.stringify(record));
+            }
+        }
+        if (invoices.length) localStorage.removeItem("aprils_offline_invoices");
+
+        const payments = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]");
+        for (const payment of payments) {
+            if (payment.invoiceNumber) {
+                await safeSettingUpsert(invoicePaymentStorageKey(payment.invoiceNumber, Date.now()), JSON.stringify(payment));
+            }
+        }
+        if (payments.length) localStorage.removeItem("aprils_offline_payments");
+
+        const expenses = JSON.parse(localStorage.getItem("aprils_offline_expenses") || "[]");
+        for (const expense of expenses) {
+            const key = "accounting_expense_" + contentSlug(String(expense.date || "") + "_" + String(expense.category || "") + "_" + String(expense.description || "") + "_" + String(expense.id || Date.now()));
+            await safeSettingUpsert(key, JSON.stringify(expense));
+        }
+        if (expenses.length) localStorage.removeItem("aprils_offline_expenses");
+    } catch (error) {
+        console.warn("Offline invoice synchronisation will retry later:", error);
+    }
+}
+
+async function checkSession() {
     const login = document.getElementById("loginScreen");
     if (!login) return;
 
-    if (result.data.session) {
-        login.style.display = "none";
-        await seedInitialPublicContent();
-        await cleanupExactDuplicates();
-        await loadDashboard();
-    } else {
-        login.style.display = "flex";
+    if (!db) {
+        if (hasCachedAdminSession()) {
+            login.style.display = "none";
+            window._aprilsOfflineMode = true;
+            message("Offline admin mode: customer records already saved on this device can still be used for invoicing and receipts.", "success");
+        } else {
+            login.style.display = "flex";
+        }
+        return;
+    }
+
+    try {
+        const result = await db.auth.getSession();
+        if (result.data.session) {
+            login.style.display = "none";
+            try { await seedInitialPublicContent(); } catch (_) {}
+            try { await cleanupExactDuplicates(); } catch (_) {}
+            await syncOfflineInvoiceRecords();
+            await loadDashboard();
+        } else {
+            login.style.display = "flex";
+        }
+    } catch (error) {
+        console.warn("Admin session check failed:", error);
+        if (hasCachedAdminSession()) {
+            login.style.display = "none";
+            window._aprilsOfflineMode = true;
+            message("Server connection is unavailable. Offline admin mode is active.", "success");
+        } else {
+            login.style.display = "flex";
+        }
     }
 }
 
@@ -236,20 +297,53 @@ function setupNavigation() {
     });
 }
 
+async function countUniqueRows(table, keyFn) {
+    if (!db) return 0;
+    try {
+        const rows = await getRows(table);
+        const keys = new Set();
+        rows.forEach(row => keys.add(keyFn(row)));
+        return keys.size;
+    } catch (_) {
+        return 0;
+    }
+}
+
 async function loadDashboard() {
     const counters = {
-        galleryCount: "gallery_items",
-        trainingCount: "training_programs",
-        testimonialCount: "testimonials",
-        faqCount: "faqs",
-        registrationCount: "training_registrations",
-        quoteCount: "quote_requests",
-        enquiryCount: "enquiries"
+        galleryCount: ["gallery_items", row => [
+            String(row.title || "").trim().toLowerCase(),
+            String(row.image_url || "").trim().toLowerCase(),
+            String(row.category || "").trim().toLowerCase()
+        ].join("\u0000")],
+        trainingCount: ["training_programs", row => [
+            String(row.title || "").trim().toLowerCase(),
+            String(row.duration || "").trim().toLowerCase(),
+            String(row.category || "").trim().toLowerCase()
+        ].join("\u0000")],
+        testimonialCount: ["testimonials", row => [
+            String(row.customer_name || "").trim().toLowerCase(),
+            String(row.testimonial || "").trim().toLowerCase()
+        ].join("\u0000")],
+        faqCount: ["faqs", row => [
+            String(row.question || "").trim().toLowerCase(),
+            String(row.answer || "").trim().toLowerCase()
+        ].join("\u0000")],
+        registrationCount: ["training_registrations", row => {
+            const copy = {...row}; delete copy.id; delete copy.created_at; delete copy.updated_at;
+            return JSON.stringify(copy, Object.keys(copy).sort());
+        }],
+        quoteCount: ["quote_requests", row => {
+            const copy = {...row}; delete copy.id; delete copy.created_at; delete copy.updated_at;
+            return JSON.stringify(copy, Object.keys(copy).sort());
+        }]
     };
 
     for (const id in counters) {
         const element = document.getElementById(id);
-        if (element) element.textContent = await countRows(counters[id]);
+        if (!element) continue;
+        const [table, keyFn] = counters[id];
+        element.textContent = await countUniqueRows(table, keyFn);
     }
 }
 
@@ -263,6 +357,7 @@ async function loadSection(id) {
         if (id === "orders") await loadQuotes();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
+        if (id === "accounting") await loadAccounting();
         if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
         if (id === "testimonials") await loadTestimonials();
@@ -384,7 +479,13 @@ async function loadGallery() {
     const list = document.getElementById("galleryList");
     if (!list) return;
 
-    const rows = await getRows("gallery_items");
+    let rows = [];
+    try {
+        rows = await getRows("gallery_items");
+    } catch (error) {
+        console.error("GALLERY ITEMS LOAD FAILED:", error);
+        message("Gallery items could not be loaded. The gallery controls remain available; check the Supabase policy shown in SUPABASE_FIXES.sql.", "error");
+    }
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||"")) ||
         Number(a.display_order||9999)-Number(b.display_order||9999) ||
         String(a.title||"").localeCompare(String(b.title||"")));
@@ -413,11 +514,12 @@ async function loadGallery() {
                     <tr>
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
                         <td>${escapeHTML((policyRank[String(row.policy_key||"").toLowerCase()] ? policyRank[String(row.policy_key||"").toLowerCase()] + ". " : "") + String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
-                        <td>${escapeHTML(row.category)}</td><td>${escapeHTML(row.display_order ?? 1)}</td>
+                        <td>${escapeHTML(row.category)}</td><td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-gallery-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
                         <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
                         <td>${row.active ? "Yes" : "No"}</td>
                         <td>
+                            <button type="button" class="secondary" data-save-gallery-order="${escapeHTML(row.id)}">Save Order</button>
                             <button type="button" class="secondary" data-edit-gallery="${row.id}">Edit</button>
                             <button type="button" class="danger" data-delete-gallery="${row.id}">Delete</button>
                         </td>
@@ -525,6 +627,21 @@ async function loadGallery() {
             });
         }
     } catch(error) { console.warn("Gallery collection ordering unavailable:",error); }
+
+    list.querySelectorAll("[data-save-gallery-order]").forEach(button => {
+        button.onclick = async () => {
+            const id = button.dataset.saveGalleryOrder;
+            const input = list.querySelector(`[data-gallery-order="${id}"]`);
+            const value = Math.max(1, Number(input?.value || 1));
+            const result = await db.from("gallery_items").update({display_order:value}).eq("id",id);
+            if (result.error) {
+                message("Gallery item order could not be saved: " + result.error.message, "error");
+                return;
+            }
+            message("Gallery item order saved.", "success");
+            await loadGallery();
+        };
+    });
 
     list.querySelectorAll("[data-edit-gallery]").forEach(button => {
         button.onclick = () => {
@@ -781,26 +898,35 @@ async function getTrainingCategories() {
 ========================================================= */
 
 const DEFAULT_PRODUCTS = [
-    ["Streetwear","Jerseys",1],
-    ["Streetwear","Hoodies",2],
-    ["Streetwear","Joggers — Super Thick Cotton Joggers",3],
-    ["Streetwear","Joggers — Everyday Wear Type",4],
-    ["Streetwear","T-shirts",5],
-    ["Streetwear","Polo Shirts",6],
-    ["Streetwear","Sweatshirts",7],
-    ["Streetwear","Sweatpants",8],
-    ["Streetwear","Ladies Tank Tops",9],
-    ["Streetwear","Men's Tank Tops",10],
-    ["Streetwear","Varsity Jackets",11],
-    ["Streetwear","Cargo Pants",12],
-    ["Streetwear","Cargo Skirts",13],
-    ["Streetwear","Jogger Shorts",14],
-    ["Streetwear","Hoodies & Joggers Set",15],
-    ["Streetwear","T-shirts & Shorts Set",16],
-    ["Streetwear","T-shirt & Sweatpants Set",17],
-    ["Streetwear","Sweatshirts & Shorts Set",18],
-    ["Streetwear","Sweatshirts & Sweatpants Set",19]
+    ["Streetwear","Jersey",1],
+    ["Streetwear","T-shirt",2],
+    ["Streetwear","Polo shirt",3],
+    ["Streetwear","Hoodies",4],
+    ["Streetwear","Ladies tank top",5],
+    ["Streetwear","Men's tank top",6],
+    ["Streetwear","Super thick cutting joggers",7],
+    ["Streetwear","Everyday wear type",8],
+    ["Streetwear","Joggers shorts",9],
+    ["Streetwear","Sweatpants",10],
+    ["Streetwear","Cargo pants",11],
+    ["Streetwear","Cargo skirts",12],
+    ["Streetwear","Jorts",13],
+    ["Streetwear","Hoodies and joggers",14],
+    ["Streetwear","T-shirt and shorts",15],
+    ["Streetwear","T-shirt and sweatpants",16],
+    ["Streetwear","Sweatshirt and shorts",17],
+    ["Streetwear","Sweatshirt and sweatpants",18]
 ];
+
+const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
+
+const LEGACY_STREETWEAR_NAMES = new Set([
+    "jerseys", "joggers — super thick cotton joggers", "joggers — everyday wear type",
+    "t-shirts", "polo shirts", "sweatshirts", "ladies tank tops", "men's tank tops",
+    "varsity jackets", "jogger shorts",
+    "hoodies & joggers set", "t-shirts & shorts set", "t-shirt & sweatpants set",
+    "sweatshirts & shorts set", "sweatshirts & sweatpants set"
+]);
 
 function productKeyFromName(name) {
     return "product_" + String(name || "").toLowerCase().trim()
@@ -853,6 +979,72 @@ async function seedDefaultProducts() {
 }
 
 
+async function ensureStreetwearCatalogue() {
+    try {
+        const marker = await db.from("settings").select("id").eq("setting_key","streetwear_catalogue_normalized_v2").limit(1);
+        if (!marker.error && marker.data?.length) return;
+
+        const result = await db.from("settings").select("id,setting_key,setting_value").like("setting_key","product_%");
+        if (result.error) return;
+
+        const rows = result.data || [];
+        const canonicalByKey = new Map(STREETWEAR_CANONICAL_NAMES.map(name => [productKeyFromName(name), name]));
+
+        // Remove old/duplicate Streetwear options that are no longer part of the approved list.
+        const seen = new Set();
+        for (const row of rows) {
+            let item = {};
+            try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
+            if (String(item.category || "").toLowerCase() !== "streetwear") continue;
+            const name = String(item.name || "").trim();
+            const lower = name.toLowerCase();
+            const key = row.setting_key || "";
+            if (LEGACY_STREETWEAR_NAMES.has(lower)) {
+                await db.from("settings").delete().eq("id", row.id);
+                continue;
+            }
+            if (seen.has(key)) {
+                await db.from("settings").delete().eq("id", row.id);
+            } else {
+                seen.add(key);
+            }
+        }
+
+        // Ensure every approved Streetwear option exists once and has the requested order.
+        for (const [category,name,order] of DEFAULT_PRODUCTS) {
+            const key = productKeyFromName(name);
+            const existing = await db.from("settings").select("id,setting_value").eq("setting_key",key).limit(1);
+            if (existing.error) continue;
+            const payload = {
+                name, category, price: null, public_price: null, notes: "",
+                display_order: order, active: true
+            };
+            if (!existing.data?.length) {
+                await db.from("settings").insert({
+                    setting_key:key,
+                    setting_value:JSON.stringify(payload),
+                    updated_at:new Date().toISOString()
+                });
+            } else {
+                let current = {};
+                try { current = JSON.parse(existing.data[0].setting_value || "{}"); } catch (_) {}
+                current = {...payload, ...current, name, category, display_order:order};
+                await db.from("settings").update({
+                    setting_value: JSON.stringify(current),
+                    updated_at:new Date().toISOString()
+                }).eq("id", existing.data[0].id);
+            }
+        }
+        await db.from("settings").insert({
+            setting_key: "streetwear_catalogue_normalized_v2",
+            setting_value: "true",
+            updated_at: new Date().toISOString()
+        });
+    } catch (e) {
+        console.warn("Streetwear catalogue normalisation skipped:", e);
+    }
+}
+
 async function getProducts() {
     await seedDefaultProducts();
     const result = await db.from("settings").select("id,setting_key,setting_value,updated_at")
@@ -867,13 +1059,14 @@ async function getProducts() {
 
 async function loadProducts() {
     const list=document.getElementById("adminProductsList"); if(!list)return;
+    await ensureStreetwearCatalogue();
     const rows=await getProducts();
     const settings=await getRows("settings"); const invoiceMap=new Map();
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??""; document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
-    list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));message("Product / service deleted.","success");await loadProducts();});
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}message("Product / service deleted.","success");await loadProducts();});
 }
 
 function setupProductForm() {
@@ -888,9 +1081,7 @@ function setupProductForm() {
         const name = document.getElementById("adminProductTitle").value.trim();
         const category = document.getElementById("adminProductCategory").value.trim();
         const publicPriceValue = document.getElementById("adminProductPublicPrice").value;
-        const invoicePriceValue = document.getElementById("adminProductInvoicePrice").value;
         const publicPrice = publicPriceValue === "" ? null : Number(publicPriceValue);
-        const invoicePrice = invoicePriceValue === "" ? null : Number(invoicePriceValue);
         const payload = {
             name,
             category,
@@ -907,16 +1098,12 @@ function setupProductForm() {
 
         try {
             let oldKey = "";
-            let oldName = "";
 
             if (id) {
                 const old = await db.from("settings").select("setting_key,setting_value").eq("id", id).maybeSingle();
                 if (old.error) throw old.error;
                 oldKey = old.data?.setting_key || "";
-                try {
-                    const oldItem = JSON.parse(old.data?.setting_value || "{}");
-                    oldName = oldItem.name || "";
-                } catch (_) {}
+
             }
 
             const newKey = productKeyFromName(name);
@@ -949,26 +1136,7 @@ function setupProductForm() {
                 }
             }
 
-            if (oldName && oldName.toLowerCase() !== name.toLowerCase()) {
-                await db.from("settings").delete().eq("setting_key", invoiceStorageKey(oldName));
-            }
-
-            const invoiceKey = invoiceStorageKey(name);
-            if (invoicePrice === null) {
-                await db.from("settings").delete().eq("setting_key", invoiceKey);
-            } else {
-                await safeSettingUpsert(
-                    invoiceKey,
-                    JSON.stringify({
-                        name,
-                        category,
-                        price: invoicePrice,
-                        notes: payload.notes,
-                        active: payload.active
-                    })
-                );
-            }
-
+            // Invoice pricing is intentionally separate from the public product catalogue.
             form.reset();
             document.getElementById("adminProductId").value = "";
             document.getElementById("adminProductActive").checked = true;
@@ -1095,9 +1263,10 @@ async function loadHomepageMedia() {
                         : `<img src="${escapeHTML(resolveAdminMediaUrl(r.url))}" alt="" style="width:110px;height:75px;object-fit:cover">`}
                     </td>
                     <td>${escapeHTML(r.title)}</td>
-                    <td>${escapeHTML(r.order ?? 1)}</td>
+                    <td><input type="number" min="1" value="${escapeHTML(r.order ?? 1)}" data-homepage-order="${escapeHTML(r.id)}" style="max-width:90px"></td>
                     <td>${r.active === false ? "Hidden" : "Visible"}</td>
                     <td>
+                        <button type="button" class="secondary" data-save-homepage-order="${escapeHTML(r.id)}">Save Order</button>
                         <button type="button" class="secondary" data-edit-homepage="${escapeHTML(r.id)}">Edit</button>
                         <button type="button" class="danger" data-delete-homepage="${escapeHTML(r.id)}">Delete</button>
                     </td>
@@ -1105,6 +1274,26 @@ async function loadHomepageMedia() {
             </tbody>
         </table>
     ` : `<div class="empty">No homepage featured media has been added yet.</div>`;
+
+    list.querySelectorAll("[data-save-homepage-order]").forEach(button => {
+        button.onclick = async () => {
+            const id = button.dataset.saveHomepageOrder;
+            const input = list.querySelector(`[data-homepage-order="${id}"]`);
+            const row = rows.find(r => String(r.id) === String(id));
+            if (!row) return;
+            const value = Math.max(1, Number(input?.value || 1));
+            try {
+                const result = await db.from("settings").update({
+                    setting_value: JSON.stringify({...row, id:undefined, order:value})
+                }).eq("id", id);
+                if (result.error) throw result.error;
+                message("Homepage featured order saved.", "success");
+                await loadHomepageMedia();
+            } catch (error) {
+                message("Homepage featured order could not be saved: " + error.message, "error");
+            }
+        };
+    });
 
     list.querySelectorAll("[data-edit-homepage]").forEach(button => {
         button.onclick = () => {
@@ -1288,12 +1477,20 @@ function invoicePriceFor(map, name) {
         "six months fashion training": ["6 months fashion training", "six months fashion training"],
         "one year fashion training": ["1 year fashion training", "one year fashion training"],
         "three years apprenticeship training": ["3 years apprenticeship training", "three years apprenticeship training"],
+        "jersey": ["jerseys", "jersey"],
         "t shirt": ["t shirts", "t shirt"],
         "t shirts": ["t shirts", "t shirt"],
-        "hoodies joggers set": ["hoodies joggers set"],
-        "joggers super thick cotton joggers": ["joggers super thick cutting joggers", "joggers super thick cotton joggers"],
-        "t shirt shorts set": ["t shirts shorts set", "t shirt shorts set"],
-        "t shirt sweatpants set": ["t shirt sweatpants set"]
+        "polo shirt": ["polo shirts", "polo shirt"],
+        "hoodies joggers set": ["hoodies joggers set", "hoodies and joggers"],
+        "hoodies and joggers": ["hoodies joggers set", "hoodies and joggers"],
+        "joggers super thick cotton joggers": ["joggers super thick cutting joggers", "joggers super thick cotton joggers", "super thick cutting joggers"],
+        "super thick cutting joggers": ["joggers super thick cutting joggers", "joggers super thick cotton joggers", "super thick cutting joggers"],
+        "everyday wear type": ["joggers everyday wear type", "everyday wear type"],
+        "joggers shorts": ["jogger shorts", "joggers shorts"],
+        "t shirt shorts set": ["t shirts shorts set", "t shirt shorts set", "t-shirt and shorts"],
+        "t shirt sweatpants set": ["t shirt sweatpants set", "t-shirt and sweatpants"],
+        "sweatshirt shorts set": ["sweatshirts shorts set", "sweatshirt and shorts"],
+        "sweatshirt sweatpants set": ["sweatshirts sweatpants set", "sweatshirt and sweatpants"]
     };
     for (const alias of (aliases[normalized] || [])) {
         if (map.has(alias)) return map.get(alias) ?? 0;
@@ -1347,14 +1544,12 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
     if (Array.isArray(details?.embellishment)) {
         details.embellishment.forEach(serviceName => {
             const item = details.embellishmentDetails?.[serviceName] || {};
-            const legacyQuantity = Number(details.embellishmentQuantity || 0);
-            const quantity = Number(item.quantity || 0) || legacyQuantity;
-            if (quantity <= 0 && !item.details && !details.embellishmentOther) return;
+            const request = item.details || details.embellishmentOther || "";
             lines.push({
                 description: serviceName,
-                quantity: quantity || 1,
+                quantity: 1,
                 unitPrice: invoicePriceFor(priceMap, serviceName),
-                details: [item.size || details.embellishmentSize, item.measurements, item.colour, item.details || details.embellishmentOther].filter(Boolean).join(" • ")
+                details: [request].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1377,20 +1572,39 @@ function invoicePaymentStorageKey(invoiceNumber, stamp) {
 }
 
 async function getInvoicePayments(invoiceNumber) {
-    const rows = await getRows("settings");
-    return rows
+    let rows = [];
+    try { rows = await getRows("settings"); } catch (_) {}
+    const online = rows
         .filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
         .map(r => {
             try { return { ...JSON.parse(r.setting_value || "{}"), id: r.id, key: r.setting_key }; }
             catch (_) { return null; }
         })
-        .filter(r => r && String(r.invoiceNumber || "") === String(invoiceNumber || ""))
-        .sort((a,b) => String(a.date || "").localeCompare(String(b.date || "")));
+        .filter(r => r && String(r.invoiceNumber || "") === String(invoiceNumber || ""));
+    let offline = [];
+    try {
+        offline = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]")
+            .filter(r => String(r.invoiceNumber || "") === String(invoiceNumber || ""));
+    } catch (_) {}
+    return [...online, ...offline].sort((a,b) => String(a.date || "").localeCompare(String(b.date || "")));
 }
 
 async function saveInvoicePayment(payment) {
     const key = invoicePaymentStorageKey(payment.invoiceNumber, Date.now());
-    return safeSettingUpsert(key, JSON.stringify(payment));
+    try {
+        if (!db) throw new Error("offline");
+        return await safeSettingUpsert(key, JSON.stringify(payment));
+    } catch (error) {
+        try {
+            const items = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]");
+            items.push({...payment, offlineId:key, savedAt:new Date().toISOString()});
+            localStorage.setItem("aprils_offline_payments", JSON.stringify(items));
+            message("Payment saved on this device while offline. It can be synchronised when the server is available.", "success");
+            return {data:null,error:null,offline:true};
+        } catch (_) {
+            throw error;
+        }
+    }
 }
 
 async function getInvoiceSavedRecord(invoiceNumber) {
@@ -1402,9 +1616,241 @@ async function getInvoiceSavedRecord(invoiceNumber) {
 }
 
 async function saveInvoiceRecord(invoiceNumber, record) {
-    return safeSettingUpsert("invoice_record_" + contentSlug(invoiceNumber), JSON.stringify(record));
+    const key = "invoice_record_" + contentSlug(invoiceNumber);
+    try {
+        if (!db) throw new Error("offline");
+        return await safeSettingUpsert(key, JSON.stringify(record));
+    } catch (error) {
+        try {
+            const items = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]");
+            const copy = {...record, offlineKey:key, savedAt:new Date().toISOString()};
+            const index = items.findIndex(item => String(item.invoiceNumber) === String(invoiceNumber));
+            if (index >= 0) items[index] = copy; else items.push(copy);
+            localStorage.setItem("aprils_offline_invoices", JSON.stringify(items));
+            message("Invoice saved on this device while offline. It can be synchronised when the server is available.", "success");
+            return {data:null,error:null,offline:true};
+        } catch (_) {
+            throw error;
+        }
+    }
 }
 
+
+async function setupAccountingForm() {
+    const form = document.getElementById("accountingExpenseForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const id = document.getElementById("accountingExpenseId").value.trim();
+        const date = document.getElementById("accountingExpenseDate").value || new Date().toISOString().slice(0,10);
+        const category = document.getElementById("accountingExpenseCategory").value.trim();
+        const amount = Number(document.getElementById("accountingExpenseAmount").value || 0);
+        const description = document.getElementById("accountingExpenseDescription").value.trim();
+        if (!category || amount <= 0 || !description) {
+            message("Enter the expense date, category, amount and description.", "error");
+            return;
+        }
+
+        const record = JSON.stringify({date, category, amount, description, savedAt:new Date().toISOString()});
+        try {
+            if (id) {
+                const result = await db.from("settings").update({setting_value:record, updated_at:new Date().toISOString()}).eq("id",id);
+                if (result.error) throw result.error;
+            } else {
+                await safeSettingUpsert("accounting_expense_" + contentSlug(date + "_" + category + "_" + description + "_" + Date.now()), record);
+            }
+            form.reset();
+            document.getElementById("accountingExpenseId").value = "";
+            document.getElementById("accountingExpenseDate").value = new Date().toISOString().slice(0,10);
+            message("Expense saved.", "success");
+            await loadAccounting();
+        } catch (error) {
+            try {
+                const local = JSON.parse(localStorage.getItem("aprils_offline_expenses") || "[]");
+                const item = {id:id || ("offline-" + Date.now()), date, category, amount, description, savedAt:new Date().toISOString()};
+                const index = local.findIndex(x => String(x.id) === String(id));
+                if (index >= 0) local[index] = item; else local.push(item);
+                localStorage.setItem("aprils_offline_expenses", JSON.stringify(local));
+                form.reset();
+                document.getElementById("accountingExpenseId").value = "";
+                document.getElementById("accountingExpenseDate").value = new Date().toISOString().slice(0,10);
+                message("Expense saved on this device while offline.", "success");
+                await loadAccounting();
+            } catch (_) {
+                message("Expense could not be saved: " + error.message, "error");
+            }
+        }
+    });
+
+    document.getElementById("accountingExpenseCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("accountingExpenseId").value = "";
+        document.getElementById("accountingExpenseDate").value = new Date().toISOString().slice(0,10);
+    });
+
+    const date = document.getElementById("accountingExpenseDate");
+    if (date && !date.value) date.value = new Date().toISOString().slice(0,10);
+}
+
+async function loadAccounting() {
+    const list = document.getElementById("accountingList");
+    if (!list) return;
+
+    const offlineInvoices = (() => {
+        try { return JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]"); } catch (_) { return []; }
+    })();
+    const offlinePayments = (() => {
+        try { return JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]"); } catch (_) { return []; }
+    })();
+
+    let rows = [];
+    try {
+        const settings = await getRows("settings");
+        rows = settings;
+    } catch (_) {}
+
+    const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_record_")).map(r => {
+        try { return {id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+    }).filter(Boolean);
+
+    const payments = rows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_")).map(r => {
+        try { return {id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+    }).filter(Boolean);
+
+    const expenses = rows.filter(r => String(r.setting_key || "").startsWith("accounting_expense_")).map(r => {
+        try { return {id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+    }).filter(Boolean);
+    let offlineExpenses = [];
+    try { offlineExpenses = JSON.parse(localStorage.getItem("aprils_offline_expenses") || "[]"); } catch (_) {}
+
+    const invoiceMap = new Map();
+    [...invoices, ...offlineInvoices].forEach(item => {
+        if (item.invoiceNumber) invoiceMap.set(String(item.invoiceNumber), item);
+    });
+
+    const paymentMap = new Map();
+    [...payments, ...offlinePayments].forEach(item => {
+        const key = String(item.invoiceNumber || "");
+        if (!key) return;
+        if (!paymentMap.has(key)) paymentMap.set(key, []);
+        paymentMap.get(key).push(item);
+    });
+
+    const records = [...invoiceMap.values()].sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
+    let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
+    const allExpenses = [...expenses, ...offlineExpenses];
+    const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const body = records.map(invoice => {
+        const total = Number(invoice.total || 0);
+        const discount = Number(invoice.discount || 0);
+        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+        const balance = Math.max(0, total - paid);
+        totalSales += total;
+        totalReceived += paid;
+        totalOutstanding += balance;
+        totalDiscounts += discount;
+
+        return `<tr>
+            <td>${escapeHTML(invoice.date || "")}</td>
+            <td>${escapeHTML(invoice.invoiceNumber || "")}</td>
+            <td>${escapeHTML(invoice.training ? "Training" : "Order / Quote")}</td>
+            <td>${escapeHTML(invoice.customer || "")}</td>
+            <td>GHS ${total.toFixed(2)}</td>
+            <td>GHS ${discount.toFixed(2)}</td>
+            <td>GHS ${paid.toFixed(2)}</td>
+            <td>GHS ${balance.toFixed(2)}</td>
+            <td>${balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"}</td>
+        </tr>`;
+    }).join("");
+
+    const emptyNote = offlineInvoices.length && !records.length
+        ? "Offline records are available on this device. Connect to the server later to synchronise them."
+        : "No saved invoices yet.";
+
+    list.innerHTML = records.length ? `
+        <table>
+            <thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Customer</th><th>Sale</th><th>Discount</th><th>Received</th><th>Balance</th><th>Status</th></tr></thead>
+            <tbody>${body}</tbody>
+        </table>` : `<div class="empty">${escapeHTML(emptyNote)}</div>`;
+
+    document.getElementById("accountingSales").textContent = `GHS ${totalSales.toFixed(2)}`;
+    document.getElementById("accountingReceived").textContent = `GHS ${totalReceived.toFixed(2)}`;
+    document.getElementById("accountingOutstanding").textContent = `GHS ${totalOutstanding.toFixed(2)}`;
+    document.getElementById("accountingDiscounts").textContent = `GHS ${totalDiscounts.toFixed(2)}`;
+    document.getElementById("accountingExpenses").textContent = `GHS ${totalExpenses.toFixed(2)}`;
+    document.getElementById("accountingNetCash").textContent = `GHS ${(totalReceived - totalExpenses).toFixed(2)}`;
+
+    const expenseList = document.getElementById("accountingExpenseList");
+    if (expenseList) {
+        expenseList.innerHTML = allExpenses.length ? `<table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead><tbody>
+            ${allExpenses.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))).map(item => `<tr>
+                <td>${escapeHTML(item.date || "")}</td>
+                <td>${escapeHTML(item.category || "")}</td>
+                <td>${escapeHTML(item.description || "")}</td>
+                <td>GHS ${Number(item.amount || 0).toFixed(2)}</td>
+                <td>
+                    <button type="button" class="secondary" data-edit-expense="${escapeHTML(item.id || "")}">Edit</button>
+                    ${String(item.id || "").startsWith("offline-") ? `<button type="button" class="danger" data-delete-offline-expense="${escapeHTML(item.id)}">Delete</button>` : `<button type="button" class="danger" data-delete-expense="${escapeHTML(item.id)}">Delete</button>`}
+                </td>
+            </tr>`).join("")}</tbody></table>` : `<div class="empty">No business expenses recorded yet.</div>`;
+
+        expenseList.querySelectorAll("[data-edit-expense]").forEach(button => {
+            button.onclick = () => {
+                const item = allExpenses.find(x => String(x.id || "") === String(button.dataset.editExpense));
+                if (!item) return;
+                document.getElementById("accountingExpenseId").value = item.id || "";
+                document.getElementById("accountingExpenseDate").value = item.date || "";
+                document.getElementById("accountingExpenseCategory").value = item.category || "";
+                document.getElementById("accountingExpenseAmount").value = Number(item.amount || 0);
+                document.getElementById("accountingExpenseDescription").value = item.description || "";
+                document.getElementById("accountingExpenseForm").scrollIntoView({behavior:"smooth",block:"start"});
+            };
+        });
+
+        expenseList.querySelectorAll("[data-delete-expense]").forEach(button => {
+            button.onclick = async () => {
+                if (!confirm("Delete this expense?")) return;
+                const result = await db.from("settings").delete().eq("id",button.dataset.deleteExpense);
+                if (result.error) { message("Expense could not be deleted: " + result.error.message,"error"); return; }
+                await loadAccounting();
+            };
+        });
+        expenseList.querySelectorAll("[data-delete-offline-expense]").forEach(button => {
+            button.onclick = async () => {
+                if (!confirm("Delete this offline expense?")) return;
+                const local = JSON.parse(localStorage.getItem("aprils_offline_expenses") || "[]").filter(x => String(x.id) !== String(button.dataset.deleteOfflineExpense));
+                localStorage.setItem("aprils_offline_expenses", JSON.stringify(local));
+                await loadAccounting();
+            };
+        });
+    }
+
+    const exportButton = document.getElementById("accountingExport");
+    if (exportButton && !exportButton.dataset.bound) {
+        exportButton.dataset.bound = "1";
+        exportButton.onclick = () => {
+            const header = ["Date","Invoice","Type","Customer","Sale (GHS)","Discount (GHS)","Received (GHS)","Balance (GHS)","Status"];
+            const csv = [header, ...records.map(invoice => {
+                const total = Number(invoice.total || 0);
+                const discount = Number(invoice.discount || 0);
+                const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+                const balance = Math.max(0, total - paid);
+                return [invoice.date || "", invoice.invoiceNumber || "", invoice.training ? "Training" : "Order / Quote", invoice.customer || "", total.toFixed(2), discount.toFixed(2), paid.toFixed(2), balance.toFixed(2), balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"];
+            })].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\\n");
+            const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Aprils-Signature-Accounting-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        };
+    }
+    document.getElementById("accountingRefresh")?.addEventListener("click", () => loadAccounting(), {once:true});
+}
 
 async function loadSavedInvoiceReceiptRecords() {
     const list = document.getElementById("savedInvoiceReceiptList");
@@ -1415,6 +1861,10 @@ async function loadSavedInvoiceReceiptRecords() {
         const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_record_")).map(r => {
             try { return {type:"Invoice", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
         }).filter(Boolean);
+        try {
+            const offline = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]");
+            offline.forEach(r => invoices.push({type:"Invoice", id:"offline-" + (r.invoiceNumber || Math.random()), key:r.offlineKey || ("offline_invoice_" + contentSlug(r.invoiceNumber)), ...r, offline:true}));
+        } catch (_) {}
         const receipts = rows.filter(r => String(r.setting_key || "").startsWith("receipt_record_")).map(r => {
             try { return {type:"Receipt", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
         }).filter(Boolean);
@@ -1471,6 +1921,15 @@ async function loadSavedInvoiceReceiptRecords() {
                 const number = button.dataset.recordNumber;
                 if (!confirm(`Delete this saved ${type.toLowerCase()}${number ? ` ${number}` : ""}?`)) return;
                 try {
+                    if (String(button.dataset.deleteSavedRecord || "").startsWith("offline-")) {
+                        const offline = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]").filter(r => String(r.invoiceNumber) !== String(number));
+                        const offlinePayments = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]").filter(r => String(r.invoiceNumber) !== String(number));
+                        localStorage.setItem("aprils_offline_invoices", JSON.stringify(offline));
+                        localStorage.setItem("aprils_offline_payments", JSON.stringify(offlinePayments));
+                        await loadSavedInvoiceReceiptRecords();
+                        message("Offline invoice deleted.", "success");
+                        return;
+                    }
                     const result = await db.from("settings").delete().eq("id", button.dataset.deleteSavedRecord);
                     if (result.error) throw result.error;
 
@@ -1649,9 +2108,9 @@ async function openInvoiceGenerator(row, details) {
                     <p>Subtotal: <strong>GHS ${subtotal.toFixed(2)}</strong></p>
                     <p>Discount ${discountOffer?.code ? `(${escapeHTML(discountOffer.code)} — ${discountPercent.toFixed(2)}%)` : `(${discountPercent.toFixed(2)}%)`}: <strong>GHS ${discount.toFixed(2)}</strong></p>
                     <p>Grand Total: <strong>GHS ${total.toFixed(2)}</strong></p>
-                    ${isTrainingInvoice ? "" : `<p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>
+                    ${isTrainingInvoice ? "" : `<p>Payment Due (${depositPercent}%): <strong>GHS ${deposit.toFixed(2)}</strong></p>`}
                     <p>Amount Paid: <strong>GHS ${paidAmount.toFixed(2)}</strong></p>
-                    <p>Balance: <strong>GHS ${outstanding.toFixed(2)}</strong></p>`}
+                    <p>Balance: <strong>GHS ${outstanding.toFixed(2)}</strong></p>
                     <p class="invoice-payment-status"><strong>${paymentStatus}</strong></p>
                 </div>
                 <div class="invoice-payment"><strong>Payment Details</strong>
@@ -1661,7 +2120,7 @@ async function openInvoiceGenerator(row, details) {
                             <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
-                    ${paymentAccounts.filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${paymentAccounts.filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
+                    ${!isTrainingInvoice && paymentAccounts.filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${paymentAccounts.filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
                 <div class="invoice-note">${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</div>
             </div>
@@ -1805,7 +2264,7 @@ async function generateInvoicePdf(share) {
 
     try {
         const options = {
-            margin: 0.35,
+            margin: 0,
             filename: (document.getElementById("generatedInvoiceNumber").value || "Aprils-Signature-Invoice") + ".pdf",
             image: {type:"jpeg",quality:0.98},
             html2canvas: {scale:2, useCORS:true},
@@ -1840,16 +2299,40 @@ function getGeneratedInvoiceShareText() {
 }
 
 async function shareGeneratedInvoiceWhatsApp() {
+    const state = window._aprilsCurrentInvoice;
+    const customer = document.getElementById("generatedInvoicePhone")?.value || "";
+    const text = getGeneratedInvoiceShareText();
     try {
-        await generateInvoicePdf(false);
-        const text = getGeneratedInvoiceShareText() + "\nThe invoice PDF has been saved on this device.";
-        const customer = document.getElementById("generatedInvoicePhone")?.value || "";
-        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
-    } catch (_) {
-        const text = getGeneratedInvoiceShareText();
-        const customer = document.getElementById("generatedInvoicePhone")?.value || "";
-        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
+        if (state && window.html2pdf && navigator.share && navigator.canShare) {
+            state.renderInvoice();
+            const paper = document.getElementById("invoicePaper");
+            const number = document.getElementById("generatedInvoiceNumber")?.value || "Aprils-Signature-Invoice";
+            const options = {
+                margin: 0,
+                filename: number + ".pdf",
+                image: {type:"jpeg",quality:0.98},
+                html2canvas: {scale:2,useCORS:true},
+                jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
+            };
+            const blob = await window.html2pdf().set(options).from(paper).outputPdf("blob");
+            const file = new File([blob], options.filename, {type:"application/pdf"});
+            if (navigator.canShare({files:[file]})) {
+                await navigator.share({
+                    title: "Aprils Signature Invoice",
+                    text: text,
+                    files: [file]
+                });
+                return;
+            }
+        }
+    } catch (error) {
+        console.warn("Direct invoice PDF sharing was unavailable:", error);
     }
+
+    // WhatsApp's public web/deep-link interface cannot attach a local PDF
+    // automatically. The fallback opens the customer's WhatsApp chat with the
+    // correct number and message, ready for the saved PDF to be attached.
+    window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
 }
 
 function shareGeneratedInvoiceEmail() {
@@ -1870,7 +2353,7 @@ function printGeneratedInvoice() {
         return;
     }
     printWindow.document.write(`<html><head><title>Aprils Signature Invoice</title><style>
-        body{font-family:Arial,sans-serif;padding:25px;color:#222}.invoice-paper{max-width:800px;margin:auto}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}</style></head><body>${paper.outerHTML}</body></html>`);
+        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}</style></head><body>${paper.outerHTML}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 400);
@@ -1897,7 +2380,7 @@ function getCurrentInvoiceTotals() {
     const discount = subtotal * discountPercent / 100;
     const total = Math.max(0, subtotal - discount);
     const depositPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDeposit")?.value || 0)));
-    return { total, paidDue: total * depositPercent / 100, balance: total * (1 - depositPercent / 100), lines };
+    return { subtotal, discount, discountPercent, total, paidDue: total * depositPercent / 100, balance: total * (1 - depositPercent / 100), lines };
 }
 
 async function saveReceiptRecordDraft() {
@@ -2007,9 +2490,11 @@ function openReceiptGenerator() {
                     ${totals.lines.map((l,i) => `<tr><td>${i+1}</td><td>${escapeHTML(l.description)}${l.details ? `<small>${escapeHTML(l.details)}</small>` : ""}</td><td>${l.quantity}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}
                 </tbody></table>
                 <div class="receipt-summary">
+                    <p>Subtotal: <strong>GHS ${totals.subtotal.toFixed(2)}</strong></p>
+                    <p>Discount (${totals.discountPercent.toFixed(2)}%): <strong>GHS ${totals.discount.toFixed(2)}</strong></p>
                     <p>Invoice Total: <strong>GHS ${totals.total.toFixed(2)}</strong></p>
                     <p>Amount Received: <strong>GHS ${amount.toFixed(2)}</strong></p>
-                    ${invoiceState.isTrainingInvoice ? "" : `<p>Balance Remaining: <strong>GHS ${remaining.toFixed(2)}</strong></p>`}
+                    <p>Balance Remaining: <strong>GHS ${remaining.toFixed(2)}</strong></p>
                 </div>
                 <div class="receipt-payment"><strong>Payment Details</strong>
                     <div class="invoice-payment-grid ${(invoiceState.paymentAccounts || []).length > 1 ? "two" : "one"}">
@@ -2018,7 +2503,7 @@ function openReceiptGenerator() {
                             <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
-                    ${(invoiceState.paymentAccounts || []).filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${(invoiceState.paymentAccounts || []).filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
+                    ${!invoiceState.isTrainingInvoice && (invoiceState.paymentAccounts || []).filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${(invoiceState.paymentAccounts || []).filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
                 </div>
                 <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
                 <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
@@ -2116,7 +2601,7 @@ async function generateReceiptPdf(share) {
     }
     try {
         const options = {
-            margin: 0.35,
+            margin: 0,
             filename: (document.getElementById("generatedReceiptNumber").value || "Aprils-Signature-Receipt") + ".pdf",
             image: {type:"jpeg",quality:0.98},
             html2canvas: {scale:2,useCORS:true},
@@ -2149,16 +2634,36 @@ function getGeneratedReceiptShareText() {
 }
 
 async function shareGeneratedReceiptWhatsApp() {
+    const state = window._aprilsCurrentReceipt;
+    const customer = document.getElementById("generatedReceiptPhone")?.value || "";
+    const text = getGeneratedReceiptShareText();
     try {
-        await generateReceiptPdf(false);
-        const text = getGeneratedReceiptShareText() + "\nThe receipt PDF has been saved on this device.";
-        const customer = document.getElementById("generatedReceiptPhone")?.value || "";
-        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
-    } catch (_) {
-        const text = getGeneratedReceiptShareText();
-        const customer = document.getElementById("generatedReceiptPhone")?.value || "";
-        window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
+        if (state && window.html2pdf && navigator.share && navigator.canShare) {
+            state.renderReceipt();
+            const paper = document.getElementById("receiptPaper");
+            const number = document.getElementById("generatedReceiptNumber")?.value || "Aprils-Signature-Receipt";
+            const options = {
+                margin: 0,
+                filename: number + ".pdf",
+                image: {type:"jpeg",quality:0.98},
+                html2canvas: {scale:2,useCORS:true},
+                jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
+            };
+            const blob = await window.html2pdf().set(options).from(paper).outputPdf("blob");
+            const file = new File([blob], options.filename, {type:"application/pdf"});
+            if (navigator.canShare({files:[file]})) {
+                await navigator.share({
+                    title: "Aprils Signature Payment Receipt",
+                    text,
+                    files: [file]
+                });
+                return;
+            }
+        }
+    } catch (error) {
+        console.warn("Direct receipt PDF sharing was unavailable:", error);
     }
+    window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
 }
 
 function shareGeneratedReceiptEmail() {
@@ -2179,7 +2684,7 @@ function printGeneratedReceipt() {
         return;
     }
     printWindow.document.write(`<html><head><title>Aprils Signature Payment Receipt</title><style>
-        body{font-family:Arial,sans-serif;padding:25px;color:#222}.receipt-paper{max-width:800px;margin:auto}.receipt-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.receipt-brand-row img{width:85px;height:85px;object-fit:contain}.receipt-brand-row h1{color:#0f7775;margin:0}.receipt-meta{margin-left:auto;text-align:right}.receipt-status{margin:25px 0;padding:12px;text-align:center;border:2px solid #0f7775;font-weight:bold;color:#0f7775}.receipt-customer{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px;border:1px solid #aaa}.receipt-lines{width:100%;border-collapse:collapse;margin-top:25px}.receipt-lines th,.receipt-lines td{border:1px solid #777;padding:9px;text-align:left}.receipt-lines th{background:#0f7775;color:#fff}.receipt-lines small{display:block;margin-top:4px;color:#555}.receipt-summary{margin-left:auto;max-width:320px;margin-top:20px;text-align:right}.receipt-note{margin-top:20px;padding:12px;border:1px solid #aaa}.receipt-footer{text-align:center;margin-top:35px;color:#555;font-size:12px}</style></head><body>${paper.outerHTML}</body></html>`);
+        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.receipt-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.receipt-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.receipt-brand-row img{width:85px;height:85px;object-fit:contain}.receipt-brand-row h1{color:#0f7775;margin:0}.receipt-meta{margin-left:auto;text-align:right}.receipt-status{margin:25px 0;padding:12px;text-align:center;border:2px solid #0f7775;font-weight:bold;color:#0f7775}.receipt-customer{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px;border:1px solid #aaa}.receipt-lines{width:100%;border-collapse:collapse;margin-top:25px}.receipt-lines th,.receipt-lines td{border:1px solid #777;padding:9px;text-align:left}.receipt-lines th{background:#0f7775;color:#fff}.receipt-lines small{display:block;margin-top:4px;color:#555}.receipt-summary{margin-left:auto;max-width:320px;margin-top:20px;text-align:right}.receipt-note{margin-top:20px;padding:12px;border:1px solid #aaa}.receipt-footer{text-align:center;margin-top:35px;color:#555;font-size:12px}</style></head><body>${paper.outerHTML}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 400);
@@ -2202,19 +2707,19 @@ async function loadServices() {
                 <input type="hidden" id="adminProductId">
                 <div class="form-grid">
                     <div class="form-group"><label>Product / Service Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Custom Hoodie"></div>
-                    <div class="form-group"><label>Category</label><select id="adminProductCategory">
-<option>Streetwear</option>
-<option>Ladies Wear</option>
-<option>Kids Wear</option>
-<option>Embellishment Services</option>
-<option>Rhinestone Embellishment</option>
-<option>Screen Printing</option>
-<option>Fabric Painting</option>
-<option>Glitter Works</option>
-<option>Other Products</option>
-</select></div>
+                    <div class="form-group"><label for="adminProductCategory">Category</label><input type="text" id="adminProductCategory" list="serviceCategoryOptions" placeholder="e.g. Streetwear">
+<datalist id="serviceCategoryOptions">
+<option value="Streetwear"></option>
+<option value="Ladies Wear"></option>
+<option value="Kids Wear"></option>
+<option value="Rhinestone Embellishment"></option>
+<option value="T-Shirt Printing"></option>
+<option value="Dressmaking Training"></option>
+<option value="Screen Painting"></option>
+<option value="Glitter Works"></option>
+<option value="Practical Fashion Training"></option>
+</datalist></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
-                    <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
                 </div>
                 <div class="form-group"><label>Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional internal note."></textarea></div>
@@ -2676,8 +3181,19 @@ function statusSelectHTML(prefix, id, value) {
     </select>`;
 }
 
+function readOfflineCache(key) {
+    try { return JSON.parse(localStorage.getItem("aprils_cache_" + key) || "[]"); } catch (_) { return []; }
+}
+
+function writeOfflineCache(key, rows) {
+    try { localStorage.setItem("aprils_cache_" + key, JSON.stringify(rows || [])); } catch (_) {}
+}
+
 async function loadRegistrations() {
-    const rows = await getRows("training_registrations");
+    let rows = [];
+    try { rows = await getRows("training_registrations"); } catch (_) {}
+    if (rows.length) writeOfflineCache("training_registrations", rows);
+    else rows = readOfflineCache("training_registrations");
     const list = document.getElementById("registrationList");
     if (!list) return;
 
@@ -2805,8 +3321,12 @@ function summarizeQuoteDetails(row) {
     if (selected.includes("Embellishment Services") && Array.isArray(details.embellishment)) {
         details.embellishment.forEach(name => {
             const item = details.embellishmentDetails?.[name] || {};
-            parts.push(`${name}: ${[item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")}`);
+            const detail = item.details || (name === "Others" ? details.embellishmentOther : "");
+            parts.push(`${name}${detail ? ": " + detail : ""}`);
         });
+        if (details.embellishmentOther && !details.embellishment.includes("Others")) {
+            parts.push("Embellishment request: " + details.embellishmentOther);
+        }
     }
     if (details.additionalDetails) parts.push(details.additionalDetails);
 
@@ -2815,16 +3335,14 @@ function summarizeQuoteDetails(row) {
 
 
 async function loadQuotes() {
-    let rawRows;
+    let rawRows = [];
     try {
         rawRows = await getRows("quote_requests");
     } catch (error) {
-        console.error("QUOTE REQUEST LOAD ERROR:", error);
-        const list = document.getElementById("quoteList");
-        if (list) list.innerHTML = `<div class="empty"><strong>Order / quote requests could not be loaded.</strong><br><small>${escapeHTML(error.message || "Supabase could not load this section.")}</small><br><button type="button" class="primary" id="retryQuotes">Retry</button></div>`;
-        document.getElementById("retryQuotes")?.addEventListener("click", loadQuotes);
-        throw error;
+        console.warn("QUOTE REQUEST LOAD ERROR:", error);
     }
+    if (rawRows.length) writeOfflineCache("quote_requests", rawRows);
+    else rawRows = readOfflineCache("quote_requests");
 
     const rows = groupDuplicateQuotes(rawRows);
     const list = document.getElementById("quoteList");
@@ -4179,7 +4697,17 @@ async function getLogoLibrary() {
         .order("updated_at", { ascending: false });
 
     if (result.error) throw result.error;
-    return result.data || [];
+    let rows = result.data || [];
+    if (!rows.length) {
+        const projectLogo = "icons/Aprils Signature logo.jpeg";
+        const created = await db.from("settings").insert({
+            setting_key: "site_logo_library_project",
+            setting_value: projectLogo,
+            updated_at: new Date().toISOString()
+        }).select("id,setting_key,setting_value,updated_at").single();
+        if (!created.error && created.data) rows = [created.data];
+    }
+    return rows;
 }
 
 async function renderLogoLibrary() {
@@ -4203,7 +4731,7 @@ async function renderLogoLibrary() {
                     return `
                         <article class="logo-library-item">
                             <div class="logo-library-image">
-                                <img src="${escapeHTML(row.setting_value)}" alt="Saved logo ${index + 1}">
+                                <img src="${escapeHTML(resolveAdminMediaUrl(row.setting_value).replace(/^icons\//, "../icons/"))}" alt="Saved logo ${index + 1}">
                             </div>
                             <div class="logo-library-meta">
                                 <strong>${isCurrent ? "Current Public Logo" : "Saved Logo"}</strong>
@@ -4291,7 +4819,7 @@ async function loadLogoSettings() {
             preview.innerHTML = `
                 <div class="current-logo-preview">
                     <strong>Current Public Logo</strong>
-                    <img src="${escapeHTML(logo.setting_value)}" alt="Current saved logo">
+                    <img src="${escapeHTML(resolveAdminMediaUrl(logo.setting_value).replace(/^icons\//, "../icons/"))}" alt="Current saved logo">
                     <button type="button" class="danger" id="deleteCurrentLogo">Delete Current Logo</button>
                 </div>`;
         } else {
@@ -4430,7 +4958,11 @@ async function loadSettings() {
             && !key.startsWith("social_")
             && !key.startsWith("quote_status_")
             && !key.startsWith("training_status_")
-            && !key.startsWith("homepage_featured_");
+            && !key.startsWith("homepage_featured_")
+            && !key.startsWith("site_logo_library_")
+            && !key.startsWith("accounting_expense_")
+            && !key.startsWith("products_catalogue_seeded")
+            && !key.startsWith("streetwear_catalogue_normalized_v2");
     });
     const list = document.getElementById("settingsList");
     if (!list) return;
@@ -4986,11 +5518,6 @@ function setupManualInvoiceForm() {
 async function startAdmin() {
     db = await waitForSupabase();
 
-    if (!db) {
-        message("Supabase could not be loaded.", "error");
-        return;
-    }
-
     setupLogin();
     setupLogout();
     setupNavigation();
@@ -5008,6 +5535,7 @@ async function startAdmin() {
     setupInvoicePaymentForm();
     setupManualInvoiceForm();
     setupDiscountForm();
+    setupAccountingForm();
     setupWebsiteLinksForm();
     setupDirectCustomerLinks();
     setupContactForm();
@@ -5015,8 +5543,20 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
 
+    if (!db) {
+        if (hasCachedAdminSession()) {
+            document.getElementById("loginScreen").style.display = "none";
+            window._aprilsOfflineMode = true;
+            message("Offline admin mode is active. You can still work with saved customer/invoice data on this device.", "success");
+        } else {
+            message("Supabase is unavailable. Log in once while online before using offline admin mode.", "error");
+        }
+        return;
+    }
+
     await checkSession();
 }
+
 
 if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", startAdmin);

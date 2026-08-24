@@ -620,6 +620,12 @@ Invoice &amp; Receipts
 </button>
 
 <button
+data-section="accounting"
+>
+Sales &amp; Accounting
+</button>
+
+<button
 data-section="links"
 >
 Website Links
@@ -1060,17 +1066,23 @@ Manage the public product catalogue and services. Product prices here are the pu
 <input type="text" id="adminProductTitle" required placeholder="e.g. Hoodies">
 </div>
 <div class="form-group">
-<label>Category</label>
-<select id="adminProductCategory">
-<option>Streetwear</option>
-<option>Ladies Wear</option>
-<option>Kids Wear</option>
-<option>Other Products</option>
-</select>
+<label for="adminProductCategory">Category</label>
+<input type="text" id="adminProductCategory" list="serviceCategoryOptions" placeholder="e.g. Streetwear">
+<datalist id="serviceCategoryOptions">
+<option value="Streetwear"></option>
+<option value="Ladies Wear"></option>
+<option value="Kids Wear"></option>
+<option value="Rhinestone Embellishment"></option>
+<option value="T-Shirt Printing"></option>
+<option value="Dressmaking Training"></option>
+<option value="Screen Painting"></option>
+<option value="Glitter Works"></option>
+<option value="Practical Fashion Training"></option>
+</datalist>
 </div>
 <div class="form-group">
 <label>Public Price (GHS)</label>
-<input type="number" id="adminProductPrice" min="0" step="0.01" placeholder="e.g. 450.00">
+<input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="e.g. 450.00">
 </div>
 <div class="form-group">
 <label>Display Order</label>
@@ -1610,6 +1622,52 @@ MANUAL INVOICE / RECEIPT
 <!-- =====================================================
 WEBSITE LINKS
 ===================================================== -->
+<!-- =====================================================
+SALES & ACCOUNTING
+===================================================== -->
+<section id="accounting" class="section">
+<h2>Sales &amp; Accounting</h2>
+<p class="intro">A simple business account view for invoices, payments received, outstanding balances, discounts and sales. It uses the invoice and payment records already saved in the admin system.</p>
+
+<div class="cards" id="accountingSummaryCards">
+    <div class="card"><h3>Total Sales</h3><div class="number" id="accountingSales">GHS 0.00</div><p>Invoice totals</p></div>
+    <div class="card"><h3>Money Received</h3><div class="number" id="accountingReceived">GHS 0.00</div><p>Payments recorded</p></div>
+    <div class="card"><h3>Outstanding</h3><div class="number" id="accountingOutstanding">GHS 0.00</div><p>Customer balances</p></div>
+    <div class="card"><h3>Discounts</h3><div class="number" id="accountingDiscounts">GHS 0.00</div><p>Discounts given</p></div>
+    <div class="card"><h3>Expenses</h3><div class="number" id="accountingExpenses">GHS 0.00</div><p>Business expenses recorded</p></div>
+    <div class="card"><h3>Net Cash</h3><div class="number" id="accountingNetCash">GHS 0.00</div><p>Received minus expenses</p></div>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Record a Business Expense</h3>
+<form id="accountingExpenseForm">
+<input type="hidden" id="accountingExpenseId">
+<div class="form-grid">
+<div class="form-group"><label for="accountingExpenseDate">Date</label><input type="date" id="accountingExpenseDate" required></div>
+<div class="form-group"><label for="accountingExpenseCategory">Category</label><input id="accountingExpenseCategory" list="expenseCategories" placeholder="Fabric, transport, utilities, etc." required>
+<datalist id="expenseCategories"><option value="Fabric"><option value="Rhinestones"><option value="Printing"><option value="Packaging"><option value="Transport"><option value="Training Materials"><option value="Utilities"><option value="Equipment"><option value="Other"></datalist></div>
+<div class="form-group"><label for="accountingExpenseAmount">Amount (GHS)</label><input type="number" id="accountingExpenseAmount" min="0" step="0.01" required></div>
+</div>
+<div class="form-group"><label for="accountingExpenseDescription">Description</label><input id="accountingExpenseDescription" placeholder="What was the expense for?" required></div>
+<button type="submit" class="primary">Save Expense</button>
+<button type="button" class="secondary" id="accountingExpenseCancel">Cancel</button>
+</form>
+</div>
+
+<div class="form-card">
+    <div class="toolbar">
+        <button type="button" class="secondary" id="accountingRefresh">Refresh</button>
+        <button type="button" class="primary" id="accountingExport">Export CSV</button>
+    </div>
+    <div id="accountingList" class="table-wrap"></div>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Business Expenses</h3>
+<div id="accountingExpenseList" class="table-wrap"></div>
+</div>
+</section>
+
 <section id="links" class="section">
 <h2>Website Links</h2>
 <p class="intro">Manage the public navigation links. You can add future links, edit existing links, change their order, or remove links you no longer want.</p><div class="toolbar"><button type="button" class="primary" id="newLinkButton">+ Add New Link</button></div>
@@ -1786,11 +1844,11 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260823-final"></script>
-<script src="../js/supabase-client.js?v=20260823-final"></script>
+<script src="../js/supabase-config.js?v=20260824-final"></script>
+<script src="../js/supabase-client.js?v=20260824-final"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260823-final" defer></script>
-<script src="Admin-fixes.js?v=20260823-final" defer></script>
+<script src="admin.js?v=20260824-final" defer></script>
+<script src="Admin-fixes.js?v=20260824-final" defer></script>
 
 
 <style>
@@ -1887,7 +1945,7 @@ th { border-color: #075957 !important; border-width: 2px !important; }
 .invoice-payment-note{margin-top:10px;background:#fffdf5;border-left:4px solid #c9a227;padding:8px 10px;font-size:11.5px;font-weight:600;}
 .invoice-note,.receipt-note{margin-top:14px;padding:10px;font-size:11.5px;}
 @page{size:A4 portrait;margin:0;}
-@media print{body{margin:0!important;background:#fff!important;} .invoice-paper,.receipt-paper{width:210mm!important;max-width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;border:0!important;padding:12mm!important;font-size:11.5px!important;} .invoice-lines th,.invoice-lines td,.receipt-lines th,.receipt-lines td{font-size:10.5px!important;padding:5px!important;} .invoice-brand-row img,.receipt-brand-row img{width:46px!important;height:46px!important;}}
+@media print{.invoice-lines tr,.receipt-lines tr{break-inside:avoid;page-break-inside:avoid;} body{margin:0!important;background:#fff!important;} .invoice-paper,.receipt-paper{width:210mm!important;max-width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;border:0!important;padding:12mm!important;font-size:11.5px!important;} .invoice-lines th,.invoice-lines td,.receipt-lines th,.receipt-lines td{font-size:10.5px!important;padding:5px!important;} .invoice-brand-row img,.receipt-brand-row img{width:46px!important;height:46px!important;}}
 @media(max-width:800px){.invoice-payment-grid{grid-template-columns:1fr;} .invoice-paper,.receipt-paper{width:100%;max-width:100%;min-height:auto;padding:18px;}}
 </style>
 </body>
