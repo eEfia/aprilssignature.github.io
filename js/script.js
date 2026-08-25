@@ -881,7 +881,7 @@ async function loadPublicStreetwearProducts() {
     if (!container) return;
     const normal = n => String(n || "").trim().toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
     const groups = [
-        ["Tops", ["Jersey","T-shirt","Polo shirt","Hoodies","Sweatshirt"]],
+        ["Tops", ["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"]],
         ["Tank Top Options", ["Ladies tank top","Men's tank top"]],
         ["Bottoms", ["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]],
         ["Sets", ["T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
@@ -897,9 +897,10 @@ async function loadPublicStreetwearProducts() {
     const canonical = new Map();
     groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).forEach(n=>canonical.set(normal(n), n));
 
-    function detailBox(rowName) {
+    function detailBox(rowName, includeRequest = false) {
         const id = "product_" + normal(rowName).replace(/ /g,"_");
         return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML(id)}">
+            ${includeRequest ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>` : ""}
             <div class="catalogue-detail-grid">
                 <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
                 <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div>
@@ -910,8 +911,8 @@ async function loadPublicStreetwearProducts() {
     function makeRow(name) {
         const id = "product_" + normal(name).replace(/ /g,"_");
         if (name === "Others") return `<div class="quantity-row streetwear-product-row catalogue-other-row">
-            <div class="form-group"><label for="${escapeHTML(id)}">Others</label><input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="Others"></div>
-            <div class="form-group"><label>Specify Your Request</label><textarea name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>
+            <div class="form-group"><label for="${escapeHTML(id)}">Others</label><input type="checkbox" id="${escapeHTML(id)}" name="${escapeHTML(id)}" value="1" data-streetwear-product="true" data-product-name="Others"></div>
+            ${detailBox(name, true)}
         </div>`;
         return `<div class="quantity-row streetwear-product-row catalogue-product-with-details">
             <div class="form-group"><label for="${escapeHTML(id)}">${escapeHTML(name)}</label><input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(name)}"></div>
@@ -920,26 +921,37 @@ async function loadPublicStreetwearProducts() {
     }
     function render(products) {
         const by = new Map();
-        products.forEach(r => { const key=aliases.get(normal(r.name)) || normal(r.name); const canon=canonical.get(key); if(canon && !by.has(canon)) by.set(canon,{...r,name:canon}); });
-        let html = `<h3 class="catalogue-group-title">Tops</h3>${groups[0][1].map(makeRow).join("")}`;
-        html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${groups[1][1].map(makeRow).join("")}`;
-        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${["Super thick cotton joggers","Everyday wear type of joggers"].map(makeRow).join("")}`;
-        html += ["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"].map(makeRow).join("");
-        html += `<h3 class="catalogue-group-title">Sets</h3>${groups[3][1].map(makeRow).join("")}`;
-        html += makeRow("Varsity Jacket");
-        html += makeRow("Others");
-        // Varsity Jacket belongs immediately after Sweatshirt, so move it there visually.
-        html = `<h3 class="catalogue-group-title">Tops</h3>${["Jersey","T-shirt","Polo shirt","Hoodies","Sweatshirt"].map(makeRow).join("")} ${makeRow("Varsity Jacket")}<h3 class="catalogue-group-title">Tank Top Options</h3>${groups[1][1].map(makeRow).join("")}<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${["Super thick cotton joggers","Everyday wear type of joggers"].map(makeRow).join("")}${["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"].map(makeRow).join("")}<h3 class="catalogue-group-title">Sets</h3>${groups[3][1].map(makeRow).join("")}${makeRow("Others")}`;
+        products.forEach(r => {
+            const key = r.catalogue_key || aliases.get(normal(r.name)) || normal(r.name);
+            const canon = canonical.get(key);
+            if(canon && !by.has(canon)) by.set(canon,{...r,name:r.name || canon});
+        });
+        const labelFor = name => by.get(name)?.name || name;
+        const rowNames = names => names.map(name => makeRow(labelFor(name))).join("");
+        let html = `<h3 class="catalogue-group-title">Tops</h3>${rowNames(["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"])} ${makeRow(labelFor("Varsity Jacket"))}`;
+        html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${rowNames(groups[1][1])}`;
+        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
+        html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}${makeRow("Others")}`;
+
+        // Any new Streetwear product added from Admin is appended without disturbing
+        // the established catalogue layout.
+        const knownNames = new Set(groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).map(normal));
+        const custom = products
+            .filter(r => normal(r.category) === "streetwear" && r.active !== false)
+            .filter(r => !knownNames.has(normal(r.catalogue_key || r.name)))
+            .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
+        if (custom.length) html += `<h3 class="catalogue-group-title">Additional Streetwear Options</h3>${custom.map(r=>makeRow(r.name)).join("")}`;
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
             input.addEventListener("change",()=>{
                 const box=input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
-                if(box) box.classList.toggle("is-open", Number(input.value||0)>0);
-                if(Number(input.value||0)<=0 && box) box.querySelectorAll("input,textarea").forEach(x=>{ if(x.type!=="number") x.value=""; else x.value="1"; });
+                const active = input.type === "checkbox" ? input.checked : Number(input.value||0) > 0;
+                if(box) box.classList.toggle("is-open", active);
+                if(!active && box) box.querySelectorAll("input,textarea").forEach(x=>{ if(x.type!=="number") x.value=""; else x.value="1"; });
             });
         });
     }
-    const fallback = groups.flatMap(g=>g[1]).concat(["Varsity Jacket"]).map((name,i)=>({name,category:"Streetwear",active:true,display_order:i+1}));
+    const fallback = groups.flatMap(g=>g[1]).concat(["Varsity Jacket"]).map((name,i)=>({name,category:"Streetwear",active:true,display_order:i+1,catalogue_key:normal(name)}));
     render(fallback);
     try { const supabase=await waitForSupabase(); if(!supabase)return; const result=await supabase.from("settings").select("setting_key,setting_value").like("setting_key","product_%"); if(result.error)return; const products=(result.data||[]).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(r=>r&&r.name&&r.active!==false&&normal(r.category)==="streetwear"); render(products.length?products:fallback); } catch(e){ console.warn("Public streetwear catalogue unavailable:",e); }
 }
@@ -956,9 +968,14 @@ async function loadPublicLadiesWearProducts() {
     const normal=n=>String(n||"").toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
     const all=groups.flatMap(g=>g[1]); const canon=new Map(all.concat(["Others"]).map(n=>[normal(n),n]));
     const render=products=>{
-        const by=new Map(); products.forEach(r=>{const c=canon.get(normal(r.name));if(c&&!by.has(c))by.set(c,{...r,name:c});});
-        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div></div></div></div>`;
-        container.innerHTML=groups.map(([title,names])=>`<h3 class="catalogue-group-title">${escapeHTML(title)}</h3>${names.map(n=>make(by.get(n)?.name||n)).join("")}`).join("")+`<h3 class="catalogue-group-title">Others</h3>${make("Others")}`;
+        const by=new Map(); products.forEach(r=>{const c=canon.get(r.catalogue_key || normal(r.name));if(c&&!by.has(c))by.set(c,{...r,name:r.name || c});});
+        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box">${name === "Others" ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="ladiesWearOther" placeholder="Tell us what you need."></textarea></div>` : ""}<div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div></div></div></div>`;
+        const html = groups.map(([title,names])=>`<h3 class="catalogue-group-title">${escapeHTML(title)}</h3>${names.map(n=>make(by.get(n)?.name||n)).join("")}`).join("")+`<h3 class="catalogue-group-title">Others</h3>${make(by.get("Others")?.name||"Others")}`;
+        const known = new Set(all.map(normal).concat(["others"]));
+        const custom = products.filter(r=>normal(r.category)==="ladies wear" && r.active!==false)
+            .filter(r=>!known.has(normal(r.catalogue_key || r.name)))
+            .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
+        container.innerHTML = html + (custom.length ? `<h3 class="catalogue-group-title">Additional Ladies Wear Options</h3>${custom.map(r=>make(r.name)).join("")}` : "");
         container.querySelectorAll('input[data-ladieswear-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{const box=cb.closest(".catalogue-item")?.querySelector(".catalogue-detail-box");if(box)box.classList.toggle("is-open",cb.checked);if(!cb.checked&&box)box.querySelectorAll("input,textarea").forEach(x=>{if(x.type!=="checkbox")x.value=x.type==="number"?"1":""})}));
     };
     const fallback=all.map((name,i)=>({name,category:"Ladies Wear",active:true,display_order:i+1})); render(fallback);
@@ -989,6 +1006,24 @@ async function loadPublicRows(table) {
         return [];
     }
     return (result.data || []).filter(row => row.active !== false);
+}
+
+async function loadPublicSettings() {
+    const supabase = await waitForSupabase();
+    if (!supabase) return [];
+    const queries = [
+        supabase.from("settings").select("setting_key,setting_value").like("setting_key","product_%"),
+        supabase.from("settings").select("setting_key,setting_value").like("setting_key","homepage_featured_%"),
+        supabase.from("settings").select("setting_key,setting_value").like("setting_key","hidden_content_%"),
+        supabase.from("settings").select("setting_key,setting_value").like("setting_key","inventory_item_%"),
+        supabase.from("settings").select("setting_key,setting_value").in("setting_key",[
+            "contact_extra","site_logo_data","site_logo_removed","invoice_payment_accounts","site_link_payment"
+        ])
+    ];
+    const results = await Promise.all(queries);
+    return results.flatMap(r => r.error ? [] : (r.data || [])).filter((row, index, all) =>
+        all.findIndex(x => String(x.setting_key) === String(row.setting_key)) === index
+    );
 }
 
 function ensureLightbox() {
@@ -1440,7 +1475,7 @@ function renderDynamicManagedContent(rows, page) {
 async function loadPublicManagedContent() {
     try {
         const contentRows = await loadPublicRows("site_content");
-        const settings = await loadPublicRows("settings");
+        const settings = await loadPublicSettings();
 
         const hidden = new Set(
             settings
@@ -1687,7 +1722,7 @@ async function loadPublicManagedContent() {
 
 async function loadPublicContactExtras() {
     try {
-        const settings = await loadPublicRows("settings");
+        const settings = await loadPublicSettings();
         const row = settings.find(item => String(item.setting_key || "") === "contact_extra");
         if (!row?.setting_value) return;
         let extras = [];
@@ -1712,7 +1747,7 @@ async function loadPublicContactExtras() {
 
 async function loadPublicLogoSetting() {
     try {
-        const settings = await loadPublicRows("settings");
+        const settings = await loadPublicSettings();
         const logoSetting = settings.find(row =>
             String(row.setting_key || "").toLowerCase() === "site_logo_data"
         );

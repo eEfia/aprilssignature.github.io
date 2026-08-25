@@ -200,15 +200,16 @@ PUBLIC FORM FIXES
 
 
                 Array.from(form.querySelectorAll('input[data-streetwear-product="true"]')).forEach(function(input) {
-                    const raw = String(data.get(input.name) || "").trim();
                     const product = input.getAttribute("data-product-name") || input.name;
-                    if (raw !== "" && Number(raw) > 0) {
-                        const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
-                        const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
-                        const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
-                        const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || raw).trim();
-                        details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour };
-                    }
+                    const active = input.type === "checkbox" ? input.checked : Number(String(data.get(input.name) || "").trim() || 0) > 0;
+                    if (!active) return;
+                    const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
+                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
+                    const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
+                    const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || (input.type === "checkbox" ? "1" : data.get(input.name) || "1")).trim();
+                    const localDetails = String(box?.querySelector('[data-detail="details"]')?.value || "").trim();
+                    details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour, details: localDetails };
+                    if (product === "Others" && localDetails) details.streetwearOther = localDetails;
                 });
 
                 // Compatibility with older/static product fields if the dynamic catalogue
@@ -262,14 +263,16 @@ PUBLIC FORM FIXES
                     const box = item?.querySelector(".catalogue-detail-box");
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
                     const sizeMeasurements = get("sizeMeasurements") || details.ladiesWearSize;
+                    const itemDetails = get("details");
                     details.ladiesWearProducts[input.value] = {
                         product: input.value,
                         size: sizeMeasurements,
                         measurements: sizeMeasurements,
                         colour: get("colour") || details.ladiesWearColour,
                         quantity: get("quantity") || details.ladiesWearQuantity || "1",
-                        details: get("details")
+                        details: itemDetails
                     };
+                    if (input.value === "Others" && itemDetails) details.ladiesWearOther = itemDetails;
                 });
 
                 Array.from(form.querySelectorAll('input[data-embellishment-product="true"]:checked')).forEach(function(input) {
