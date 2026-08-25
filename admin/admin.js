@@ -71,12 +71,17 @@ async function waitForSupabase() {
 
 async function getRows(table) {
     if (!db) return [];
-    let result = await db.from(table).select("*").order("created_at", { ascending: false });
-    if (result.error && /created_at/i.test(result.error.message || "")) {
-        result = await db.from(table).select("*");
-    }
+    // Never assume created_at exists. The live schema uses different timestamp
+    // columns across tables. Read first, then sort client-side when possible.
+    let result = await db.from(table).select("*");
     if (result.error) throw result.error;
-    return result.data || [];
+    const rows = result.data || [];
+    rows.sort((a,b) => {
+        const ad = String(a.updated_at || a.updatedAt || a.created_at || a.createdAt || "");
+        const bd = String(b.updated_at || b.updatedAt || b.created_at || b.createdAt || "");
+        return bd.localeCompare(ad);
+    });
+    return rows;
 }
 
 async function countRows(table) {
@@ -156,7 +161,7 @@ async function cleanupExactDuplicates() {
             }
             for (const group of groups.values()) {
                 if (group.length <= 1) continue;
-                group.sort((a,b)=>String(a.created_at||a.updated_at||"").localeCompare(String(b.created_at||b.updated_at||"")));
+                group.sort((a,b)=>String(a.updated_at||"").localeCompare(String(b.updated_at||"")));
                 await db.from("gallery_items").delete().in("id", group.slice(1).map(r=>r.id));
             }
         }
@@ -165,7 +170,7 @@ async function cleanupExactDuplicates() {
     // Settings keys are intended to be unique in practice. Clean duplicate
     // records for managed prefixes so editing an item never leaves a second copy.
     try {
-        const result = await db.from("settings").select("id,setting_key,setting_value,created_at,updated_at");
+        const result = await db.from("settings").select("id,setting_key,setting_value,updated_at");
         if (!result.error) {
             const uniquePrefixes = ["product_","invoice_price_","site_link_","social_","homepage_featured_","public_training_price_","inventory_item_"];
             const groups = new Map();
@@ -177,7 +182,7 @@ async function cleanupExactDuplicates() {
             });
             for (const group of groups.values()) {
                 if (group.length <= 1) continue;
-                group.sort((a,b) => String(a.created_at || a.updated_at || "").localeCompare(String(b.created_at || b.updated_at || "")));
+                group.sort((a,b) => String(a.updated_at || "").localeCompare(String(b.updated_at || "")));
                 const duplicateIds = group.slice(1).map(r => r.id);
                 if (duplicateIds.length) await db.from("settings").delete().in("id", duplicateIds);
             }
@@ -194,7 +199,7 @@ async function cleanupExactDuplicates() {
             }
             for (const group of productGroups.values()) {
                 if (group.length <= 1) continue;
-                group.sort((a,b)=>String(a.created_at||a.updated_at||"").localeCompare(String(b.created_at||b.updated_at||"")));
+                group.sort((a,b)=>String(a.updated_at||"").localeCompare(String(b.updated_at||"")));
                 await db.from("settings").delete().in("id", group.slice(1).map(r=>r.id));
             }
         }
@@ -240,6 +245,19 @@ async function syncOfflineInvoiceRecords() {
     }
 }
 
+async function applyCurrentUserAccess(user){
+    try{
+        const email=String(user?.email||"").trim().toLowerCase(); if(!email)return;
+        const row=await db.from("settings").select("setting_value").eq("setting_key",accessKey(email)).maybeSingle();
+        if(row.error||!row.data)return; // owner accounts without a profile retain full access
+        let p={}; try{p=JSON.parse(row.data.setting_value||"{}")}catch(_){return;}
+        if(p.active===false){await db.auth.signOut();document.getElementById("loginScreen").style.display="flex";message("This admin account is currently inactive.","error");return;}
+        const allowed=new Set(p.sections||[]);
+        document.querySelectorAll(".sidebar button[data-section]").forEach(b=>{if(!allowed.has(b.dataset.section))b.style.display="none"});
+        document.querySelectorAll(".section").forEach(sec=>{if(sec.id!=="dashboard"&&!allowed.has(sec.id))sec.dataset.accessHidden="true"});
+    }catch(e){console.warn("Admin access profile could not be applied:",e)}
+}
+
 async function checkSession() {
     const login = document.getElementById("loginScreen");
     if (!login) return;
@@ -263,6 +281,7 @@ async function checkSession() {
             try { await cleanupExactDuplicates(); } catch (_) {}
             await syncOfflineInvoiceRecords();
             await loadDashboard();
+            await applyCurrentUserAccess(result.data.session.user);
         } else {
             login.style.display = "flex";
         }
@@ -406,6 +425,7 @@ async function loadSection(id) {
         if (id === "services") { await loadServices(); await loadTraining(); }
         if (id === "contact") await loadContact();
         if (id === "settings") await loadSettings();
+        if (id === "users") await loadUserAccess();
     } catch (error) {
         console.error("ADMIN SECTION ERROR:", id, error);
         message("Could not load this section. Check your Supabase tables and policies.", "error");
@@ -992,6 +1012,11 @@ async function seedDefaultProducts() {
     try {
         const marker = await db.from("settings").select("id").eq("setting_key","products_catalogue_seeded").limit(1);
         if (marker.error) return;
+        const existingProducts = await db.from("settings").select("id").like("setting_key","product_%");
+        if (existingProducts.error) return;
+        // Seed defaults only when there are no product records at all. Do not
+        // recreate products a user intentionally deleted.
+        if ((existingProducts.data || []).length > 0) return;
         for (const [category,name,order,subcategory] of [...DEFAULT_PRODUCTS, ...DEFAULT_LADIES_PRODUCTS, ...DEFAULT_EMBELLISHMENT_PRODUCTS]) {
             const key = productKeyFromName(name);
             const existing = await db.from("settings").select("id").eq("setting_key",key).limit(1);
@@ -1041,14 +1066,15 @@ async function ensureStreetwearCatalogue() {
                 else await db.from("settings").update({setting_key:newKey,setting_value:JSON.stringify({...item,name:rename}),updated_at:new Date().toISOString()}).eq("id",row.id);
             }
         }
-        const allDefaults=[...DEFAULT_PRODUCTS,...DEFAULT_LADIES_PRODUCTS];
-        for (const [category,name,order,subcategory] of allDefaults) {
-            const key=productKeyFromName(name);
-            const existing=await db.from("settings").select("id,setting_value").eq("setting_key",key).limit(1);
-            if (existing.error) continue;
-            const payload={name,category,price:null,public_price:null,subcategory:subcategory||"",notes:"",display_order:order,active:true};
-            if(!existing.data?.length) await db.from("settings").insert({setting_key:key,setting_value:JSON.stringify(payload),updated_at:new Date().toISOString()});
-            else { let current={};try{current=JSON.parse(existing.data[0].setting_value||"{}")}catch(_){}; current={...payload,...current,name,category,subcategory,display_order:order}; await db.from("settings").update({setting_value:JSON.stringify(current),updated_at:new Date().toISOString()}).eq("id",existing.data[0].id); }
+        // Do not recreate deleted products. Existing rows are normalized only.
+        const knownOrders = new Map([...DEFAULT_PRODUCTS,...DEFAULT_LADIES_PRODUCTS,...DEFAULT_EMBELLISHMENT_PRODUCTS].map(x=>[x[1].toLowerCase(),x]));
+        for (const row of rows) {
+            let current={}; try{current=JSON.parse(row.setting_value||"{}")}catch(_){continue;}
+            const canonical=knownOrders.get(String(current.name||"").trim().toLowerCase());
+            if (!canonical) continue;
+            const [category,name,order,subcategory]=canonical;
+            const next={...current,name,category,subcategory,display_order:current.display_order ?? order};
+            await db.from("settings").update({setting_value:JSON.stringify(next),updated_at:new Date().toISOString()}).eq("id",row.id);
         }
         await safeSettingUpsert("streetwear_catalogue_normalized_v4","true");
     } catch (e) { console.warn("Catalogue normalisation skipped:", e); }
@@ -1066,6 +1092,14 @@ async function getProducts() {
     }).filter(row => row.name);
 }
 
+function focusAdminForm(formId, focusId) {
+    const form = document.getElementById(formId);
+    if (!form) return false;
+    form.scrollIntoView({behavior:"smooth", block:"center", inline:"nearest"});
+    setTimeout(() => document.getElementById(focusId)?.focus(), 250);
+    return true;
+}
+
 async function loadProducts() {
     const list=document.getElementById("adminProductsList"); if(!list)return;
     await ensureStreetwearCatalogue();
@@ -1074,7 +1108,7 @@ async function loadProducts() {
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("adminProductForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminProductTitle")?.focus();});
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -1086,19 +1120,23 @@ function setupProductForm() {
     form.addEventListener("submit", async event => {
         event.preventDefault();
 
-        const id = document.getElementById("adminProductId").value.trim();
-        const name = document.getElementById("adminProductTitle").value.trim();
-        const category = document.getElementById("adminProductCategory").value.trim();
-        const publicPriceValue = document.getElementById("adminProductPublicPrice").value;
+        const getEl = id => document.getElementById(id);
+        const required = ["adminProductId","adminProductTitle","adminProductCategory","adminProductPublicPrice","adminProductOrder","adminProductNotes","adminProductActive"];
+        const missing = required.filter(id => !getEl(id));
+        if (missing.length) { message("Product form is incomplete: " + missing.join(", "), "error"); return; }
+        const id = getEl("adminProductId").value.trim();
+        const name = getEl("adminProductTitle").value.trim();
+        const category = getEl("adminProductCategory").value.trim();
+        const publicPriceValue = getEl("adminProductPublicPrice").value;
         const publicPrice = publicPriceValue === "" ? null : Number(publicPriceValue);
         const payload = {
             name,
             category,
             public_price: publicPrice,
-            subcategory: document.getElementById("adminProductSubcategory")?.value.trim() || "",
-            notes: document.getElementById("adminProductNotes").value.trim(),
-            display_order: Number(document.getElementById("adminProductOrder").value) || 1,
-            active: document.getElementById("adminProductActive").checked
+            subcategory: getEl("adminProductSubcategory")?.value.trim() || "",
+            notes: getEl("adminProductNotes").value.trim(),
+            display_order: Number(getEl("adminProductOrder").value) || 1,
+            active: getEl("adminProductActive").checked
         };
 
         if (!name) {
@@ -1125,25 +1163,21 @@ function setupProductForm() {
                 return;
             }
 
-            if (id && oldKey === newKey) {
+            if (id) {
                 const updated = await db.from("settings")
-                    .update({setting_value: JSON.stringify(payload), updated_at: new Date().toISOString()})
+                    .update({setting_key:newKey, setting_value:JSON.stringify(payload), updated_at:new Date().toISOString()})
                     .eq("id", id);
                 if (updated.error) throw updated.error;
-
-                const duplicateRows = await db.from("settings").select("id").eq("setting_key", newKey);
-                if (!duplicateRows.error) {
-                    const duplicateIds = (duplicateRows.data || [])
-                        .map(r => r.id)
-                        .filter(rowId => String(rowId) !== String(id));
-                    if (duplicateIds.length) await db.from("settings").delete().in("id", duplicateIds);
-                }
             } else {
                 await safeSettingUpsert(newKey, JSON.stringify(payload));
-                if (oldKey && oldKey !== newKey) {
-                    const oldDelete = await db.from("settings").delete().eq("id", id);
-                    if (oldDelete.error) throw oldDelete.error;
-                }
+            }
+            // Remove any remaining exact-key duplicates while retaining the record just saved.
+            const duplicateRows = await db.from("settings").select("id").eq("setting_key", newKey);
+            if (duplicateRows.error) throw duplicateRows.error;
+            const duplicateIds = (duplicateRows.data || []).map(r=>r.id).filter(rowId=>String(rowId)!==String(id));
+            if (duplicateIds.length) {
+                const del = await db.from("settings").delete().in("id", duplicateIds);
+                if (del.error) throw del.error;
             }
 
             // Invoice pricing is intentionally separate from the public product catalogue.
@@ -1397,7 +1431,8 @@ function setupDirectCustomerLinks() {
         gallery: new URL("../gallery.html", window.location.href).href,
         contact: new URL("../contact.html", window.location.href).href,
         policies: new URL("../policies.html", window.location.href).href,
-        discount: new URL("../redeem.html", window.location.href).href
+        discount: new URL("../redeem.html", window.location.href).href,
+        payment: new URL("../payment.html", window.location.href).href
     };
 
     const labels = {
@@ -1407,7 +1442,8 @@ function setupDirectCustomerLinks() {
         gallery: "Gallery",
         contact: "Contact",
         policies: "Policies & Terms",
-        discount: "Discount Redemption"
+        discount: "Discount Redemption",
+        payment: "Payment Details"
     };
 
     const list = document.getElementById("directLinksList");
@@ -1717,7 +1753,7 @@ async function setupAccountingForm() {
 }
 
 async function exportAccountingPdf(kind="sales",share=true){
-    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const worker=html2pdf().set({margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}}).from(root);if(share&&navigator.share&&navigator.canShare){const blob=await worker.outputPdf("blob");const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}await worker.save();message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
+    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
 
 async function loadAccounting() {
     const list = document.getElementById("accountingList");
@@ -1910,6 +1946,7 @@ async function loadSavedInvoiceReceiptRecords() {
         }).filter(Boolean);
 
         const records = [...invoices, ...receipts].sort((a,b) => String(b.savedAt || b.date || "").localeCompare(String(a.savedAt || a.date || "")));
+        for (const r of records) { if (r.type === "Invoice") { try { r._paymentTotal = (await getInvoicePayments(r.invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0); } catch (_) { r._paymentTotal = 0; } } }
 
         list.innerHTML = records.length ? `
             <table>
@@ -1917,7 +1954,7 @@ async function loadSavedInvoiceReceiptRecords() {
                 <tbody>
                 ${records.map(r => {
                     const amount = r.type === "Receipt" ? Number(r.amount || 0) : Number(r.total || 0);
-                    const status = r.type === "Receipt" ? (r.status || "Payment recorded") : (r.training ? "Training • Full payment" : "Invoice saved");
+                    const status = r.type === "Receipt" ? (r.status || "Payment recorded") : (r._paymentTotal >= Number(r.total||0) && Number(r.total||0)>0 ? "Paid in full" : r._paymentTotal > 0 ? "Part payment" : "Draft — payment not yet recorded");
                     return `<tr>
                         <td>${escapeHTML(r.type)}</td>
                         <td>${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}</td>
@@ -2317,6 +2354,28 @@ async function ensureHtml2Pdf() {
         script.onload = () => resolve(window.html2pdf); script.onerror = () => resolve(null);
         document.head.appendChild(script);
     });
+}
+
+async function pdfFromVisibleElement(element, options){
+    const clone=element.cloneNode(true);
+    clone.id=element.id+"-pdf-copy";
+    clone.style.position="fixed";
+    clone.style.left="0";
+    clone.style.top="0";
+    clone.style.display="block";
+    clone.style.visibility="visible";
+    clone.style.opacity="1";
+    clone.style.width="210mm";
+    clone.style.maxWidth="210mm";
+    clone.style.minHeight="297mm";
+    clone.style.background="#fff";
+    clone.style.boxShadow="none";
+    clone.style.margin="0";
+    document.body.appendChild(clone);
+    try{
+        await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+        return await window.html2pdf().set(options).from(clone).outputPdf("blob");
+    }finally{clone.remove();}
 }
 
 async function generateInvoicePdf(share) {
@@ -2775,6 +2834,7 @@ function printGeneratedReceipt() {
 
 function setupShopAdmin(){
     const input=document.getElementById("publicShopUrl");if(!input)return;const url=new URL("../shop.html",window.location.href).href;input.value=url;const open=document.getElementById("openPublicShop");if(open)open.href=url;
+    setTimeout(()=>window.renderShopPreview?.(),0);
     document.getElementById("copyPublicShop")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(url);message("Shop link copied.","success");}catch(_){input.select();document.execCommand("copy");message("Shop link copied.","success");}});
     document.getElementById("sharePublicShop")?.addEventListener("click",async()=>{try{if(navigator.share)await navigator.share({title:"Aprils Signature Shop",text:"Shop Aprils Signature online",url});else{await navigator.clipboard.writeText(url);message("Shop link copied.","success");}}catch(error){if(error?.name!=="AbortError")message("The Shop link could not be shared on this device.","error");}});
 }
@@ -2783,7 +2843,7 @@ async function loadAdminServices() {
     const list=document.getElementById("adminServicesList"); if(!list)return;
     try { const result=await db.from("admin_services").select("*").order("display_order",{ascending:true}).order("title"); if(result.error)throw result.error; const rows=result.data||[];
         list.innerHTML=rows.length?`<table><thead><tr><th>Service</th><th>Category</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-service="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-service="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No services have been added yet.</div>`;
-        list.querySelectorAll("[data-edit-service]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editService));if(!r)return;document.getElementById("adminServiceId").value=r.id;document.getElementById("adminServiceTitle").value=r.title||"";document.getElementById("adminServiceCategory").value=r.category||"";document.getElementById("adminServiceOrder").value=r.display_order??1;document.getElementById("adminServiceDescription").value=r.description||"";document.getElementById("adminServiceActive").checked=r.active!==false;document.getElementById("adminServiceForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminServiceTitle")?.focus();});
+        list.querySelectorAll("[data-edit-service]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editService));if(!r)return;document.getElementById("adminServiceId").value=r.id;document.getElementById("adminServiceTitle").value=r.title||"";document.getElementById("adminServiceCategory").value=r.category||"";document.getElementById("adminServiceOrder").value=r.display_order??1;document.getElementById("adminServiceDescription").value=r.description||"";document.getElementById("adminServiceActive").checked=r.active!==false;focusAdminForm("adminServiceForm","adminServiceTitle");});
         list.querySelectorAll("[data-delete-service]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this service?"))return;const r=await db.from("admin_services").delete().eq("id",b.dataset.deleteService);if(r.error){message("Service could not be deleted: "+r.error.message,"error");return;}await loadAdminServices();});
     } catch(error) { list.innerHTML=`<div class="empty">Services could not be loaded. Check the Supabase table/policy. ${escapeHTML(error.message||"")}</div>`; }
 }
@@ -2875,7 +2935,7 @@ async function loadTraining() {
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
     list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("trainingTitle")?.focus();});
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -3472,6 +3532,17 @@ function summarizeQuoteDetails(row) {
     return parts.filter(Boolean).join(" | ");
 }
 
+
+function groupDuplicateQuotes(rawRows){
+    const groups=new Map();
+    for(const row of (rawRows||[])){
+        const copy={...row}; delete copy.id; delete copy.created_at; delete copy.updated_at;
+        const key=JSON.stringify(copy,Object.keys(copy).sort());
+        if(!groups.has(key)) groups.set(key,{...row,_ids:[row.id],_duplicateCount:1});
+        else {const g=groups.get(key);g._ids.push(row.id);g._duplicateCount=g._ids.length;}
+    }
+    return [...groups.values()].sort((a,b)=>String(b.created_at||b.updated_at||"").localeCompare(String(a.created_at||a.updated_at||"")));
+}
 
 async function loadQuotes() {
     let rawRows = [];
@@ -4131,7 +4202,7 @@ async function loadInvoicePricing() {
 
     const renderRows = (items, emptyText, editAttr, sharePrefix) => items.length ? `
         <table>
-            <thead><tr><th>Item / Programme</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Products / Services</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
                 ${items.map(r => {
                     let item = {name:"",category:"",price:"",notes:"",active:true};
@@ -4156,7 +4227,7 @@ async function loadInvoicePricing() {
     if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
 
     const trainingList = document.getElementById("invoiceTrainingList");
-    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products / Services</th>","<th>Program / Class</th>");
 
     const bindList = list => {
         if (!list) return;
@@ -4349,6 +4420,7 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_name", first.name || "");
             await safeSettingUpsert("invoice_payment_network", first.network || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
+            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
             message("Invoice payment details saved.", "success");
             await loadInvoicePaymentDetails();
         } catch (error) {
@@ -5106,6 +5178,13 @@ async function loadSettings() {
             && !key.startsWith("homepage_featured_")
             && !key.startsWith("site_logo_library_")
             && !key.startsWith("accounting_expense_")
+            && !key.startsWith("system_error_")
+            && !key.startsWith("inventory_item_")
+            && !key.startsWith("admin_user_access_")
+            && !key.startsWith("receipt_record_")
+            && !key.startsWith("invoice_payment_accounts")
+            && !key.startsWith("invoice_payment_")
+            && !key.startsWith("payment_status_")
             && !key.startsWith("products_catalogue_seeded")
             && !key.startsWith("streetwear_catalogue_normalized_v3");
     });
@@ -5657,6 +5736,45 @@ function setupManualInvoiceForm() {
     });
 }
 
+
+/* =========================================================
+   ADMIN USER ACCESS
+   Uses a small settings-based permission registry. Auth accounts
+   themselves are created in Supabase Authentication; this page
+   controls which signed-in staff member may use which sections.
+========================================================= */
+const ADMIN_ACCESS_SECTIONS = [
+    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
+    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
+    ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["accounting","Sales & Accounting"],
+    ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
+    ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
+];
+function accessKey(email){return "admin_user_access_" + contentSlug(email);}
+function accessDefaultSections(role){
+    if(role==="owner"||role==="manager") return ADMIN_ACCESS_SECTIONS.map(x=>x[0]);
+    if(role==="sales") return ["dashboard","orders","invoice","manualInvoice","accounting","checkout"];
+    if(role==="training") return ["dashboard","registrations","orders","manualInvoice","invoice","training"];
+    if(role==="inventory") return ["dashboard","shopAdmin","inventory","checkout","accounting"];
+    return ["dashboard","gallery","homepage","services","content","policies","testimonials","faq"];
+}
+async function loadUserAccess(){
+    const list=document.getElementById("userAccessList"); const checks=document.getElementById("userAccessChecks"); if(!list||!checks)return;
+    checks.innerHTML=ADMIN_ACCESS_SECTIONS.map(([id,label])=>`<label class="checkbox"><input type="checkbox" value="${escapeHTML(id)}"> ${escapeHTML(label)}</label>`).join("");
+    try{
+        const rows=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("admin_user_access_"));
+        const users=rows.map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),id:r.id,key:r.setting_key}}catch(_){return null}}).filter(Boolean);
+        list.innerHTML=users.length?`<table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody>${users.map(u=>`<tr><td>${escapeHTML(u.email)}</td><td>${escapeHTML(u.name||"")}</td><td>${escapeHTML(u.role||"")}</td><td>${u.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-user-access="${escapeHTML(u.id)}">Edit</button> <button type="button" class="danger" data-delete-user-access="${escapeHTML(u.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff access profiles have been added yet.</div>`;
+        list.querySelectorAll("[data-edit-user-access]").forEach(b=>b.onclick=()=>{const u=users.find(x=>String(x.id)===String(b.dataset.editUserAccess));if(!u)return;document.getElementById("userAccessId").value=u.id;document.getElementById("userAccessEmail").value=u.email||"";document.getElementById("userAccessName").value=u.name||"";document.getElementById("userAccessRole").value=u.role||"owner";document.getElementById("userAccessActive").checked=u.active!==false;checks.querySelectorAll("input").forEach(c=>c.checked=(u.sections||[]).includes(c.value));focusAdminForm("userAccessForm","userAccessEmail")});
+        list.querySelectorAll("[data-delete-user-access]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this staff access profile?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteUserAccess);if(r.error){message("User access could not be deleted: "+r.error.message,"error");return}await loadUserAccess();});
+    }catch(e){list.innerHTML=`<div class="empty">User access could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
+function setupUserAccess(){
+    const form=document.getElementById("userAccessForm"); if(!form||form.dataset.bound)return; form.dataset.bound="1";
+    form.addEventListener("submit",async e=>{e.preventDefault();const email=document.getElementById("userAccessEmail").value.trim().toLowerCase();if(!email){message("Enter a staff email address.","error");return}const role=document.getElementById("userAccessRole").value;const sections=[...document.querySelectorAll("#userAccessChecks input:checked")].map(x=>x.value);const payload={email,name:document.getElementById("userAccessName").value.trim(),role,sections:sections.length?sections:accessDefaultSections(role),active:document.getElementById("userAccessActive").checked,updatedAt:new Date().toISOString()};try{await safeSettingUpsert(accessKey(email),JSON.stringify(payload));message("Staff access saved. The user must also have an account in Supabase Authentication.","success");form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true;await loadUserAccess()}catch(err){message("User access could not be saved: "+err.message,"error")}});
+    document.getElementById("userAccessCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true});
+}
+
 /* =========================================================
    STARTUP
 ========================================================= */
@@ -5688,6 +5806,7 @@ async function startAdmin() {
     setupSocialForm();
     setupSettingsForm();
     setupLogoForm();
+    setupUserAccess();
     if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 
     if (!db) {

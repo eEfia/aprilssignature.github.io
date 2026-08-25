@@ -648,6 +648,7 @@ Testimonials
 <button data-section="contact">Contact Information</button>
 <button data-section="social">Social Links</button>
 <button data-section="discounts">Discount Codes</button>
+<button data-section="users">Admin Users &amp; Access</button>
 <button data-section="settings">Website Settings</button>
 
 
@@ -1511,8 +1512,8 @@ INVOICE PRICING
 <input type="hidden" id="invoiceId">
 <div class="form-grid">
 <div class="form-group">
-<label for="invoiceItem">Item / Service</label>
-<input id="invoiceItem" required placeholder="Example: Custom Hoodie">
+<label for="invoiceItem">Products / Services</label>
+<input id="invoiceItem" required placeholder="Example: Custom Hoodie or Rhinestone Embellishment">
 </div>
 <div class="form-group">
 <label for="invoiceCategory">Category</label>
@@ -1542,7 +1543,7 @@ INVOICE PRICING
 <input type="hidden" id="trainingInvoiceId">
 <div class="form-grid">
 <div class="form-group">
-<label for="trainingInvoiceItem">Training Programme / Class</label>
+<label for="trainingInvoiceItem">Program / Class</label>
 <input id="trainingInvoiceItem" required placeholder="Example: 6 Months Fashion Training">
 </div>
 <div class="form-group">
@@ -1640,6 +1641,7 @@ SHOP MANAGEMENT
 <button type="button" class="secondary" id="copyPublicShop">Copy Shop Link</button>
 </div>
 <div class="form-group" style="margin-top:12px;"><label>Shop Link</label><input id="publicShopUrl" readonly></div>
+<div id="shopInventoryPreview" class="table-wrap" style="margin-top:18px;"></div>
 </div>
 </section>
 
@@ -1652,6 +1654,7 @@ INVENTORY / STOCK
 <div class="form-card"><form id="inventoryForm"><input type="hidden" id="inventoryId"><div class="form-grid">
 <div class="form-group"><label>Collection / Batch</label><input id="inventoryCollection" required placeholder="e.g. April Essentials — Batch 1"></div>
 <div class="form-group"><label>Garment / Product</label><input id="inventoryName" required placeholder="e.g. Black Super Thick Joggers"></div>
+<div class="form-group"><label>Garment Image</label><input id="inventoryImage" type="file" accept="image/*"><small>Upload a product image for the internal inventory and public Shop.</small></div>
 <div class="form-group"><label>Price (GHS)</label><input id="inventoryPrice" type="number" min="0" step="0.01" required></div>
 <div class="form-group"><label>Quantity Available</label><input id="inventoryQuantity" type="number" min="0" step="1" required></div>
 <div class="form-group"><label>Display Order</label><input id="inventoryOrder" type="number" min="1" value="1"></div>
@@ -1851,6 +1854,14 @@ DISCOUNT CODES
 <!-- =====================================================
 WEBSITE SETTINGS
 ===================================================== -->
+
+<section id="users" class="section">
+<h2>Admin Users &amp; Access</h2>
+<p class="intro">Control which signed-in staff can access parts of the Admin Dashboard. Staff accounts must first exist in Supabase Authentication; this section controls their Aprils Signature permissions.</p>
+<div class="notice"><strong>Security:</strong> Never put a Supabase service-role key in the website. Create staff accounts in Supabase Authentication, then assign their permissions here.</div>
+<div class="form-card"><form id="userAccessForm"><input type="hidden" id="userAccessId"><div class="form-grid"><div class="form-group"><label>Staff Email</label><input id="userAccessEmail" type="email" required></div><div class="form-group"><label>Display Name</label><input id="userAccessName"></div><div class="form-group"><label>Role</label><select id="userAccessRole"><option value="owner">Owner</option><option value="manager">Manager</option><option value="sales">Sales</option><option value="training">Training</option><option value="inventory">Inventory</option><option value="content">Content</option></select></div></div><div class="form-group"><label>Allowed Sections</label><div id="userAccessChecks" class="form-grid"></div></div><label class="checkbox"><input type="checkbox" id="userAccessActive" checked> Active</label><br><button class="primary" type="submit">Save User Access</button><button type="button" class="secondary" id="userAccessCancel">Cancel</button></form></div><div id="userAccessList" class="table-wrap"></div>
+</section>
+
 <section id="settings" class="section">
 <h2>Website Settings</h2>
 <p class="intro">Manage basic website settings and the website logo.</p>
@@ -1906,12 +1917,12 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260825-cleanup"></script>
-<script src="../js/supabase-client.js?v=20260825-cleanup"></script>
+<script src="../js/supabase-config.js?v=20260825-fix2"></script>
+<script src="../js/supabase-client.js?v=20260825-fix2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260825-cleanup" defer></script>
-<script src="Admin-fixes.js?v=20260825-cleanup" defer></script>
-<script src="commerce-admin.js?v=20260825-cleanup" defer></script>
+<script src="admin.js?v=20260825-fix2" defer></script>
+<script src="Admin-fixes.js?v=20260825-fix2" defer></script>
+<script src="commerce-admin.js?v=20260825-fix2" defer></script>
 
 
 <style>
@@ -2010,6 +2021,8 @@ th { border-color: #075957 !important; border-width: 2px !important; }
 @page{size:A4 portrait;margin:0;}
 @media print{.invoice-lines tr,.receipt-lines tr{break-inside:avoid;page-break-inside:avoid;} body{margin:0!important;background:#fff!important;} .invoice-paper,.receipt-paper{width:210mm!important;max-width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;border:0!important;padding:12mm!important;font-size:11.5px!important;} .invoice-lines th,.invoice-lines td,.receipt-lines th,.receipt-lines td{font-size:10.5px!important;padding:5px!important;} .invoice-brand-row img,.receipt-brand-row img{width:46px!important;height:46px!important;}}
 @media(max-width:800px){.invoice-payment-grid{grid-template-columns:1fr;} .invoice-paper,.receipt-paper{width:100%;max-width:100%;min-height:auto;padding:18px;}}
+.inventory-thumb{width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #aaa}
+.invoice-footer,.receipt-footer{text-align:center;margin-top:48px;padding-top:8px;font-size:12px;color:#666;}
 </style>
 </body>
 </html>
