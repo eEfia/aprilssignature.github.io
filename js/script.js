@@ -929,7 +929,7 @@ async function loadPublicStreetwearProducts() {
         html += makeRow("Varsity Jacket");
         html += makeRow("Others");
         // Varsity Jacket belongs immediately after Sweatshirt, so move it there visually.
-        html = `<h3 class="catalogue-group-title">Tops</h3>${[...groups[0][1],"Varsity Jacket"].map(makeRow).join("")}<h3 class="catalogue-group-title">Tank Top Options</h3>${groups[1][1].map(makeRow).join("")}<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${["Super thick cotton joggers","Everyday wear type of joggers"].map(makeRow).join("")}${["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"].map(makeRow).join("")}<h3 class="catalogue-group-title">Sets</h3>${groups[3][1].map(makeRow).join("")}<h3 class="catalogue-group-title" style="display:none">Other</h3>${makeRow("Others")}`;
+        html = `<h3 class="catalogue-group-title">Tops</h3>${["Jersey","T-shirt","Polo shirt","Hoodies","Sweatshirt"].map(makeRow).join("")} ${makeRow("Varsity Jacket")}<h3 class="catalogue-group-title">Tank Top Options</h3>${groups[1][1].map(makeRow).join("")}<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${["Super thick cotton joggers","Everyday wear type of joggers"].map(makeRow).join("")}${["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"].map(makeRow).join("")}<h3 class="catalogue-group-title">Sets</h3>${groups[3][1].map(makeRow).join("")}${makeRow("Others")}`;
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
             input.addEventListener("change",()=>{
