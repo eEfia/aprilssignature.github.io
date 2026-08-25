@@ -203,13 +203,11 @@ PUBLIC FORM FIXES
                     const raw = String(data.get(input.name) || "").trim();
                     const product = input.getAttribute("data-product-name") || input.name;
                     if (raw !== "" && Number(raw) > 0) {
-                        details.streetwear[input.name] = {
-                            product,
-                            quantity: raw,
-                            size: details.streetwearSizeMeasurements,
-                            measurements: "",
-                            colour: details.streetwearColour
-                        };
+                        const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
+                        const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
+                        const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
+                        const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || raw).trim();
+                        details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour };
                     }
                 });
 
@@ -220,8 +218,7 @@ PUBLIC FORM FIXES
                     "jerseys", "hoodies", "joggersSuperThick", "joggersEveryday", "tshirts", "poloShirts",
                     "sweatshirts", "sweatpants", "ladiesTankTops", "mensTankTops",
                     "varsityJackets", "cargoPants", "cargoSkirts", "joggerShorts",
-                    "hoodiesJoggersSet", "tshirtsShortsSet", "tshirtSweatpantsSet",
-                    "sweatshirtsShortsSet", "sweatshirtsSweatpantsSet"
+                    "tshirtsShortsSet", "tshirtSweatpantsSet", "sweatshirtsShortsSet", "sweatshirtsSweatpantsSet"
                 ].forEach(function(name) {
                     if (form.querySelector('input[name="' + name + '"][data-streetwear-product="true"]')) return;
                     const raw = String(data.get(name) || "").trim();
@@ -264,10 +261,11 @@ PUBLIC FORM FIXES
                     const item = input.closest(".catalogue-item");
                     const box = item?.querySelector(".catalogue-detail-box");
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
+                    const sizeMeasurements = get("sizeMeasurements") || details.ladiesWearSize;
                     details.ladiesWearProducts[input.value] = {
                         product: input.value,
-                        size: get("size") || details.ladiesWearSize,
-                        measurements: get("measurements"),
+                        size: sizeMeasurements,
+                        measurements: sizeMeasurements,
                         colour: get("colour") || details.ladiesWearColour,
                         quantity: get("quantity") || details.ladiesWearQuantity || "1",
                         details: get("details")
@@ -278,8 +276,9 @@ PUBLIC FORM FIXES
                     const item = input.closest(".catalogue-item");
                     const box = item?.querySelector(".catalogue-detail-box");
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
+                    const sizeMeasurements = get("sizeMeasurements");
                     details.embellishmentDetails[input.value] = {
-                        service: input.value, size: get("size"), measurements: get("measurements"),
+                        service: input.value, size: sizeMeasurements, measurements: sizeMeasurements,
                         colour: get("colour"), quantity: get("quantity") || "1", details: get("details")
                     };
                 });
