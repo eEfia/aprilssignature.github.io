@@ -413,6 +413,7 @@ async function loadSection(id) {
         if (id === "inventory" && window.loadInventory) await window.loadInventory();
         if (id === "checkout" && window.loadCheckoutOrders) await window.loadCheckoutOrders();
         if (id === "errors" && window.loadErrorLog) await window.loadErrorLog();
+        if (id === "notifications") await loadNotifications();
         if (id === "shopAdmin") setupShopAdmin();
         if (id === "accounting") await loadAccounting();
         if (id === "discounts") await loadDiscountCodes();
@@ -536,6 +537,7 @@ async function renderGalleryCategorySelect(currentValue = "") {
 async function loadGallery() {
     const list = document.getElementById("galleryList");
     if (!list) return;
+    const galleryPolicyRank = {payment_policy:1, refund_policy:2, delivery_collection_policy:3, privacy_policy:4};
 
     let rows = [];
     try {
@@ -571,7 +573,7 @@ async function loadGallery() {
                 ${rows.map(row => `
                     <tr>
                         <td>${row.image_url ? (/\.(mp4|webm|ogg)(\?|$)/i.test(row.image_url) ? `<video src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover;border-radius:4px"></video>` : `<img src="${escapeHTML(resolveAdminMediaUrl(row.image_url))}" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:4px">`) : "No media"}</td>
-                        <td>${escapeHTML((policyRank[String(row.policy_key||"").toLowerCase()] ? policyRank[String(row.policy_key||"").toLowerCase()] + ". " : "") + String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
+                        <td>${escapeHTML((galleryPolicyRank[String(row.policy_key||"").toLowerCase()] ? galleryPolicyRank[String(row.policy_key||"").toLowerCase()] + ". " : "") + String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
                         <td>${escapeHTML(row.category)}</td><td><input type="number" min="1" value="${escapeHTML(row.display_order ?? 1)}" data-gallery-order="${escapeHTML(row.id)}" style="max-width:90px"></td>
                         <td>${row.price != null && row.price !== "" ? `GHS ${Number(row.price).toFixed(2)}` : "—"}</td>
                         <td>${row.featured ? "Yes" : "No"}</td>
@@ -720,7 +722,21 @@ function renderHomepageFeaturedMedia(rows) {
     const box=document.getElementById("homepageFeaturedList"); if(!box)return;
     const featured=(rows||[]).filter(r=>r.featured && r.active!==false).sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.title||"").localeCompare(String(b.title||"")));
     box.innerHTML=featured.length?`<table><thead><tr><th>Media</th><th>Title</th><th>Collection</th><th>Order</th><th>Actions</th></tr></thead><tbody>${featured.map(r=>`<tr><td>${r.image_url?(/\.(mp4|webm|ogg)(\?|$)/i.test(r.image_url)?`<video src="${escapeHTML(resolveAdminMediaUrl(r.image_url))}" muted loop autoplay playsinline style="width:90px;height:70px;object-fit:cover"></video>`:`<img src="${escapeHTML(resolveAdminMediaUrl(r.image_url))}" style="width:90px;height:70px;object-fit:cover">`):"—"}</td><td>${escapeHTML(r.title||"")}</td><td>${escapeHTML(r.category||"")}</td><td><input type="number" min="1" value="${escapeHTML(r.display_order??1)}" data-featured-order="${escapeHTML(r.id)}" style="max-width:90px"></td><td><button type="button" class="secondary" data-featured-edit="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-featured-delete="${escapeHTML(r.id)}">Delete</button> <button type="button" class="secondary" data-featured-save="${escapeHTML(r.id)}">Save Order</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No homepage featured media yet. Use “Add Gallery Item” above and tick “Show in Featured Collection”.</div>`;
-    box.querySelectorAll("[data-featured-save]").forEach(b=>b.onclick=async()=>{const id=b.dataset.featuredSave;const input=box.querySelector(`[data-featured-order="${id}"]`);const key="featured_order_"+id;const r=await safeSettingUpsert(key,String(Number(input?.value)||1));if(r.error)message("Featured media order could not be saved: "+r.error.message,"error");else{message("Homepage featured order saved.","success");await loadGallery();}});
+    box.querySelectorAll("[data-featured-save]").forEach(b=>b.onclick=async()=>{
+        const id=b.dataset.featuredSave;
+        const input=box.querySelector(`[data-featured-order="${id}"]`);
+        const value=Number(input?.value)||1;
+        const galleryRow=featured.find(x=>String(x.id)===String(id));
+        try{
+            const r=await db.from("gallery_items").update({display_order:value}).eq("id",id);
+            if(r.error)throw r.error;
+            const homeRows=await getHomepageMediaRows();
+            const home=homeRows.find(x=>String(x.url||"").trim()===String(galleryRow?.image_url||"").trim() && String(x.title||"").trim().toLowerCase()===String(galleryRow?.title||"").trim().toLowerCase());
+            if(home) await safeSettingUpsert(homepageMediaKey(home.title,home.url),JSON.stringify({...home,order:value}));
+            message("Homepage featured order saved.","success");
+            await loadGallery();
+        }catch(error){message("Featured media order could not be saved: "+error.message,"error");}
+    });
     box.querySelectorAll("[data-featured-edit]").forEach(b=>b.onclick=()=>{const r=featured.find(x=>String(x.id)===String(b.dataset.featuredEdit));if(r)editGallery(r);});
     box.querySelectorAll("[data-featured-delete]").forEach(b=>b.onclick=()=>deleteGallery(b.dataset.featuredDelete));
 }
@@ -781,11 +797,16 @@ function editGallery(row) {
 
 async function deleteGallery(id) {
     if (!confirm("Delete this gallery item?")) return;
+    let oldGalleryRow = null;
+    try { const old = await db.from("gallery_items").select("title,image_url,featured").eq("id",id).maybeSingle(); oldGalleryRow = old.data || null; } catch (_) {}
     const result = await db.from("gallery_items").delete().eq("id", id);
     if (result.error) {
         console.error(result.error);
         message("Gallery item could not be deleted.", "error");
         return;
+    }
+    if (oldGalleryRow?.featured) {
+        try { await db.from("settings").delete().eq("setting_key", homepageMediaKey(oldGalleryRow.title || "", oldGalleryRow.image_url || "")); } catch (_) {}
     }
     message("Gallery item deleted.", "success");
     await loadGallery();
@@ -820,7 +841,10 @@ function setupGalleryForm() {
 
         try {
             let result;
+            let oldGalleryRow = null;
             if (id) {
+                const oldResult = await db.from("gallery_items").select("*").eq("id", id).maybeSingle();
+                if (!oldResult.error) oldGalleryRow = oldResult.data;
                 result = await db.from("gallery_items").update(data).eq("id", id).select("id").single();
             } else {
                 // Do not create a second database record for the same media in the same collection.
@@ -866,6 +890,19 @@ function setupGalleryForm() {
                 }
             }
 
+            // Keep the separate homepage Featured Collection synchronized with gallery edits.
+            if (oldGalleryRow?.featured) {
+                const oldHomeKey = homepageMediaKey(oldGalleryRow.title || "", oldGalleryRow.image_url || "");
+                try { await db.from("settings").delete().eq("setting_key", oldHomeKey); } catch (_) {}
+            }
+            if (data.featured && data.active) {
+                const homeValue = JSON.stringify({
+                    title:data.title, url:data.image_url, order:data.display_order,
+                    description:data.description, active:true
+                });
+                await safeSettingUpsert(homepageMediaKey(data.title,data.image_url), homeValue);
+            }
+
             form.reset();
             document.getElementById("galleryId").value = "";
             document.getElementById("galleryActive").checked = true;
@@ -873,6 +910,7 @@ function setupGalleryForm() {
             message("Gallery item saved successfully.", "success");
             await loadGallery();
             await loadDashboard();
+            returnToAdminList("[data-edit-gallery]", id || null);
         } catch (error) {
             console.error(error);
             message("Gallery item could not be saved: " + error.message, "error");
@@ -956,7 +994,7 @@ async function getTrainingCategories() {
 ========================================================= */
 
 const DEFAULT_PRODUCTS = [
-    ["Streetwear","Jersey",1,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tank Top Options"],["Streetwear","Men's tank top",7,"Tank Top Options"],["Streetwear","Varsity Jacket",8,"Tops"],
+    ["Streetwear","Jersey",1,"Tops"],["Streetwear","Jersey Sample",1.5,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","T-Shirt Sample",2.5,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tank Top Options"],["Streetwear","Men's tank top",7,"Tank Top Options"],["Streetwear","Varsity Jacket",8,"Tops"],
     ["Streetwear","Super thick cotton joggers",9,"Joggers"],["Streetwear","Everyday wear type of joggers",10,"Joggers"],["Streetwear","Joggers shorts",11,"Bottoms"],["Streetwear","Sweatpants",12,"Bottoms"],["Streetwear","Cargo pants",13,"Bottoms"],["Streetwear","Cargo skirts",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],
     ["Streetwear","T-shirt and shorts",16,"Sets"],["Streetwear","T-shirt and sweatpants",17,"Sets"],["Streetwear","Sweatshirt and shorts",18,"Sets"],["Streetwear","Sweatshirt and sweatpants",19,"Sets"],
     ["Streetwear","Others",20,"Others"]
@@ -977,7 +1015,7 @@ const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
 
 const LEGACY_STREETWEAR_NAMES = new Set([
     "jerseys", "joggers — super thick cotton joggers", "joggers — everyday wear type",
-    "t-shirts", "polo shirts", "sweatshirts", "ladies tank tops", "men's tank tops",
+    "t-shirts", "t-shirt sample", "polo shirts", "sweatshirts", "ladies tank tops", "men's tank tops",
     "varsity jackets", "jogger shorts",
     "hoodies & joggers set", "hoodies and joggers", "t-shirts & shorts set", "t-shirt & sweatpants set",
     "sweatshirts & shorts set", "sweatshirts & sweatpants set"
@@ -986,6 +1024,10 @@ const LEGACY_STREETWEAR_NAMES = new Set([
 function productKeyFromName(name) {
     return "product_" + String(name || "").toLowerCase().trim()
         .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+}
+
+function catalogueKeyFromName(name) {
+    return String(name || "").toLowerCase().trim().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
 }
 
 async function safeSettingUpsert(key, value) {
@@ -1066,6 +1108,20 @@ async function ensureStreetwearCatalogue() {
                 else await db.from("settings").update({setting_key:newKey,setting_value:JSON.stringify({...item,name:rename}),updated_at:new Date().toISOString()}).eq("id",row.id);
             }
         }
+        // These two public sample options are explicitly part of the current
+        // Streetwear catalogue. Add them once if they are not already present.
+        for (const [category,name,order,subcategory] of [["Streetwear","Jersey Sample",1.5,"Tops"],["Streetwear","T-Shirt Sample",2.5,"Tops"]]) {
+            const key = productKeyFromName(name);
+            const exists = await db.from("settings").select("id").eq("setting_key",key).limit(1);
+            if (!exists.error && !exists.data?.length) {
+                await db.from("settings").insert({
+                    setting_key:key,
+                    setting_value:JSON.stringify({name,category,public_price:null,subcategory,notes:"",display_order:order,active:true,catalogue_key:catalogueKeyFromName(name)}),
+                    updated_at:new Date().toISOString()
+                });
+            }
+        }
+
         // Do not recreate deleted products. Existing rows are normalized only.
         const knownOrders = new Map([...DEFAULT_PRODUCTS,...DEFAULT_LADIES_PRODUCTS,...DEFAULT_EMBELLISHMENT_PRODUCTS].map(x=>[x[1].toLowerCase(),x]));
         for (const row of rows) {
@@ -1073,7 +1129,7 @@ async function ensureStreetwearCatalogue() {
             const canonical=knownOrders.get(String(current.name||"").trim().toLowerCase());
             if (!canonical) continue;
             const [category,name,order,subcategory]=canonical;
-            const next={...current,name,category,subcategory,display_order:current.display_order ?? order};
+            const next={...current,name,category,subcategory,display_order:current.display_order ?? order,catalogue_key:current.catalogue_key || catalogueKeyFromName(name)};
             await db.from("settings").update({setting_value:JSON.stringify(next),updated_at:new Date().toISOString()}).eq("id",row.id);
         }
         await safeSettingUpsert("streetwear_catalogue_normalized_v4","true");
@@ -1100,6 +1156,18 @@ function focusAdminForm(formId, focusId) {
     return true;
 }
 
+function returnToAdminList(selector, id) {
+    setTimeout(() => {
+        const target = id ? document.querySelector(`${selector}="${CSS.escape(String(id))}"`) : null;
+        const list = target || document.querySelector(selector.replace(/\[data-[^=]+=[^\]]+\]/,""));
+        (target || list)?.scrollIntoView({behavior:"smooth", block:"center", inline:"nearest"});
+        if (target) {
+            target.classList.add("admin-return-highlight");
+            setTimeout(() => target.classList.remove("admin-return-highlight"), 1800);
+        }
+    }, 80);
+}
+
 async function loadProducts() {
     const list=document.getElementById("adminProductsList"); if(!list)return;
     await ensureStreetwearCatalogue();
@@ -1108,8 +1176,8 @@ async function loadProducts() {
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
-    list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}message("Product / service deleted.","success");await loadProducts();});
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
+    list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}try{await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));}catch(_){}message("Product / service deleted.","success");await loadProducts();});
 }
 
 function setupProductForm() {
@@ -1129,6 +1197,8 @@ function setupProductForm() {
         const category = getEl("adminProductCategory").value.trim();
         const publicPriceValue = getEl("adminProductPublicPrice").value;
         const publicPrice = publicPriceValue === "" ? null : Number(publicPriceValue);
+        const invoicePriceValue = getEl("adminProductInvoicePrice")?.value ?? "";
+        const invoicePrice = invoicePriceValue === "" ? null : Number(invoicePriceValue);
         const payload = {
             name,
             category,
@@ -1147,11 +1217,12 @@ function setupProductForm() {
         try {
             let oldKey = "";
 
+            let oldItem = {};
             if (id) {
                 const old = await db.from("settings").select("setting_key,setting_value").eq("id", id).maybeSingle();
                 if (old.error) throw old.error;
                 oldKey = old.data?.setting_key || "";
-
+                try { oldItem = JSON.parse(old.data?.setting_value || "{}"); } catch (_) { oldItem = {}; }
             }
 
             const newKey = productKeyFromName(name);
@@ -1164,13 +1235,30 @@ function setupProductForm() {
             }
 
             if (id) {
+                const savedPayload = {...payload, catalogue_key: oldItem.catalogue_key || catalogueKeyFromName(oldItem.name || name)};
                 const updated = await db.from("settings")
-                    .update({setting_key:newKey, setting_value:JSON.stringify(payload), updated_at:new Date().toISOString()})
+                    .update({setting_key:newKey, setting_value:JSON.stringify(savedPayload), updated_at:new Date().toISOString()})
                     .eq("id", id);
                 if (updated.error) throw updated.error;
             } else {
-                await safeSettingUpsert(newKey, JSON.stringify(payload));
+                await safeSettingUpsert(newKey, JSON.stringify({...payload, catalogue_key: catalogueKeyFromName(name)}));
             }
+
+            // Keep the private invoice price synchronized with this product form.
+            const oldInvoiceKey = oldItem.name ? invoiceStorageKey(oldItem.name) : "";
+            const newInvoiceKey = invoiceStorageKey(name);
+            if (oldInvoiceKey && oldInvoiceKey !== newInvoiceKey) {
+                const oldInvoice = await db.from("settings").select("id,setting_value").eq("setting_key", oldInvoiceKey).limit(1);
+                if (!oldInvoice.error && oldInvoice.data?.length) {
+                    await db.from("settings").delete().eq("id", oldInvoice.data[0].id);
+                }
+            }
+            if (invoicePrice === null) {
+                await db.from("settings").delete().eq("setting_key", newInvoiceKey);
+            } else {
+                await safeSettingUpsert(newInvoiceKey, JSON.stringify({name,category:category||"Products / Services",price:invoicePrice,notes:payload.notes||"",active:payload.active}));
+            }
+
             // Remove any remaining exact-key duplicates while retaining the record just saved.
             const duplicateRows = await db.from("settings").select("id").eq("setting_key", newKey);
             if (duplicateRows.error) throw duplicateRows.error;
@@ -1185,9 +1273,11 @@ function setupProductForm() {
             document.getElementById("adminProductId").value = "";
             document.getElementById("adminProductActive").checked = true;
             document.getElementById("adminProductOrder").value = 1;
+            document.getElementById("adminProductInvoicePrice").value = "";
             document.getElementById("adminProductSubcategory").value = "";
             message("Product saved successfully.", "success");
             await loadProducts();
+            returnToAdminList("[data-edit-product]", id || null);
         } catch (error) {
             console.error(error);
             message("Product could not be saved: " + error.message, "error");
@@ -1755,6 +1845,124 @@ async function setupAccountingForm() {
 async function exportAccountingPdf(kind="sales",share=true){
     const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
 
+async function loadNotifications() {
+    const list = document.getElementById("notificationList");
+    if (!list) return;
+
+    try {
+        let contact = null;
+        try {
+            const r = await db.from("contact_settings").select("*").limit(1).maybeSingle();
+            if (!r.error) contact = r.data;
+        } catch (_) {}
+
+        const savedWhatsApp = await getSettingValue("notification_whatsapp").catch(() => null);
+        const savedEmail = await getSettingValue("notification_email").catch(() => null);
+        const waInput = document.getElementById("notificationWhatsApp");
+        const emailInput = document.getElementById("notificationEmail");
+        if (waInput && !waInput.value) waInput.value = savedWhatsApp?.setting_value || contact?.whatsapp || contact?.phone || "";
+        if (emailInput && !emailInput.value) emailInput.value = savedEmail?.setting_value || contact?.email || "info@aprilssignature.com";
+
+        const events = [];
+        const readTable = async (table, type, getDetails) => {
+            try {
+                const r = await db.from(table).select("*").order("created_at", {ascending:false}).limit(40);
+                if (r.error) return;
+                (r.data || []).forEach(row => events.push({
+                    id: `${table}-${row.id}`,
+                    type,
+                    date: row.created_at || row.updated_at || "",
+                    name: row.full_name || row.customer_name || row.name || "Customer",
+                    phone: row.whatsapp || row.phone || "",
+                    email: row.email || "",
+                    details: getDetails(row)
+                }));
+            } catch (_) {}
+        };
+
+        await readTable("quote_requests", "Order / Quote", row => row.service || "New order / quote request");
+        await readTable("training_registrations", "Training Registration", row => row.course || "New training registration");
+        await readTable("enquiries", "Enquiry", row => row.subject || "New customer enquiry");
+
+        try {
+            const r = await db.from("quote_requests").select("*").order("created_at",{ascending:false}).limit(40);
+            if (!r.error) (r.data || []).filter(row => {
+                try { return JSON.parse(row.journey || "{}").checkout; } catch (_) { return false; }
+            }).forEach(row => events.push({
+                id:`checkout-${row.id}`, type:"Checkout Order", date:row.created_at||"",
+                name:row.full_name||"Customer", phone:row.whatsapp||row.phone||"", email:row.email||"",
+                details:"Checkout order received"
+            }));
+        } catch (_) {}
+
+        const seen = new Set();
+        const unique = events.filter(e => !seen.has(e.id) && seen.add(e.id))
+            .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+
+        list.innerHTML = unique.length ? `<table><thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Contact</th><th>Details</th><th>Actions</th></tr></thead><tbody>${
+            unique.map(e => `<tr>
+                <td>${escapeHTML(e.date ? new Date(e.date).toLocaleString() : "")}</td>
+                <td>${escapeHTML(e.type)}</td>
+                <td>${escapeHTML(e.name)}</td>
+                <td>${escapeHTML([e.phone,e.email].filter(Boolean).join(" • "))}</td>
+                <td>${escapeHTML(e.details)}</td>
+                <td>
+                    ${e.phone ? `<button type="button" class="secondary" data-notify-whatsapp="${escapeHTML(e.id)}">WhatsApp</button>` : ""}
+                    ${e.email ? `<button type="button" class="secondary" data-notify-email="${escapeHTML(e.id)}">Email</button>` : ""}
+                </td>
+            </tr>`).join("")
+        }</tbody></table>` : `<div class="empty">No recent customer activity was found.</div>`;
+
+        const notificationMessage = e => `Aprils Signature — ${e.type}\nCustomer: ${e.name}\nPhone: ${e.phone}\nEmail: ${e.email}\nDetails: ${e.details}`;
+        list.querySelectorAll("[data-notify-whatsapp]").forEach(button => {
+            button.onclick = () => {
+                const e = unique.find(x => x.id === button.dataset.notifyWhatsapp);
+                if (!e) return;
+                const number = normalizeWhatsAppNumber(waInput?.value || "");
+                if (!number) { message("Save the website WhatsApp number first.","error"); return; }
+                window.open(`https://wa.me/${number}?text=${encodeURIComponent(notificationMessage(e))}`, "_blank", "noopener,noreferrer");
+            };
+        });
+        list.querySelectorAll("[data-notify-email]").forEach(button => {
+            button.onclick = () => {
+                const e = unique.find(x => x.id === button.dataset.notifyEmail);
+                if (!e) return;
+                const address = emailInput?.value || "info@aprilssignature.com";
+                window.location.href = `mailto:${encodeURIComponent(address)}?subject=${encodeURIComponent("Aprils Signature — " + e.type)}&body=${encodeURIComponent(notificationMessage(e))}`;
+            };
+        });
+
+        const save = document.getElementById("saveNotificationSettings");
+        if (save && !save.dataset.bound) {
+            save.dataset.bound = "1";
+            save.onclick = async () => {
+                try {
+                    await safeSettingUpsert("notification_whatsapp", waInput?.value.trim() || "");
+                    await safeSettingUpsert("notification_email", emailInput?.value.trim() || "");
+                    message("Notification settings saved.","success");
+                } catch (error) { message("Notification settings could not be saved: " + error.message,"error"); }
+            };
+        }
+
+        const enable = document.getElementById("enableBrowserNotifications");
+        if (enable && !enable.dataset.bound) {
+            enable.dataset.bound = "1";
+            enable.onclick = async () => {
+                if (!("Notification" in window)) { message("This browser does not support notifications.","error"); return; }
+                const permission = await Notification.requestPermission();
+                message(permission === "granted" ? "Browser notifications are enabled while this admin dashboard is open." : "Browser notifications were not enabled.","success");
+            };
+        }
+        const refresh = document.getElementById("refreshNotifications");
+        if (refresh && !refresh.dataset.bound) {
+            refresh.dataset.bound = "1";
+            refresh.onclick = () => loadNotifications();
+        }
+    } catch (error) {
+        list.innerHTML = `<div class="empty">Notifications could not be loaded: ${escapeHTML(error.message || "")}</div>`;
+    }
+}
+
 async function loadAccounting() {
     const list = document.getElementById("accountingList");
     if (!list) return;
@@ -1806,6 +2014,10 @@ async function loadAccounting() {
     let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const inventoryRows = rows.filter(r => String(r.setting_key || "").startsWith("inventory_item_")).map(r => {
+        try { return {id:r.id, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
+    }).filter(Boolean);
+    const stockValue = inventoryRows.reduce((sum,item) => sum + Number(item.price||0) * Number(item.quantity||0), 0);
 
     const body = records.map(invoice => {
         const total = Number(invoice.total || 0);
@@ -1846,6 +2058,13 @@ async function loadAccounting() {
     document.getElementById("accountingDiscounts").textContent = `GHS ${totalDiscounts.toFixed(2)}`;
     document.getElementById("accountingExpenses").textContent = `GHS ${totalExpenses.toFixed(2)}`;
     document.getElementById("accountingNetCash").textContent = `GHS ${(totalReceived - totalExpenses).toFixed(2)}`;
+    const stockValueEl = document.getElementById("accountingStockValue");
+    if (stockValueEl) stockValueEl.textContent = `GHS ${stockValue.toFixed(2)}`;
+
+    const inventoryList = document.getElementById("accountingInventoryList");
+    if (inventoryList) {
+        inventoryList.innerHTML = inventoryRows.length ? `<table><thead><tr><th>Collection</th><th>Product</th><th>Quantity</th><th>Unit Price</th><th>Stock Value</th></tr></thead><tbody>${inventoryRows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)).map(item=>`<tr><td>${escapeHTML(item.collection||"")}</td><td>${escapeHTML(item.name||"")}</td><td>${Number(item.quantity||0)}</td><td>GHS ${Number(item.price||0).toFixed(2)}</td><td>GHS ${(Number(item.price||0)*Number(item.quantity||0)).toFixed(2)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No inventory records yet.</div>`;
+    }
 
     const expenseList = document.getElementById("accountingExpenseList");
     if (expenseList) {
@@ -2000,10 +2219,10 @@ async function loadSavedInvoiceReceiptRecords() {
                 if (row.type === "Invoice") {
                     const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
                     await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
-                    setTimeout(()=>generateInvoicePdf(true),350);
+                    await generateInvoicePdf(true);
                 } else {
                     await openSavedReceiptRecord(row);
-                    setTimeout(()=>generateReceiptPdf(true),350);
+                    await generateReceiptPdf(true);
                 }
             };
         });
@@ -2357,11 +2576,13 @@ async function ensureHtml2Pdf() {
 }
 
 async function pdfFromVisibleElement(element, options){
+    if (!element) throw new Error("PDF content is missing.");
     const clone=element.cloneNode(true);
     clone.id=element.id+"-pdf-copy";
     clone.style.position="fixed";
     clone.style.left="0";
     clone.style.top="0";
+    clone.style.zIndex="2147483647";
     clone.style.display="block";
     clone.style.visibility="visible";
     clone.style.opacity="1";
@@ -2371,10 +2592,19 @@ async function pdfFromVisibleElement(element, options){
     clone.style.background="#fff";
     clone.style.boxShadow="none";
     clone.style.margin="0";
+    clone.style.overflow="visible";
     document.body.appendChild(clone);
     try{
+        if (document.fonts?.ready) await document.fonts.ready;
+        const images=[...clone.querySelectorAll("img")];
+        await Promise.all(images.map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
+            img.addEventListener("load",resolve,{once:true});
+            img.addEventListener("error",resolve,{once:true});
+        })));
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-        return await window.html2pdf().set(options).from(clone).outputPdf("blob");
+        const blob=await window.html2pdf().set(options).from(clone).outputPdf("blob");
+        if (!blob || blob.size < 1000) throw new Error("The generated PDF is empty.");
+        return blob;
     }finally{clone.remove();}
 }
 
@@ -2402,15 +2632,18 @@ async function generateInvoicePdf(share) {
         };
         const worker = html2pdf().set(options).from(paper);
         if (share && navigator.share && navigator.canShare) {
-            const blob = await worker.outputPdf("blob");
+            const blob = await pdfFromVisibleElement(paper, options);
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({title:options.filename, text:"Aprils Signature Invoice", files:[file]});
                 return true;
             }
         }
-        await worker.save();
-        if (share) message("PDF saved. If your device supports file sharing, use the PDF's Share option to send it through WhatsApp or another app.", "success");
+        const blob = await pdfFromVisibleElement(paper, options);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1500);
+        if (share) message("PDF saved successfully.", "success");
         return false;
     } catch (error) {
         console.error(error);
@@ -2445,7 +2678,7 @@ async function shareGeneratedInvoiceWhatsApp() {
                 html2canvas: {scale:2,useCORS:true},
                 jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
             };
-            const blob = await window.html2pdf().set(options).from(paper).outputPdf("blob");
+            const blob = await pdfFromVisibleElement(paper, options);
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({
@@ -2746,15 +2979,18 @@ async function generateReceiptPdf(share) {
         };
         const worker = html2pdf().set(options).from(paper);
         if (share && navigator.share && navigator.canShare) {
-            const blob = await worker.outputPdf("blob");
+            const blob = await pdfFromVisibleElement(paper, options);
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({title:options.filename,text:"Aprils Signature Payment Receipt",files:[file]});
                 return true;
             }
         }
-        await worker.save();
-        if (share) message("Receipt PDF saved. You can use the PDF's Share option to send it through WhatsApp or another app.", "success");
+        const blob = await pdfFromVisibleElement(paper, options);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1500);
+        if (share) message("Receipt PDF saved successfully.", "success");
         return false;
     } catch (error) {
         console.error(error);
@@ -2787,7 +3023,7 @@ async function shareGeneratedReceiptWhatsApp() {
                 html2canvas: {scale:2,useCORS:true},
                 jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
             };
-            const blob = await window.html2pdf().set(options).from(paper).outputPdf("blob");
+            const blob = await pdfFromVisibleElement(paper, options);
             const file = new File([blob], options.filename, {type:"application/pdf"});
             if (navigator.canShare({files:[file]})) {
                 await navigator.share({
@@ -2849,7 +3085,7 @@ async function loadAdminServices() {
 }
 function setupAdminServiceForm(){
     const form=document.getElementById("adminServiceForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("adminServiceId").value.trim();const payload={title:document.getElementById("adminServiceTitle").value.trim(),category:document.getElementById("adminServiceCategory").value.trim(),display_order:Number(document.getElementById("adminServiceOrder").value||1),description:document.getElementById("adminServiceDescription").value.trim(),active:document.getElementById("adminServiceActive").checked,updated_at:new Date().toISOString()};if(!payload.title){message("Enter a service name.","error");return;}try{const r=id?await db.from("admin_services").update(payload).eq("id",id):await db.from("admin_services").insert(payload);if(r.error)throw r.error;form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;message("Service saved successfully.","success");await loadAdminServices();}catch(error){message("Service could not be saved: "+error.message,"error");}});
+    form.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("adminServiceId").value.trim();const payload={title:document.getElementById("adminServiceTitle").value.trim(),category:document.getElementById("adminServiceCategory").value.trim(),display_order:Number(document.getElementById("adminServiceOrder").value||1),description:document.getElementById("adminServiceDescription").value.trim(),active:document.getElementById("adminServiceActive").checked,updated_at:new Date().toISOString()};if(!payload.title){message("Enter a service name.","error");return;}try{const r=id?await db.from("admin_services").update(payload).eq("id",id):await db.from("admin_services").insert(payload);if(r.error)throw r.error;form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;message("Service saved successfully.","success");await loadAdminServices();returnToAdminList("[data-edit-service]", id);}catch(error){message("Service could not be saved: "+error.message,"error");}});
     document.getElementById("adminServiceCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;});
 }
 function newAdminService(){const f=document.getElementById("adminServiceForm");if(!f)return;f.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;f.scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminServiceTitle")?.focus();}
@@ -2936,7 +3172,7 @@ async function loadTraining() {
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
     list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
     list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
-    list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
+    list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));await db.from("settings").delete().eq("setting_key","public_training_price_"+contentSlug(r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
 function newTraining() {
@@ -3027,6 +3263,7 @@ function setupTrainingForm() {
             message("Training programme saved successfully.", "success");
             await loadTraining();
             await loadDashboard();
+            returnToAdminList("[data-edit-training]", id || null);
         } catch (error) {
             console.error(error);
             message("Training programme could not be saved: " + error.message, "error");
@@ -5774,6 +6011,11 @@ function setupUserAccess(){
     form.addEventListener("submit",async e=>{e.preventDefault();const email=document.getElementById("userAccessEmail").value.trim().toLowerCase();if(!email){message("Enter a staff email address.","error");return}const role=document.getElementById("userAccessRole").value;const sections=[...document.querySelectorAll("#userAccessChecks input:checked")].map(x=>x.value);const payload={email,name:document.getElementById("userAccessName").value.trim(),role,sections:sections.length?sections:accessDefaultSections(role),active:document.getElementById("userAccessActive").checked,updatedAt:new Date().toISOString()};try{await safeSettingUpsert(accessKey(email),JSON.stringify(payload));message("Staff access saved. The user must also have an account in Supabase Authentication.","success");form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true;await loadUserAccess()}catch(err){message("User access could not be saved: "+err.message,"error")}});
     document.getElementById("userAccessCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true});
 }
+
+// Public bridge for the commerce admin module. The invoice generator itself
+// remains unchanged; checkout/inventory can open the exact same generator.
+window.aprilsOpenInvoiceGenerator = openInvoiceGenerator;
+window.aprilsShowSubmissionDetails = showSubmissionDetails;
 
 /* =========================================================
    STARTUP

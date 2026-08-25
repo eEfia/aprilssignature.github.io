@@ -1,12 +1,9 @@
 "use strict";
-
 /*
- APRILS SIGNATURE — compatibility fixes.
- The main dashboard logic now lives in admin.js.
- This file only keeps the Google Review link correction so older
- deployments that still include Admin-fixes.js remain safe.
+  APRILS SIGNATURE — final compatibility / interaction fixes.
+  Keeps the dashboard logic in admin.js and adds visible button feedback
+  without changing the existing admin tabs or their actions.
 */
-
 (function () {
     const REVIEW_URL = "https://g.page/r/CcD7hxB7NK7pEAE/review";
 
@@ -21,9 +18,39 @@
         });
     }
 
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", setupGoogleReviewLinks);
-    } else {
+    function setupButtonFeedback() {
+        if (document.documentElement.dataset.aprilsButtonFeedback === "1") return;
+        document.documentElement.dataset.aprilsButtonFeedback = "1";
+
+        document.addEventListener("click", event => {
+            const button = event.target.closest("button");
+            if (!button || button.disabled || button.dataset.noWorkingFeedback === "1") return;
+            const original = button.textContent;
+            button.classList.add("button-working");
+            button.setAttribute("aria-busy", "true");
+            button.dataset.feedbackOriginal = original;
+            if (!/^(↑|↓|×|✕)$/.test(original.trim())) button.textContent = "Working…";
+            clearTimeout(button._aprilsFeedbackTimer);
+            button._aprilsFeedbackTimer = setTimeout(() => {
+                if (!button.isConnected) return;
+                button.classList.remove("button-working");
+                button.removeAttribute("aria-busy");
+                if (button.dataset.feedbackOriginal !== undefined) {
+                    button.textContent = button.dataset.feedbackOriginal;
+                    delete button.dataset.feedbackOriginal;
+                }
+            }, 1100);
+        }, true);
+    }
+
+    function setup() {
         setupGoogleReviewLinks();
+        setupButtonFeedback();
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", setup);
+    } else {
+        setup();
     }
 })();
