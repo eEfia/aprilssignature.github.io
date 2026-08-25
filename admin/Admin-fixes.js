@@ -25,21 +25,14 @@
         document.addEventListener("click", event => {
             const button = event.target.closest("button");
             if (!button || button.disabled || button.dataset.noWorkingFeedback === "1") return;
-            const original = button.textContent;
             button.classList.add("button-working");
             button.setAttribute("aria-busy", "true");
-            button.dataset.feedbackOriginal = original;
-            if (!/^(↑|↓|×|✕)$/.test(original.trim())) button.textContent = "Working…";
             clearTimeout(button._aprilsFeedbackTimer);
             button._aprilsFeedbackTimer = setTimeout(() => {
                 if (!button.isConnected) return;
                 button.classList.remove("button-working");
                 button.removeAttribute("aria-busy");
-                if (button.dataset.feedbackOriginal !== undefined) {
-                    button.textContent = button.dataset.feedbackOriginal;
-                    delete button.dataset.feedbackOriginal;
-                }
-            }, 1100);
+            }, 850);
         }, true);
     }
 

@@ -230,6 +230,11 @@ async function syncOfflineInvoiceRecords() {
         for (const payment of payments) {
             if (payment.invoiceNumber) {
                 await safeSettingUpsert(invoicePaymentStorageKey(payment.invoiceNumber, Date.now()), JSON.stringify(payment));
+                try { if (window.syncInventoryFromPayment) await window.syncInventoryFromPayment(payment.invoiceNumber); } catch (_) {}
+                try {
+                    const inv = await getInvoiceSavedRecord(payment.invoiceNumber);
+                    if (inv?.sourceId && inv.sourceType === "quote_requests") await setAdminRecordStatus("quote_status", inv.sourceId, "in_production");
+                } catch (_) {}
             }
         }
         if (payments.length) localStorage.removeItem("aprils_offline_payments");
@@ -263,13 +268,8 @@ async function checkSession() {
     if (!login) return;
 
     if (!db) {
-        if (hasCachedAdminSession()) {
-            login.style.display = "none";
-            window._aprilsOfflineMode = true;
-            message("Offline admin mode: customer records already saved on this device can still be used for invoicing and receipts.", "success");
-        } else {
-            login.style.display = "flex";
-        }
+        login.style.display = "flex";
+        message("The secure admin connection is unavailable. Please reconnect to Supabase before accessing customer or financial records.", "error");
         return;
     }
 
@@ -287,13 +287,8 @@ async function checkSession() {
         }
     } catch (error) {
         console.warn("Admin session check failed:", error);
-        if (hasCachedAdminSession()) {
-            login.style.display = "none";
-            window._aprilsOfflineMode = true;
-            message("Server connection is unavailable. Offline admin mode is active.", "success");
-        } else {
-            login.style.display = "flex";
-        }
+        login.style.display = "flex";
+        message("The secure admin session could not be verified. Please reconnect and sign in again.", "error");
     }
 }
 
@@ -1522,7 +1517,8 @@ function setupDirectCustomerLinks() {
         contact: new URL("../contact.html", window.location.href).href,
         policies: new URL("../policies.html", window.location.href).href,
         discount: new URL("../redeem.html", window.location.href).href,
-        payment: new URL("../payment.html", window.location.href).href
+        payment: new URL("../payment.html", window.location.href).href,
+        shop: new URL("../shop.html", window.location.href).href
     };
 
     const labels = {
@@ -1533,7 +1529,8 @@ function setupDirectCustomerLinks() {
         contact: "Contact",
         policies: "Policies & Terms",
         discount: "Discount Redemption",
-        payment: "Payment Details"
+        payment: "Payment Details",
+        shop: "Shop"
     };
 
     const list = document.getElementById("directLinksList");
@@ -2007,10 +2004,9 @@ async function loadAccounting() {
         paymentMap.get(key).push(item);
     });
 
-    const records = [...invoiceMap.values()].filter(invoice => {
-        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p)=>sum+Number(p.amount||0),0);
-        return paid > 0;
-    }).sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
+    const records = [...invoiceMap.values()]
+        .filter(invoice => (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0) > 0)
+        .sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
     let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2043,8 +2039,8 @@ async function loadAccounting() {
     }).join("");
 
     const emptyNote = offlineInvoices.length && !records.length
-        ? "Offline records are available on this device. Connect to the server later to synchronise them."
-        : "No saved invoices yet.";
+        ? "No paid or part-paid sales are recorded yet. Offline invoice records remain available on this device."
+        : "No paid or part-paid invoices have been recorded yet.";
 
     list.innerHTML = records.length ? `
         <table>
@@ -2544,6 +2540,8 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
         address: document.getElementById("generatedInvoiceAddress")?.value || "",
         notes: document.getElementById("generatedInvoiceNotes")?.value || "",
         lines, discount, discountPercent, total,
+        sourceId: row?.id || "",
+        sourceType: state.isTrainingInvoice ? "training_registrations" : "quote_requests",
         savedAt: new Date().toISOString(),
         saveType: automatic ? "automatic" : "manual"
     };
@@ -2579,8 +2577,8 @@ async function pdfFromVisibleElement(element, options){
     if (!element) throw new Error("PDF content is missing.");
     const clone=element.cloneNode(true);
     clone.id=element.id+"-pdf-copy";
-    clone.style.position="fixed";
-    clone.style.left="0";
+    clone.style.position="absolute";
+    clone.style.left="-100000px";
     clone.style.top="0";
     clone.style.zIndex="2147483647";
     clone.style.display="block";
@@ -2602,8 +2600,8 @@ async function pdfFromVisibleElement(element, options){
             img.addEventListener("error",resolve,{once:true});
         })));
         await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
-        const blob=await window.html2pdf().set(options).from(clone).outputPdf("blob");
-        if (!blob || blob.size < 1000) throw new Error("The generated PDF is empty.");
+        const blob=await window.html2pdf().set({...options, pagebreak:{mode:["css","legacy"]}}).from(clone).outputPdf("blob");
+        if (!blob || blob.size < 5000) throw new Error("The generated PDF is empty or incomplete.");
         return blob;
     }finally{clone.remove();}
 }
@@ -2647,7 +2645,8 @@ async function generateInvoicePdf(share) {
         return false;
     } catch (error) {
         console.error(error);
-        message("The PDF could not be created. Use Print and choose Save as PDF.", "error");
+        printGeneratedInvoice();
+        message("The invoice PDF could not be downloaded directly, so a print-safe invoice was opened. Choose Save as PDF there.", "success");
         return false;
     }
 }
@@ -2693,10 +2692,12 @@ async function shareGeneratedInvoiceWhatsApp() {
         console.warn("Direct invoice PDF sharing was unavailable:", error);
     }
 
-    // WhatsApp's public web/deep-link interface cannot attach a local PDF
-    // automatically. The fallback opens the customer's WhatsApp chat with the
-    // correct number and message, ready for the saved PDF to be attached.
+    // WhatsApp's public web/deep-link interface cannot attach a local PDF from
+    // a normal desktop browser. Make sure the real PDF is downloaded first, then
+    // open the customer's WhatsApp chat with the invoice number and instructions.
+    try { await generateInvoicePdf(false); } catch (_) {}
     window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
+    message("Invoice PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
 }
 
 function shareGeneratedInvoiceEmail() {
@@ -2932,9 +2933,18 @@ function openReceiptGenerator() {
                         const total = Number(totals.total || 0);
                         const payments = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
                         const paidTotal = payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
-                        const paymentStage = paidTotal >= total && total > 0 ? "fully_paid" : (paidTotal > 0 ? (invoiceState.isTrainingInvoice ? "fully_paid" : "part_paid") : "under_review");
+                        const depositDue = Number(totals.paidDue || 0);
+                        const paymentStage = paidTotal >= total && total > 0
+                            ? "fully_paid"
+                            : (invoiceState.isTrainingInvoice
+                                ? (paidTotal > 0 ? "part_paid" : "unpaid")
+                                : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
-                        await setAdminRecordStatus(invoiceState.isTrainingInvoice ? "training_status" : "quote_status", record.id, "receipt_generated");
+                        // A recorded customer payment means the order has reached the production stage.
+                        // The later fulfilment stages remain manually controlled in the Order Status dropdown.
+                        if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
+                            await setAdminRecordStatus("quote_status", record.id, "in_production");
+                        }
                     }
                 } catch (_) {}
             }
@@ -2994,7 +3004,8 @@ async function generateReceiptPdf(share) {
         return false;
     } catch (error) {
         console.error(error);
-        message("The receipt PDF could not be created. Use Print and choose Save as PDF.", "error");
+        printGeneratedReceipt();
+        message("The receipt PDF could not be downloaded directly, so a print-safe receipt was opened. Choose Save as PDF there.", "success");
         return false;
     }
 }
@@ -3037,7 +3048,9 @@ async function shareGeneratedReceiptWhatsApp() {
     } catch (error) {
         console.warn("Direct receipt PDF sharing was unavailable:", error);
     }
+    try { await generateReceiptPdf(false); } catch (_) {}
     window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
+    message("Receipt PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
 }
 
 function shareGeneratedReceiptEmail() {
@@ -3469,7 +3482,26 @@ function buildShareText(title, row = {}, detailsText = "") {
     return lines.join("\n");
 }
 
-function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
+async function resolveSubmissionUploads(uploads = []) {
+    if (!Array.isArray(uploads) || !uploads.length || !db) return uploads || [];
+    const resolved = [];
+    for (const item of uploads) {
+        const raw = item?.path || item?.url || item;
+        let url = item?.url || "";
+        let path = item?.path || "";
+        if (!path && typeof raw === "string" && /quote-uploads/i.test(raw)) {
+            const match = raw.match(/quote-uploads\/(.+)$/i);
+            if (match) path = decodeURIComponent(match[1].split(/[?#]/)[0]);
+        }
+        if (path) {
+            try { const signed = await db.storage.from("quote-uploads").createSignedUrl(path, 3600); if (!signed.error) url = signed.data?.signedUrl || url; } catch (_) {}
+        }
+        resolved.push({...((item && typeof item === "object") ? item : {name:String(item||"")}), url, path});
+    }
+    return resolved;
+}
+
+async function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     let modal = document.getElementById("submissionDetailsModal");
     let backdrop = document.getElementById("submissionDetailsBackdrop");
 
@@ -3489,6 +3521,7 @@ function showSubmissionDetails(title, row, detailsText = "", uploads = []) {
     }
 
     const body = modal.querySelector(".submission-modal-body");
+    uploads = await resolveSubmissionUploads(uploads);
     const details = parseSubmissionDetails(detailsText);
     const isQuote = /quote|order/i.test(title);
     const isTraining = /training/i.test(title);
@@ -3604,9 +3637,9 @@ async function setAdminRecordStatus(prefix, id, status) {
 function statusSelectHTML(prefix, id, value) {
     const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
     value = legacy[value] || value || "under_review";
-    return `<select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
+    return `<div class="status-control"><select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
         ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
-    </select>`;
+    </select><button type="button" class="secondary save-status-button" data-save-status-prefix="${escapeHTML(prefix)}" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
 }
 
 function readOfflineCache(key) {
@@ -3615,6 +3648,27 @@ function readOfflineCache(key) {
 
 function writeOfflineCache(key, rows) {
     try { localStorage.setItem("aprils_cache_" + key, JSON.stringify(rows || [])); } catch (_) {}
+}
+
+function humanStatus(value) {
+    const found = ADMIN_STATUS_OPTIONS.find(([key]) => key === value);
+    return found ? found[1] : String(value || "Under Review").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+async function getInvoiceSummaryForSubmission(row, training=false) {
+    const keys = [];
+    try {
+        const settings = await getRows("settings");
+        const invoices = settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+        const name=String(row.full_name||"").trim().toLowerCase(), phone=String(row.phone||"").trim();
+        const candidates=invoices.filter(inv=>String(inv.customer||"").trim().toLowerCase()===name || String(inv.phone||"").trim()===phone);
+        const inv=candidates.sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
+        if(!inv) return {invoice:"—",receipt:"—",amount:0,paid:0,balance:0};
+        const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(p=>String(p.invoiceNumber||"")===String(inv.invoiceNumber||""));
+        const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const receipts=settings.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(rc=>String(rc.invoiceNumber||"")===String(inv.invoiceNumber||""));
+        return {invoice:inv.invoiceNumber||"—",receipt:receipts[0]?.receiptNumber||"—",amount:Number(inv.total||0),paid,balance:Math.max(0,Number(inv.total||0)-paid)};
+    } catch (_) { return {invoice:"—",receipt:"—",amount:0,paid:0,balance:0}; }
 }
 
 async function loadRegistrations() {
@@ -3633,37 +3687,29 @@ async function loadRegistrations() {
         paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
     }
 
-    list.innerHTML = rows.length ? `
-        <table><thead><tr>
-            <th>Date</th><th>Name</th><th>Phone</th><th>Course</th><th>Location</th><th>Details</th><th>Order Status</th><th>Payment Status</th><th>Action</th>
-        </tr></thead><tbody>
-        ${rows.map(row => `<tr>
-            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
-            <td>${escapeHTML(row.full_name)}</td>
-            <td>${escapeHTML(row.phone)}</td>
-            <td>${escapeHTML(row.course)}</td>
-            <td>${escapeHTML(row.location)}</td>
-            <td><span class="admin-details-preview">${escapeHTML(row.message || row.request_details || row.details || "—")}</span></td>
-            <td>${statusSelectHTML("training_status", row.id, statuses.get(String(row.id)))}</td>
-            <td>${escapeHTML((paymentStatuses.get(String(row.id)) || "unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</td>
-            <td>
-                <button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button>
-                <button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
-                <button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button>
-            </td>
-        </tr>`).join("")}
-        </tbody></table>
-    ` : `<div class="empty">No training registrations received.</div>`;
+    const summaries = new Map();
+    for (const row of rows) summaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, true));
+    list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
+        const summary=summaries.get(String(row.id))||{};
+        return `<article class="submission-card">
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
+            <div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(row.phone||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Details</b>${escapeHTML(row.message||row.request_details||row.details||"—")}</span></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, statuses.get(String(row.id)))}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
+            <div class="submission-card-actions"><button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button></div>
+        </article>`;
+    }).join("")}</div>` : `<div class="empty">No training registrations received.</div>`;
 
-    list.querySelectorAll("[data-status-id]").forEach(select => {
-        select.addEventListener("change", async () => {
+    list.querySelectorAll("[data-save-status-prefix]").forEach(button => {
+        button.onclick = async () => {
+            const select = button.parentElement?.querySelector(".admin-status-select");
+            if (!select) return;
             try {
-                await setAdminRecordStatus(select.dataset.statusPrefix, select.dataset.statusId, select.value);
-                message("Status updated.", "success");
-            } catch (error) {
-                message("Status could not be updated: " + error.message, "error");
-            }
-        });
+                await setAdminRecordStatus(button.dataset.saveStatusPrefix, button.dataset.saveStatusId, select.value);
+                message("Status updated to " + humanStatus(select.value) + ".", "success");
+                button.classList.add("button-working");
+                setTimeout(()=>button.classList.remove("button-working"),450);
+            } catch (error) { message("Status could not be updated: " + error.message, "error"); }
+        };
     });
 
     list.querySelectorAll("[data-view-registration]").forEach(button => {
@@ -3803,54 +3849,32 @@ async function loadQuotes() {
         paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
     }
 
-    list.innerHTML = rows.length ? `
-        <table>
-            <thead><tr>
-                <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Location</th><th>Services</th><th>Quantity</th><th>Details</th><th>Order Status</th><th>Payment Status</th><th>Action</th>
-            </tr></thead>
-            <tbody>
-            ${rows.map(row => {
-                let details = row.journey || row.request_details || row.details || row.message || "";
-                let uploads = [];
-                try {
-                    const parsed = parseSubmissionDetails(details);
-                    if (parsed && Array.isArray(parsed.uploads)) uploads = parsed.uploads;
-                } catch (_) {}
-                const preview = summarizeQuoteDetails(row);
-                const duplicateNote = row._duplicateCount > 1
-                    ? ` <small style="display:block;margin-top:5px;color:#b00020;font-weight:bold;">${row._duplicateCount} identical records grouped as one request</small>`
-                    : "";
-                return `<tr>
-                    <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
-                    <td>${escapeHTML(row.full_name)}</td>
-                    <td>${escapeHTML(row.phone)}</td>
-                    <td>${escapeHTML(row.whatsapp)}</td>
-                    <td>${escapeHTML(row.location)}</td>
-                    <td>${escapeHTML(row.service)}${duplicateNote}</td>
-                    <td><span style="display:block;white-space:normal">${escapeHTML(summarizeQuoteQuantities(row))}</span></td>
-                    <td><span style="display:block;white-space:normal">${escapeHTML(preview)}</span></td>
-                    <td>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</td>
-                    <td>${escapeHTML((paymentStatuses.get(String(row.id)) || "unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</td>
-                    <td>
-                        <button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button>
-                        <button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button>
-                        <button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button>
-                    </td>
-                </tr>`;
-            }).join("")}
-            </tbody>
-        </table>
-    ` : `<div class="empty">No quote requests received.</div>`;
+    const quoteSummaries = new Map();
+    for (const row of rows) quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false));
+    list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
+        let details = row.journey || row.request_details || row.details || row.message || "";
+        const summary=quoteSummaries.get(String(row.id))||{};
+        const preview = summarizeQuoteDetails(row);
+        const duplicateNote = row._duplicateCount > 1 ? ` <small class="duplicate-note">${row._duplicateCount} identical records grouped as one request</small>` : "";
+        return `<article class="submission-card">
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
+            <div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([row.phone,row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Quantity</b>${escapeHTML(summarizeQuoteQuantities(row))}</span><span class="wide"><b>Details</b>${escapeHTML(preview||"—")}</span></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
+            <div class="submission-card-actions"><button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button></div>
+        </article>`;
+    }).join("")}</div>` : `<div class="empty">No quote requests received.</div>`;
 
-    list.querySelectorAll("[data-status-id]").forEach(select => {
-        select.addEventListener("change", async () => {
+    list.querySelectorAll("[data-save-status-prefix]").forEach(button => {
+        button.onclick = async () => {
+            const select = button.parentElement?.querySelector(".admin-status-select");
+            if (!select) return;
             try {
-                await setAdminRecordStatus(select.dataset.statusPrefix, select.dataset.statusId, select.value);
-                message("Status updated.", "success");
-            } catch (error) {
-                message("Status could not be updated: " + error.message, "error");
-            }
-        });
+                await setAdminRecordStatus(button.dataset.saveStatusPrefix, button.dataset.saveStatusId, select.value);
+                message("Status updated to " + humanStatus(select.value) + ".", "success");
+                button.classList.add("button-working");
+                setTimeout(()=>button.classList.remove("button-working"),450);
+            } catch (error) { message("Status could not be updated: " + error.message, "error"); }
+        };
     });
 
     list.querySelectorAll("[data-view-quote]").forEach(button => {
@@ -4439,7 +4463,7 @@ async function loadInvoicePricing() {
 
     const renderRows = (items, emptyText, editAttr, sharePrefix) => items.length ? `
         <table>
-            <thead><tr><th>Products / Services</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Products and Services</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
                 ${items.map(r => {
                     let item = {name:"",category:"",price:"",notes:"",active:true};
@@ -4464,7 +4488,7 @@ async function loadInvoicePricing() {
     if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
 
     const trainingList = document.getElementById("invoiceTrainingList");
-    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products / Services</th>","<th>Program / Class</th>");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products and Services</th>","<th>Program / Class</th>");
 
     const bindList = list => {
         if (!list) return;
@@ -4651,6 +4675,25 @@ function setupInvoicePaymentForm(){
 
         try {
             await safeSettingUpsert("invoice_payment_accounts", JSON.stringify(accounts));
+            // Publish only the payment fields intended for the public payment page.
+            // Customer/invoice settings remain private to authenticated admins.
+            try {
+                const existingPublic = await db.from("public_payment_details").select("id");
+                if (!existingPublic.error && existingPublic.data?.length) {
+                    const deleted = await db.from("public_payment_details").delete().in("id", existingPublic.data.map(x=>x.id));
+                    if (deleted.error) throw deleted.error;
+                }
+                const publicRows = accounts.map((item,index)=>({
+                    network:item.network || "", number:item.number || "", name:item.name || "",
+                    active:true, display_order:index+1, updated_at:new Date().toISOString()
+                })).filter(item=>item.number || item.name || item.network);
+                if (publicRows.length) {
+                    const inserted = await db.from("public_payment_details").insert(publicRows);
+                    if (inserted.error) throw inserted.error;
+                }
+            } catch (publicSyncError) {
+                console.warn("Public payment detail sync unavailable:", publicSyncError);
+            }
             // Keep the older single-value settings in sync for backward compatibility.
             const first = accounts[0] || {};
             await safeSettingUpsert("invoice_payment_number", first.number || "");
