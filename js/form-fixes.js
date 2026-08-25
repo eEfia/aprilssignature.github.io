@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.AprilsSupabase || nu;
+        return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
@@ -60,12 +60,13 @@ PUBLIC FORM FIXES
         for (const item of inputs) {
             const files = Array.from(form.querySelector(item.selector)?.files || []);
             for (const file of files) {
+                if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) throw new Error("Only JPG, PNG, WEBP and GIF images can be uploaded.");
+                if (file.size > 5 * 1024 * 1024) throw new Error("Each uploaded image must be 5 MB or smaller.");
                 const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
                 const path = `${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}-${safe}`;
                 const result = await supabase.storage.from("quote-uploads").upload(path, file, { upsert: false, contentType: file.type });
                 if (result.error) throw result.error;
-                const publicResult = supabase.storage.from("quote-uploads").getPublicUrl(path);
-                uploads.push({ type: item.label, name: file.name, url: publicResult.data.publicUrl });
+                uploads.push({ type: item.label, name: file.name, path });
             }
         }
         return uploads;
@@ -378,6 +379,8 @@ PUBLIC FORM FIXES
                         throw result.error;
                     }
 
+                    try { if (window.aprilsDispatchNotification) await window.aprilsDispatchNotification("quote_requests", result.data?.[0]?.id, payload); } catch (_) {}
+
                     try {
                         const cached = JSON.parse(localStorage.getItem("aprils_cache_quote_requests") || "[]");
                         cached.push({...payload, id: result.data?.[0]?.id || ("local-" + Date.now()), created_at: new Date().toISOString()});
@@ -588,6 +591,8 @@ PUBLIC FORM FIXES
                         console.error("TRAINING ERROR:", result.error);
                         throw result.error;
                     }
+
+                    try { if (window.aprilsDispatchNotification) await window.aprilsDispatchNotification("training_registrations", result.data?.[0]?.id, payload); } catch (_) {}
 
                     try {
                         const cached = JSON.parse(localStorage.getItem("aprils_cache_training_registrations") || "[]");

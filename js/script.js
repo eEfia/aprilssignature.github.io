@@ -724,6 +724,8 @@ function setupEnquiryForm() {
                 }
 
 
+                try { if (window.aprilsDispatchNotification) await window.aprilsDispatchNotification("enquiries", result.data?.[0]?.id, payload); } catch (_) {}
+
                 showFormMessage(
                     message,
                     "Thank you for contacting Aprils Signature. Your enquiry has been received successfully. We will get back to you shortly.",
@@ -1017,7 +1019,7 @@ async function loadPublicSettings() {
         supabase.from("settings").select("setting_key,setting_value").like("setting_key","hidden_content_%"),
         supabase.from("settings").select("setting_key,setting_value").like("setting_key","inventory_item_%"),
         supabase.from("settings").select("setting_key,setting_value").in("setting_key",[
-            "contact_extra","site_logo_data","site_logo_removed","invoice_payment_accounts","site_link_payment"
+            "contact_extra","site_logo_data","site_logo_removed","site_link_payment"
         ])
     ];
     const results = await Promise.all(queries);
@@ -1558,32 +1560,48 @@ async function loadPublicManagedContent() {
             });
         }
 
-        /* Managed public navigation and future links. */
-        const links = settings
+        /* Managed public navigation. Core pages are always retained.
+           Custom links may be added/edited without ever leaving the public
+           site with a one-link header. */
+        const coreNavigation = [
+            {key:"home", label:"Home", url:"index.html", order:1},
+            {key:"about", label:"About", url:"about.html", order:2},
+            {key:"services", label:"Services", url:"services.html", order:3},
+            {key:"gallery", label:"Gallery", url:"gallery.html", order:4},
+            {key:"shop", label:"Shop", url:"shop.html", order:5},
+            {key:"training", label:"Training", url:"training.html", order:6},
+            {key:"order", label:"Order / Request a Quote", url:"quotes.html", order:7},
+            {key:"policies", label:"Policies & Terms", url:"policies.html", order:8},
+            {key:"contact", label:"Contact", url:"contact.html", order:9}
+        ];
+        const managed = settings
             .filter(row => String(row.setting_key || "").startsWith("site_link_"))
             .map(row => {
                 try { return { ...JSON.parse(row.setting_value || "{}"), id: row.id }; }
                 catch (_) { return null; }
             })
-            .filter(Boolean)
-            .filter(item => item.active !== false)
-            .sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
+            .filter(Boolean);
 
-        if (!links.some(item => String(item.url || "").toLowerCase() === "shop.html")) {
-            links.push({label:"Shop",url:"shop.html",order:5,location:"header",active:true});
-            links.sort((a,b)=>Number(a.order||999)-Number(b.order||999));
-        }
-
-        const headerLinks = links.filter(item => (item.location || "header") === "header");
+        const managedByUrl = new Map(managed.map(item => [String(item.url || "").trim().toLowerCase(), item]));
+        const mergedCore = coreNavigation.map(core => {
+            const managedItem = managedByUrl.get(core.url.toLowerCase());
+            return managedItem ? {...core, ...managedItem, active:true, url:core.url} : {...core, active:true};
+        });
+        const customHeaderLinks = managed
+            .filter(item => (item.location || "header") === "header")
+            .filter(item => !coreNavigation.some(core => core.url.toLowerCase() === String(item.url || "").trim().toLowerCase()))
+            .filter(item => item.active !== false);
+        const headerLinks = [...mergedCore, ...customHeaderLinks]
+            .sort((a,b)=>Number(a.order||999)-Number(b.order||999));
         const nav = document.querySelector(".main-navigation");
-        if (nav && headerLinks.length) {
+        if (nav) {
             nav.innerHTML = headerLinks.map(item => {
                 const url = String(item.url || "").trim();
                 return `<a href="${escapeHTML(url)}">${escapeHTML(item.label || "")}</a>`;
             }).join("");
         }
 
-        const footerLinks = links.filter(item => item.location === "footer");
+        const footerLinks = managed.filter(item => item.location === "footer" && item.active !== false);
         if (footerLinks.length) {
             let footer = document.querySelector(".footer-managed-links");
             if (!footer) {
