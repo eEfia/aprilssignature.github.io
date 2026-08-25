@@ -1,19 +1,13 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.>
-
-    <title>Order / Request a Quote | Aprils Signature</title>
-
-    <meta
-        name="description"
-        content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services."
-    >
-
-    <link rel="stylesheet" href="css/style.css">
-
-    <style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Order / Request a Quote | Aprils Signature</title>
+<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
+<link href="css/style.css" rel="stylesheet"/>
+<style>
         .quote-page {
             padding: 60px 20px;
             background: #fff;
@@ -274,697 +268,363 @@
         }
     </style>
 </head>
-
 <body class="quote-page">
-
 <header class="site-header">
-
-    <div class="container header-inner">
-
-        <a href="index.html" class="brand">
-
-            <img
-                src="icons/Aprils Signature logo.jpeg"
-                alt="Aprils Signature logo"
-                class="brand-logo"
-            >
-
-            <span class="brand-text">
-
-                <span class="brand-name">
+<div class="container header-inner">
+<a class="brand" href="index.html">
+<img alt="Aprils Signature logo" class="brand-logo" src="icons/Aprils Signature logo.jpeg"/>
+<span class="brand-text">
+<span class="brand-name">
                     Aprils Signature
                 </span>
-
-                <span class="brand-tagline">
+<span class="brand-tagline">
                     Elegance in Every Stitch
                 </span>
-
-            </span>
-
-        </a>
-
-        <button
-            class="menu-toggle"
-            type="button"
-            aria-label="Open navigation"
-            aria-expanded="false"
-        >
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-
-        <nav
-            class="main-navigation"
-            aria-label="Main navigation"
-        >
-
-            <a href="index.html">Home</a>
-            <a href="about.html">About</a>
-            <a href="services.html">Services</a>
-            <a href="gallery.html">Gallery</a>
-            <a href="training.html">Training</a>
-            <a href="quotes.html">Order / Request a Quote</a>
-            <a href="policies.html">Policies &amp; Terms</a>
-            <a href="contact.html">Contact</a>
-
-        </nav>
-
-    </div>
-
+</span>
+</a>
+<button aria-expanded="false" aria-label="Open navigation" class="menu-toggle" type="button">
+<span></span>
+<span></span>
+<span></span>
+</button>
+<nav aria-label="Main navigation" class="main-navigation"><a href="index.html">Home</a><a href="about.html">About</a><a href="services.html">Services</a><a href="gallery.html">Gallery</a><a href="shop.html">Shop</a><a href="training.html">Training</a><a href="quotes.html">Order / Request a Quote</a><a href="policies.html">Policies &amp; Terms</a><a href="contact.html">Contact</a></nav>
+</div>
 </header>
-
-
 <main class="quote-page">
-
 <div class="quote-container">
-
 <div class="quote-intro">
-
-    <h1>
+<h1>
         Order / Request a Quote
     </h1>
-
-    <p>
+<p>
         The Order/Quote form allows customers to select what they need
         and provide the necessary details for pricing and production.
     </p>
-
 </div>
-
-
-<form
-    class="quote-form"
-    id="quoteForm"
-    enctype="multipart/form-data"
->
-
-
+<form class="quote-form" enctype="multipart/form-data" id="quoteForm">
 <!-- CUSTOMER DETAILS -->
-
 <section class="form-section">
-
-    <h2>Customer Details</h2>
-
-    <div class="form-grid">
-
-        <div class="form-group">
-
-            <label for="fullName">
+<h2>Customer Details</h2>
+<div class="form-grid">
+<div class="form-group">
+<label for="fullName">
                 Full Name
                 <span class="required">*</span>
-            </label>
-
-            <input
-                type="text"
-                id="fullName"
-                name="fullName"
-                required
-            >
-
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="phone">
+</label>
+<input id="fullName" name="fullName" required="" type="text"/>
+</div>
+<div class="form-group">
+<label for="phone">
                 Phone Number
                 <span class="required">*</span>
-            </label>
-
-            <input
-                type="tel"
-                id="phone"
-                name="phone"
-                required
-            >
-
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="whatsapp">
+</label>
+<input id="phone" name="phone" required="" type="tel"/>
+</div>
+<div class="form-group">
+<label for="whatsapp">
                 WhatsApp Number (if different)
             </label>
-
-            <input
-                type="tel"
-                id="whatsapp"
-                name="whatsapp"
-            >
-
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="location">
+<input id="whatsapp" name="whatsapp" type="tel"/>
+</div>
+<div class="form-group">
+<label for="location">
                 Location
                 <span class="required">*</span>
-            </label>
-
-            <input
-                type="text"
-                id="location"
-                name="location"
-                required
-            >
-
-        </div>
-
-
-        <div class="form-group full-width">
-
-            <label for="email">
+</label>
+<input id="location" name="location" required="" type="text"/>
+</div>
+<div class="form-group full-width">
+<label for="email">
                 Email Address
             </label>
-
-            <input
-                type="email"
-                id="email"
-                name="email"
-            >
-
-        </div>
-
-    </div>
-
+<input id="email" name="email" type="email"/>
+</div>
+</div>
 </section>
-
-
 <!-- UPLOADS -->
-
 <section class="form-section">
-
-    <h2>Upload Section</h2>
-
-    <p>
+<h2>Upload Section</h2>
+<p>
         Customers can upload Mock-up(s) and Inspiration Photo(s).
         This section is optional.
     </p>
-
-    <div class="upload-box">
-
-        <div class="form-group">
-
-            <label for="mockups">
+<div class="upload-box">
+<div class="form-group">
+<label for="mockups">
                 Mock-up(s)
             </label>
-
-            <input
-                type="file"
-                id="mockups"
-                name="mockups[]"
-                accept="image/*"
-                multiple
-            >
-
-        </div>
-
-
-        <div class="form-group">
-
-            <label for="inspiration">
+<input accept="image/*" id="mockups" multiple="" name="mockups[]" type="file"/>
+</div>
+<div class="form-group">
+<label for="inspiration">
                 Inspiration Photo(s)
             </label>
-
-            <input
-                type="file"
-                id="inspiration"
-                name="inspiration[]"
-                accept="image/*"
-                multiple
-            >
-
-        </div>
-
-
-        <small>
+<input accept="image/*" id="inspiration" multiple="" name="inspiration[]" type="file"/>
+</div>
+<small>
             Uploading images is optional. Customers can still submit
             their request without uploading files.
         </small>
-
-    </div>
-
+</div>
 </section>
-
-
 <!-- SERVICE -->
-
 <section class="form-section">
-
-    <h2>Service Selection</h2>
-
-    <p>
+<h2>Service Selection</h2>
+<p>
         Select one or more services. Practical Fashion Training is handled
         through the Training page because it is a training programme, not a garment order.
     </p>
-
-    <div class="service-options">
-
-        <label class="check-option">
-            <input
-                type="checkbox"
-                name="services[]"
-                value="Streetwear"
-            >
+<div class="service-options">
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Streetwear"/>
             Streetwear
         </label>
-
-        <label class="check-option">
-            <input
-                type="checkbox"
-                name="services[]"
-                value="Ladies Wear"
-            >
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Ladies Wear"/>
             Ladies Wear
         </label>
-
-        <label class="check-option">
-            <input
-                type="checkbox"
-                name="services[]"
-                value="Kids Wear"
-            >
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Kids Wear"/>
             Kids Wear
         </label>
-
-        <label class="check-option">
-            <input
-                type="checkbox"
-                name="services[]"
-                value="Embellishment Services"
-            >
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Embellishment Services"/>
             Embellishment Services
         </label>
-
-        <label class="check-option">
-            <input
-                type="checkbox"
-                name="services[]"
-                value="Others"
-            >
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Others"/>
             Others
         </label>
-
-        <div class="form-group hidden-section" id="serviceOtherWrap" style="display:none;">
-            <label for="serviceOther">Specify Your Request</label>
-            <textarea id="serviceOther" name="serviceOther" placeholder="Please specify your request."></textarea>
-        </div>
-
-        <a
-            class="training-service-link"
-            href="training.html"
-        >
+<div class="form-group hidden-section" id="serviceOtherWrap" style="display:none;">
+<label for="serviceOther">Specify Your Request</label>
+<textarea id="serviceOther" name="serviceOther" placeholder="Please specify your request."></textarea>
+</div>
+<a class="training-service-link" href="training.html">
             Practical Fashion Training — View Training Programmes &amp; Register
         </a>
-
-    </div>
-
+</div>
 </section>
-
-
 <!-- STREETWEAR -->
-
 <section class="form-section hidden-section" id="streetwearSection">
-    <h2>Streetwear Product Selection</h2>
-    <p>Select the streetwear products you need. Enter the size / measurements, colour(s), and quantity information requested for your order.</p>
-
-    <div class="streetwear-global-details">
-        <div class="form-group">
-            <label for="streetwearSizeMeasurements">Size (UK) / Measurements</label>
-            <textarea id="streetwearSizeMeasurements" name="streetwearSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
-        </div>
-        <div class="form-group">
-            <label for="streetwearColour">Colour (S)</label>
-            <input type="text" id="streetwearColour" name="streetwearColour" placeholder="Enter one or more colours.">
-        </div>
-    </div>
-
-    <div id="streetwearProductsDynamic">
-        <div class="empty">Loading streetwear options…</div>
-    </div>
-
-    <!-- Kept hidden for compatibility with older submissions. -->
-    <input type="hidden" id="streetwearOther" name="streetwearOther" value="">
+<h2>Streetwear Product Selection</h2>
+<p>Select the streetwear products you need. Enter the size / measurements, colour(s), and quantity information requested for your order.</p>
+<div class="streetwear-global-details">
+<div class="form-group">
+<label for="streetwearSizeMeasurements">Size (UK) / Measurements</label>
+<textarea id="streetwearSizeMeasurements" name="streetwearSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
+</div>
+<div class="form-group">
+<label for="streetwearColour">Colour (S)</label>
+<input id="streetwearColour" name="streetwearColour" placeholder="Enter one or more colours." type="text"/>
+</div>
+</div>
+<div id="streetwearProductsDynamic">
+<div class="empty">Loading streetwear options…</div>
+</div>
+<!-- Kept hidden for compatibility with older submissions. -->
+<input id="streetwearOther" name="streetwearOther" type="hidden" value=""/>
 </section>
-
 <!-- LADIES WEAR -->
 <section class="form-section hidden-section" id="ladiesWearSection">
-    <h2>Ladies Wear Product Selection</h2>
-    <p>Select the ladieswear products you need. Size/measurements and colour apply to the request. Use the quantity box beside a product when selecting multiple products; the general quantity box remains available as a fallback.</p>
-    <div class="service-global-details">
-        <div class="form-group">
-            <label for="ladiesWearSize">Size (UK) / Measurements</label>
-            <textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
-        </div>
-        <div class="form-group">
-            <label for="ladiesWearColour">Colour (S)</label>
-            <input type="text" id="ladiesWearColour" name="ladiesWearColour" placeholder="e.g. Black, Navy Blue">
-        </div>
-        <div class="form-group">
-            <label for="ladiesWearQuantity">General Quantity (optional)</label>
-            <input type="number" id="ladiesWearQuantity" name="ladiesWearQuantity" min="1" value="1">
-        </div>
-    </div>
-    <div id="ladiesWearProductsDynamic"><div class="empty">Loading ladieswear options…</div></div>
-    <input type="hidden" id="ladiesWearOther" name="ladiesWearOther" value="">
+<h2>Ladies Wear Product Selection</h2>
+<p>Select the ladieswear products you need. Size/measurements and colour apply to the request. Use the quantity box beside a product when selecting multiple products; the general quantity box remains available as a fallback.</p>
+<div class="service-global-details">
+<div class="form-group">
+<label for="ladiesWearSize">Size (UK) / Measurements</label>
+<textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
+</div>
+<div class="form-group">
+<label for="ladiesWearColour">Colour (S)</label>
+<input id="ladiesWearColour" name="ladiesWearColour" placeholder="e.g. Black, Navy Blue" type="text"/>
+</div>
+<div class="form-group">
+<label for="ladiesWearQuantity">General Quantity (optional)</label>
+<input id="ladiesWearQuantity" min="1" name="ladiesWearQuantity" type="number" value="1"/>
+</div>
+</div>
+<div id="ladiesWearProductsDynamic"><div class="empty">Loading ladieswear options…</div></div>
+<input id="ladiesWearOther" name="ladiesWearOther" type="hidden" value=""/>
 </section>
-
 <!-- KIDS WEAR -->
 <section class="form-section hidden-section" id="kidsWearSection">
-    <h2>Kids Wear Details</h2>
-    <div class="form-group">
-        <label for="kidsWearSize">Age / Size (UK) / Measurements</label>
-        <textarea id="kidsWearSize" name="kidsWearSize" placeholder="Example: Age 12, Size 12 (UK), or provide measurements."></textarea>
-    </div>
-    <div class="form-group">
-        <label for="kidsWearColour">Colour (S)</label>
-        <input type="text" id="kidsWearColour" name="kidsWearColour" placeholder="e.g. Black, Navy Blue">
-    </div>
-    <div class="form-group">
-        <label for="kidsWearQuantity">Quantity</label>
-        <input type="number" id="kidsWearQuantity" name="kidsWearQuantity" min="1" value="1">
-    </div>
-    <div class="form-group">
-        <label for="kidsWearDetails">Details / Style Request</label>
-        <textarea id="kidsWearDetails" name="kidsWearDetails" placeholder="Describe the kids wear you want."></textarea>
-    </div>
+<h2>Kids Wear Details</h2>
+<div class="form-group">
+<label for="kidsWearSize">Age / Size (UK) / Measurements</label>
+<textarea id="kidsWearSize" name="kidsWearSize" placeholder="Example: Age 12, Size 12 (UK), or provide measurements."></textarea>
+</div>
+<div class="form-group">
+<label for="kidsWearColour">Colour (S)</label>
+<input id="kidsWearColour" name="kidsWearColour" placeholder="e.g. Black, Navy Blue" type="text"/>
+</div>
+<div class="form-group">
+<label for="kidsWearQuantity">Quantity</label>
+<input id="kidsWearQuantity" min="1" name="kidsWearQuantity" type="number" value="1"/>
+</div>
+<div class="form-group">
+<label for="kidsWearDetails">Details / Style Request</label>
+<textarea id="kidsWearDetails" name="kidsWearDetails" placeholder="Describe the kids wear you want."></textarea>
+</div>
 </section>
-
 <!-- EMBELLISHMENT -->
 <section class="form-section hidden-section" id="embellishmentSection">
-    <h2>Embellishment Services Selection</h2>
-    <p class="field-help">Select one or more embellishment services. The detail box opens only for the service you select.</p>
-    <div id="embellishmentProductsDynamic"><div class="empty">Loading embellishment services…</div></div>
+<h2>Embellishment Services Selection</h2>
+<p class="field-help">Select one or more embellishment services. The detail box opens only for the service you select.</p>
+<div id="embellishmentProductsDynamic"><div class="empty">Loading embellishment services…</div></div>
 </section>
-
 <!-- ADDITIONAL DETAILS -->
-
 <section class="form-section">
-
-    <h2>
+<h2>
         Additional Request Details
     </h2>
-
-    <div class="form-group">
-
-        <label for="additionalDetails">
+<div class="form-group">
+<label for="additionalDetails">
             Additional Details
         </label>
-
-        <textarea
-            id="additionalDetails"
-            name="additionalDetails"
-            placeholder="Tell us anything else we should know about your request."
-        ></textarea>
-
-    </div>
-
+<textarea id="additionalDetails" name="additionalDetails" placeholder="Tell us anything else we should know about your request."></textarea>
+</div>
 </section>
-
-
 <!-- PAYMENT -->
-
 <section class="form-section">
-
-    <h2>
+<h2>
         Payment Policy
     </h2>
-
-    <div class="policy-box">
-
-        <p>
+<div class="policy-box">
+<p>
             A minimum of 75% of the total cost must be paid
             before production begins.
         </p>
-
-        <p>
+<p>
             For Pickup/Collection, the remaining balance must
             be paid before or on pickup/collection.
         </p>
-
-        <p>
+<p>
             For Delivery, the remaining balance must be paid
             before product dispatch/delivery.
         </p>
-
-    </div>
-
+</div>
 </section>
-
-
 <!-- TURNAROUND -->
-
 <section class="form-section">
-
-    <h2>
+<h2>
         Turnaround Time
     </h2>
-
-    <p>
+<p>
         Turnaround time varies depending on the design,
         order details, and workload. An estimated completion
         date will be communicated after your order has been confirmed.
     </p>
-
 </section>
-
-
 <!-- AGREEMENT -->
-
 <section class="form-section">
-
-    <h2>
+<h2>
         Privacy &amp; Agreement
     </h2>
-
-    <p>
+<p>
         Please review our
         <a href="policies.html">
             Policies &amp; Terms
         </a>
         before submitting your request.
     </p>
-
-
-    <label class="agreement">
-
-        <input
-            type="checkbox"
-            id="agreement"
-            name="agreement"
-            value="Agreed"
-            required
-        >
-
-        <span>
+<label class="agreement">
+<input id="agreement" name="agreement" required="" type="checkbox" value="Agreed"/>
+<span>
             I have read and agree to the Policies &amp; Terms.
         </span>
-
-    </label>
-
+</label>
 </section>
-
-
 <!-- SUBMIT -->
-
 <div class="submit-area">
-
-    <button
-        type="submit"
-        class="submit-button"
-        id="quoteSubmitButton"
-    >
+<button class="submit-button" id="quoteSubmitButton" type="submit">
         Submit Order / Request a Quote
     </button>
-
-    <p class="form-note">
+<p class="form-note">
         Your request will be reviewed and a quotation will be
         provided based on your design, requirements, and order details.
     </p>
-
-    <div
-        id="quoteFormMessage"
-        class="form-message"
-        role="alert"
-    ></div>
-
+<div class="form-message" id="quoteFormMessage" role="alert"></div>
 </div>
-
 </form>
-
 </div>
-
 </main>
-
-
 <footer class="site-footer">
-
 <div class="footer-top">
-
 <div class="container footer-grid">
-
 <div class="footer-column">
-
 <h3>Contact</h3>
-
 <p>
-<strong>Phone:</strong><br>
+<strong>Phone:</strong><br/>
 <a href="tel:+233592983027">
 +233 59 298 3027
 </a>
 </p>
-
 <p>
-<strong>WhatsApp:</strong><br>
-<a
-    href="https://wa.me/233592983027"
-    target="_blank"
-    rel="noopener noreferrer"
->
+<strong>WhatsApp:</strong><br/>
+<a href="https://wa.me/233592983027" rel="noopener noreferrer" target="_blank">
 +233 59 298 3027
 </a>
 </p>
-
 <p>
-<strong>Email:</strong><br>
+<strong>Email:</strong><br/>
 <a href="mailto:info@aprilssignature.com">
 info@aprilssignature.com
 </a>
 </p>
-
 <p>
-<strong>Address:</strong><br>
-CE-003-0009 AL174 Windy Avenue<br>
-Opposite Former Perez Chapel International<br>
+<strong>Address:</strong><br/>
+CE-003-0009 AL174 Windy Avenue<br/>
+Opposite Former Perez Chapel International<br/>
 Winneba, Central Region, Ghana.
 </p>
-
 </div>
-
-
 <div class="footer-column">
-
 <h3>Opening Hours</h3>
-
 <p>
-Monday – Friday: 8:00 AM – 5:30 PM<br>
-Saturday: Closed<br>
+Monday – Friday: 8:00 AM – 5:30 PM<br/>
+Saturday: Closed<br/>
 Sunday: Closed
 </p>
-
-
 <h4>Social Media</h4>
-
-<div
-    class="footer-social"
-    aria-label="Social Media"
->
-
-<a
-    href="https://www.tiktok.com/@aprilssignature"
-    target="_blank"
-    rel="noopener noreferrer"
->
-    <img
-        src="icons/Tiktok.jpg"
-        alt="TikTok"
-    >
-    <span>TikTok</span>
+<div aria-label="Social Media" class="footer-social">
+<a href="https://www.tiktok.com/@aprilssignature" rel="noopener noreferrer" target="_blank">
+<img alt="TikTok" src="icons/Tiktok.jpg"/>
+<span>TikTok</span>
 </a>
-
-
-<a
-    href="https://www.instagram.com/aprilssignature_/"
-    target="_blank"
-    rel="noopener noreferrer"
->
-    <img
-        src="icons/Instagram.jpg"
-        alt="Instagram"
-    >
-    <span>Instagram</span>
+<a href="https://www.instagram.com/aprilssignature_/" rel="noopener noreferrer" target="_blank">
+<img alt="Instagram" src="icons/Instagram.jpg"/>
+<span>Instagram</span>
 </a>
-
-
-<a
-    href="https://www.facebook.com/share/1BwqEnbUkU/"
-    target="_blank"
-    rel="noopener noreferrer"
->
-    <img
-        src="icons/Facebook.jpg"
-        alt="Facebook"
-    >
-    <span>Facebook</span>
+<a href="https://www.facebook.com/share/1BwqEnbUkU/" rel="noopener noreferrer" target="_blank">
+<img alt="Facebook" src="icons/Facebook.jpg"/>
+<span>Facebook</span>
 </a>
-
-
-<a
-    href="https://maps.app.goo.gl/U7gNRGYsu5xA9W7SA?g_st=awb"
-    target="_blank"
-    rel="noopener noreferrer"
->
-    <img
-        src="icons/Map.jpg"
-        alt="Find Us on Google"
-    >
-    <span>Find Us on Google</span>
+<a href="https://maps.app.goo.gl/U7gNRGYsu5xA9W7SA?g_st=awb" rel="noopener noreferrer" target="_blank">
+<img alt="Find Us on Google" src="icons/Map.jpg"/>
+<span>Find Us on Google</span>
 </a>
-
 </div>
-
 </div>
-
 </div>
-
 </div>
-
-
 <div class="footer-bottom">
-
 <div class="container">
-
 <p>
-&copy;
+©
 <span id="copyrightYear"></span>
 Aprils Signature.
 All rights reserved.
 </p>
-
 </div>
-
 </div>
-
 </footer>
-
-
-<a
-    href="https://wa.me/233592983027"
-    class="whatsapp-button"
-    target="_blank"
-    rel="noopener noreferrer"
-    aria-label="Contact Aprils Signature on WhatsApp"
->
-
-<img
-    src="icons/Whatsapp.jpg"
-    alt="WhatsApp"
->
-
+<a aria-label="Contact Aprils Signature on WhatsApp" class="whatsapp-button" href="https://wa.me/233592983027" rel="noopener noreferrer" target="_blank">
+<img alt="WhatsApp" src="icons/Whatsapp.jpg"/>
 </a>
-
-
 <!-- SUPABASE -->
 <script src="js/supabase-config.js?v=20260825-final"></script>
 <script src="js/supabase-client.js?v=20260825-final"></script>
-
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script src="js/form-fixes.js?v=20260825-final" defer></script> <script src="js/script.js?v=20260825-final" defer></script>
-
-</body>
-
-    
+<script defer="" src="js/form-fixes.js?v=20260825-final"></script> <script defer="" src="js/script.js?v=20260825-final"></script>
+<script src="js/notification-dispatch.js?v=20260825-final"></script>
+<script src="js/pwa-register.js"></script></body>
 </html>
