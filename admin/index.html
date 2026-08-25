@@ -619,6 +619,11 @@ data-section="manualInvoice"
 Invoice &amp; Receipts
 </button>
 
+<button data-section="shopAdmin">Shop</button>
+<button data-section="inventory">Inventory / Stock</button>
+<button data-section="checkout">Checkout Orders</button>
+<button data-section="errors">System Error Log</button>
+
 <button
 data-section="accounting"
 >
@@ -1621,6 +1626,24 @@ MANUAL INVOICE / RECEIPT
 </section>
 
 <!-- =====================================================
+SHOP MANAGEMENT
+===================================================== -->
+<section id="shopAdmin" class="section">
+<h2>Shop</h2>
+<p class="intro">Manage and share the public Aprils Signature Shop. Inventory entered below controls what appears in the Shop.</p>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Public Shop</h3>
+<p class="intro">Use this link to open or share the public Shop page. Stock availability is controlled from Inventory / Stock.</p>
+<div class="toolbar">
+<a class="primary" id="openPublicShop" href="../shop.html" target="_blank" rel="noopener noreferrer">Open Shop</a>
+<button type="button" class="secondary" id="sharePublicShop">Share Shop Link</button>
+<button type="button" class="secondary" id="copyPublicShop">Copy Shop Link</button>
+</div>
+<div class="form-group" style="margin-top:12px;"><label>Shop Link</label><input id="publicShopUrl" readonly></div>
+</div>
+</section>
+
+<!-- =====================================================
 INVENTORY / STOCK
 ===================================================== -->
 <section id="inventory" class="section">
@@ -1634,6 +1657,10 @@ INVENTORY / STOCK
 <div class="form-group"><label>Display Order</label><input id="inventoryOrder" type="number" min="1" value="1"></div>
 </div><div class="form-group"><label>Description</label><textarea id="inventoryDescription"></textarea></div><label class="checkbox"><input type="checkbox" id="inventoryActive" checked> Show on public Shop</label><br>
 <button class="primary" type="submit">Save Inventory Item</button><button type="button" class="secondary" id="inventoryCancel">Cancel</button></form></div>
+<div class="toolbar" style="margin:12px 0;">
+<button type="button" class="secondary" id="inventoryExport">Export Inventory CSV</button>
+<button type="button" class="secondary" id="inventorySharePdf">Share / Export Inventory PDF</button>
+</div>
 <div id="inventoryList" class="table-wrap"></div>
 </section>
 
@@ -1691,6 +1718,8 @@ SALES & ACCOUNTING
     <div class="toolbar">
         <button type="button" class="secondary" id="accountingRefresh">Refresh</button>
         <button type="button" class="primary" id="accountingExport">Export CSV</button>
+        <button type="button" class="secondary" id="accountingSharePdf">Share / Export PDF</button>
+        <button type="button" class="secondary" id="accountingExpensesPdf">Share / Export Expenses PDF</button>
     </div>
     <div id="accountingList" class="table-wrap"></div>
 </div>
@@ -1877,12 +1906,12 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260824-final"></script>
-<script src="../js/supabase-client.js?v=20260824-final"></script>
+<script src="../js/supabase-config.js?v=20260825-cleanup"></script>
+<script src="../js/supabase-client.js?v=20260825-cleanup"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260824-final" defer></script>
-<script src="Admin-fixes.js?v=20260824-final" defer></script>
-<script src="commerce-admin.js?v=20260824-final" defer></script>
+<script src="admin.js?v=20260825-cleanup" defer></script>
+<script src="Admin-fixes.js?v=20260825-cleanup" defer></script>
+<script src="commerce-admin.js?v=20260825-cleanup" defer></script>
 
 
 <style>

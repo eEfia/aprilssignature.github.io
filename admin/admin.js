@@ -143,12 +143,31 @@ async function cleanupExactDuplicates() {
         }
     }
 
+    // Remove duplicate gallery media by normalized media URL.
+    try {
+        const result = await db.from("gallery_items").select("id,image_url,created_at,updated_at");
+        if (!result.error) {
+            const groups = new Map();
+            for (const row of result.data || []) {
+                const key = String(row.image_url || "").trim().toLowerCase();
+                if (!key) continue;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(row);
+            }
+            for (const group of groups.values()) {
+                if (group.length <= 1) continue;
+                group.sort((a,b)=>String(a.created_at||a.updated_at||"").localeCompare(String(b.created_at||b.updated_at||"")));
+                await db.from("gallery_items").delete().in("id", group.slice(1).map(r=>r.id));
+            }
+        }
+    } catch (e) { console.warn("Gallery media duplicate cleanup skipped:", e); }
+
     // Settings keys are intended to be unique in practice. Clean duplicate
     // records for managed prefixes so editing an item never leaves a second copy.
     try {
-        const result = await db.from("settings").select("id,setting_key,created_at,updated_at");
+        const result = await db.from("settings").select("id,setting_key,setting_value,created_at,updated_at");
         if (!result.error) {
-            const uniquePrefixes = ["product_","invoice_price_","site_link_","social_","homepage_featured_"];
+            const uniquePrefixes = ["product_","invoice_price_","site_link_","social_","homepage_featured_","public_training_price_","inventory_item_"];
             const groups = new Map();
             (result.data || []).forEach(row => {
                 const key = String(row.setting_key || "");
@@ -161,6 +180,22 @@ async function cleanupExactDuplicates() {
                 group.sort((a,b) => String(a.created_at || a.updated_at || "").localeCompare(String(b.created_at || b.updated_at || "")));
                 const duplicateIds = group.slice(1).map(r => r.id);
                 if (duplicateIds.length) await db.from("settings").delete().in("id", duplicateIds);
+            }
+            const productGroups = new Map();
+            for (const row of result.data || []) {
+                if (!String(row.setting_key || "").startsWith("product_")) continue;
+                try {
+                    const item = JSON.parse(row.setting_value || "{}");
+                    const key = String(item.category||"").trim().toLowerCase() + "\u0000" + String(item.name||"").trim().toLowerCase();
+                    if (!item.name) continue;
+                    if (!productGroups.has(key)) productGroups.set(key, []);
+                    productGroups.get(key).push(row);
+                } catch (_) {}
+            }
+            for (const group of productGroups.values()) {
+                if (group.length <= 1) continue;
+                group.sort((a,b)=>String(a.created_at||a.updated_at||"").localeCompare(String(b.created_at||b.updated_at||"")));
+                await db.from("settings").delete().in("id", group.slice(1).map(r=>r.id));
             }
         }
     } catch (e) { console.warn("Managed settings duplicate cleanup skipped:", e); }
@@ -313,8 +348,7 @@ async function loadDashboard() {
     const counters = {
         galleryCount: ["gallery_items", row => [
             String(row.title || "").trim().toLowerCase(),
-            String(row.image_url || "").trim().toLowerCase(),
-            String(row.category || "").trim().toLowerCase()
+            String(row.image_url || "").trim().toLowerCase()
         ].join("\u0000")],
         trainingCount: ["training_programs", row => [
             String(row.title || "").trim().toLowerCase(),
@@ -360,6 +394,7 @@ async function loadSection(id) {
         if (id === "inventory" && window.loadInventory) await window.loadInventory();
         if (id === "checkout" && window.loadCheckoutOrders) await window.loadCheckoutOrders();
         if (id === "errors" && window.loadErrorLog) await window.loadErrorLog();
+        if (id === "shopAdmin") setupShopAdmin();
         if (id === "accounting") await loadAccounting();
         if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
@@ -901,20 +936,21 @@ async function getTrainingCategories() {
 ========================================================= */
 
 const DEFAULT_PRODUCTS = [
-    ["Streetwear","Jersey",1,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tops"],["Streetwear","Men's tank top",7,"Tops"],["Streetwear","Varsity Jacket",8,"Tops"],
-    ["Streetwear","Super thick cotton joggers",9,"Bottoms"],["Streetwear","Everyday wear type",10,"Bottoms"],["Streetwear","Joggers shorts",11,"Bottoms"],["Streetwear","Sweatpants",12,"Bottoms"],["Streetwear","Cargo pants",13,"Bottoms"],["Streetwear","Cargo skirts",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],
-    ["Streetwear","T-shirt and shorts",16,"Sets"],["Streetwear","T-shirt and sweatpants",17,"Sets"],["Streetwear","Sweatshirt and shorts",18,"Sets"],["Streetwear","Sweatshirt and sweatpants",19,"Sets"]
+    ["Streetwear","Jersey",1,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tank Top Options"],["Streetwear","Men's tank top",7,"Tank Top Options"],["Streetwear","Varsity Jacket",8,"Tops"],
+    ["Streetwear","Super thick cotton joggers",9,"Joggers"],["Streetwear","Everyday wear type of joggers",10,"Joggers"],["Streetwear","Joggers shorts",11,"Bottoms"],["Streetwear","Sweatpants",12,"Bottoms"],["Streetwear","Cargo pants",13,"Bottoms"],["Streetwear","Cargo skirts",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],
+    ["Streetwear","T-shirt and shorts",16,"Sets"],["Streetwear","T-shirt and sweatpants",17,"Sets"],["Streetwear","Sweatshirt and shorts",18,"Sets"],["Streetwear","Sweatshirt and sweatpants",19,"Sets"],
+    ["Streetwear","Others",20,"Others"]
 ];
 
 const DEFAULT_LADIES_PRODUCTS = [
-    ["Ladies Wear","Short gown/dress",1,"Dresses and Gowns"],["Ladies Wear","Long gown/dress",2,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (short)",3,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (long)",4,"Dresses and Gowns"],["Ladies Wear","Bubu Kaftan",5,"Dresses and Gowns"],
-    ["Ladies Wear","Top/blouse",6,"Tops & Blouses"],["Ladies Wear","Corset top",7,"Tops & Blouses"],["Ladies Wear","Base corset",8,"Tops & Blouses"],
-    ["Ladies Wear","Trousers",9,"Bottoms"],["Ladies Wear","Palazzo pants",10,"Bottoms"],["Ladies Wear","Palazzo shorts",11,"Bottoms"],["Ladies Wear","Wrap shorts",12,"Bottoms"],
-    ["Ladies Wear","Trousers & short top",13,"Two-Piece Outfits"],["Ladies Wear","Trousers & long top",14,"Two-Piece Outfits"],["Ladies Wear","Skirt & short top",15,"Two-Piece Outfits"],["Ladies Wear","Skirt & long top",16,"Two-Piece Outfits"],
-    ["Ladies Wear","Standard kaba and slit/skirt",17,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (with corset)",18,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (kente)",19,"Kaba and Slit/Skirt"]
+    ["Ladies Wear","Short gown/dress",1,"Dresses and Gowns"],["Ladies Wear","Long gown/dress",2,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (short)",3,"Dresses and Gowns"],["Ladies Wear","Corset gown/dress (long)",4,"Dresses and Gowns"],["Ladies Wear","Bubu",5,"Dresses and Gowns"],["Ladies Wear","Kaftan",6,"Dresses and Gowns"],["Ladies Wear","Bubu Kaftan",7,"Dresses and Gowns"],
+    ["Ladies Wear","Top/blouse",8,"Tops & Blouses"],["Ladies Wear","Corset top",9,"Tops & Blouses"],["Ladies Wear","Base corset",10,"Tops & Blouses"],
+    ["Ladies Wear","Trousers",11,"Bottoms"],["Ladies Wear","Palazzo pants",12,"Bottoms"],["Ladies Wear","Palazzo shorts",13,"Bottoms"],["Ladies Wear","Wrap shorts",14,"Bottoms"],
+    ["Ladies Wear","Trousers & short top",15,"Two-Piece Outfits"],["Ladies Wear","Trousers & long top",16,"Two-Piece Outfits"],["Ladies Wear","Skirt & short top",17,"Two-Piece Outfits"],["Ladies Wear","Skirt & long top",18,"Two-Piece Outfits"],
+    ["Ladies Wear","Standard kaba and slit/skirt",19,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (with corset)",20,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (kente)",21,"Kaba and Slit/Skirt"],["Ladies Wear","Others",22,"Others"]
 ];
 const DEFAULT_EMBELLISHMENT_PRODUCTS = [
-    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","Add-ons",4,"Embellishment"]
+    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","Others",4,"Embellishment"]
 ];
 
 const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
@@ -979,68 +1015,43 @@ async function seedDefaultProducts() {
 
 async function ensureStreetwearCatalogue() {
     try {
-        const marker = await db.from("settings").select("id").eq("setting_key","streetwear_catalogue_normalized_v3").limit(1);
-        if (!marker.error && marker.data?.length) return;
-
-        const result = await db.from("settings").select("id,setting_key,setting_value").like("setting_key","product_%");
+        const result = await db.from("settings").select("id,setting_key,setting_value,created_at,updated_at").like("setting_key","product_%");
         if (result.error) return;
-
         const rows = result.data || [];
-        const canonicalByKey = new Map(STREETWEAR_CANONICAL_NAMES.map(name => [productKeyFromName(name), name]));
-
-        // Remove old/duplicate Streetwear options that are no longer part of the approved list.
-        const seen = new Set();
+        const legacyRenames = new Map([
+            ["everyday wear type", "Everyday wear type of joggers"],
+            ["joggers — everyday wear type", "Everyday wear type of joggers"],
+            ["joggers everyday wear type", "Everyday wear type of joggers"],
+            ["joggers — super thick cotton joggers", "Super thick cotton joggers"],
+            ["jerseys", "Jersey"], ["t-shirts", "T-shirt"], ["polo shirts", "Polo shirt"],
+            ["sweatshirts", "Sweatshirt"], ["ladies tank tops", "Ladies tank top"], ["men's tank tops", "Men's tank top"],
+            ["varsity jackets", "Varsity Jacket"], ["jogger shorts", "Joggers shorts"],
+            ["t shirts and shorts", "T-shirt and shorts"], ["t shirt sweatpants set", "T-shirt and sweatpants"],
+            ["sweatshirts and shorts", "Sweatshirt and shorts"], ["sweatshirts and sweatpants", "Sweatshirt and sweatpants"]
+        ]);
         for (const row of rows) {
-            let item = {};
-            try { item = JSON.parse(row.setting_value || "{}"); } catch (_) {}
-            if (String(item.category || "").toLowerCase() !== "streetwear") continue;
-            const name = String(item.name || "").trim();
-            const lower = name.toLowerCase();
-            const key = row.setting_key || "";
-            if (LEGACY_STREETWEAR_NAMES.has(lower)) {
-                await db.from("settings").delete().eq("id", row.id);
-                continue;
-            }
-            if (seen.has(key)) {
-                await db.from("settings").delete().eq("id", row.id);
-            } else {
-                seen.add(key);
+            let item={}; try{item=JSON.parse(row.setting_value||"{}")}catch(_){}
+            const name=String(item.name||"").trim(); const lower=name.toLowerCase();
+            if (lower === "add-ons" || lower === "addons") { await db.from("settings").delete().eq("id",row.id); continue; }
+            const rename=legacyRenames.get(lower);
+            if (rename && rename !== name) {
+                const newKey=productKeyFromName(rename);
+                const existing=await db.from("settings").select("id").eq("setting_key",newKey).limit(1);
+                if (existing.data?.length) await db.from("settings").delete().eq("id",row.id);
+                else await db.from("settings").update({setting_key:newKey,setting_value:JSON.stringify({...item,name:rename}),updated_at:new Date().toISOString()}).eq("id",row.id);
             }
         }
-
-        // Ensure every approved Streetwear option exists once and has the requested order.
-        for (const [category,name,order,subcategory] of DEFAULT_PRODUCTS) {
-            const key = productKeyFromName(name);
-            const existing = await db.from("settings").select("id,setting_value").eq("setting_key",key).limit(1);
+        const allDefaults=[...DEFAULT_PRODUCTS,...DEFAULT_LADIES_PRODUCTS];
+        for (const [category,name,order,subcategory] of allDefaults) {
+            const key=productKeyFromName(name);
+            const existing=await db.from("settings").select("id,setting_value").eq("setting_key",key).limit(1);
             if (existing.error) continue;
-            const payload = {
-                name, category, price: null, public_price: null, subcategory: subcategory || "", notes: "",
-                display_order: order, active: true
-            };
-            if (!existing.data?.length) {
-                await db.from("settings").insert({
-                    setting_key:key,
-                    setting_value:JSON.stringify(payload),
-                    updated_at:new Date().toISOString()
-                });
-            } else {
-                let current = {};
-                try { current = JSON.parse(existing.data[0].setting_value || "{}"); } catch (_) {}
-                current = {...payload, ...current, name, category, display_order:order};
-                await db.from("settings").update({
-                    setting_value: JSON.stringify(current),
-                    updated_at:new Date().toISOString()
-                }).eq("id", existing.data[0].id);
-            }
+            const payload={name,category,price:null,public_price:null,subcategory:subcategory||"",notes:"",display_order:order,active:true};
+            if(!existing.data?.length) await db.from("settings").insert({setting_key:key,setting_value:JSON.stringify(payload),updated_at:new Date().toISOString()});
+            else { let current={};try{current=JSON.parse(existing.data[0].setting_value||"{}")}catch(_){}; current={...payload,...current,name,category,subcategory,display_order:order}; await db.from("settings").update({setting_value:JSON.stringify(current),updated_at:new Date().toISOString()}).eq("id",existing.data[0].id); }
         }
-        await db.from("settings").insert({
-            setting_key: "streetwear_catalogue_normalized_v3",
-            setting_value: "true",
-            updated_at: new Date().toISOString()
-        });
-    } catch (e) {
-        console.warn("Streetwear catalogue normalisation skipped:", e);
-    }
+        await safeSettingUpsert("streetwear_catalogue_normalized_v4","true");
+    } catch (e) { console.warn("Catalogue normalisation skipped:", e); }
 }
 
 async function getProducts() {
@@ -1063,7 +1074,7 @@ async function loadProducts() {
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("services").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;document.getElementById("adminProductForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminProductTitle")?.focus();});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -1705,6 +1716,9 @@ async function setupAccountingForm() {
     if (date && !date.value) date.value = new Date().toISOString().slice(0,10);
 }
 
+async function exportAccountingPdf(kind="sales",share=true){
+    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const worker=html2pdf().set({margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}}).from(root);if(share&&navigator.share&&navigator.canShare){const blob=await worker.outputPdf("blob");const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}await worker.save();message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
+
 async function loadAccounting() {
     const list = document.getElementById("accountingList");
     if (!list) return;
@@ -1853,7 +1867,7 @@ async function loadAccounting() {
                 const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
                 const balance = Math.max(0, total - paid);
                 return [invoice.date || "", invoice.invoiceNumber || "", invoice.training ? "Training" : "Order / Quote", invoice.customer || "", total.toFixed(2), discount.toFixed(2), paid.toFixed(2), balance.toFixed(2), balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"];
-            })].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\\n");
+            })].map(row => row.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
             const blob = new Blob(["\ufeff" + csv.replace(/\n/g,"\r\n")], {type:"text/csv;charset=utf-8"});
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -1863,7 +1877,19 @@ async function loadAccounting() {
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         };
     }
+    document.getElementById("accountingSharePdf")?.addEventListener("click",()=>exportAccountingPdf("sales",true));
+    document.getElementById("accountingExpensesPdf")?.addEventListener("click",()=>exportAccountingPdf("expenses",true));
     document.getElementById("accountingRefresh")?.addEventListener("click", () => loadAccounting(), {once:true});
+}
+
+async function openSavedReceiptRecord(row) {
+    const invoiceNumber = row.invoiceNumber || "";
+    let invoice = null;
+    try { invoice = await getInvoiceSavedRecord(invoiceNumber); } catch (_) {}
+    if (!invoice) { message("The invoice linked to this receipt could not be found, so the receipt cannot be reopened safely.","error"); return; }
+    const customerRow = {full_name:row.customer||invoice.customer||"",phone:row.phone||invoice.phone||"",whatsapp:row.phone||invoice.phone||"",email:row.email||invoice.email||"",location:invoice.address||""};
+    await openInvoiceGenerator(customerRow,{manualLines:invoice.lines||[],notes:invoice.notes||"",training:!!invoice.training,invoiceNumber,discountPercent:Number(invoice.discountPercent||0)});
+    setTimeout(()=>openReceiptGenerator(),150);
 }
 
 async function loadSavedInvoiceReceiptRecords() {
@@ -1900,7 +1926,9 @@ async function loadSavedInvoiceReceiptRecords() {
                         <td>GHS ${amount.toFixed(2)}</td>
                         <td>${escapeHTML(status)}</td>
                         <td>
-                            ${r.type === "Invoice" ? `<button type="button" class="secondary" data-open-saved-invoice="${escapeHTML(r.key)}">Edit / Open</button>` : ""}
+                            <button type="button" class="secondary" data-open-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Open</button>
+                            <button type="button" class="secondary" data-edit-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Edit</button>
+                            <button type="button" class="secondary" data-share-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Share</button>
                             <button type="button" class="danger" data-delete-saved-record="${escapeHTML(r.id)}" data-record-type="${escapeHTML(r.type)}" data-record-key="${escapeHTML(r.key)}" data-record-number="${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}">Delete</button>
                         </td>
                     </tr>`;
@@ -1908,24 +1936,38 @@ async function loadSavedInvoiceReceiptRecords() {
                 </tbody>
             </table>` : `<div class="empty">No saved invoices or receipts yet.</div>`;
 
-        list.querySelectorAll("[data-open-saved-invoice]").forEach(button => {
+        list.querySelectorAll("[data-open-saved-record]").forEach(button => {
             button.onclick = async () => {
-                const row = records.find(r => r.key === button.dataset.openSavedInvoice);
+                const row = records.find(r => r.key === button.dataset.openSavedRecord);
                 if (!row) return;
-                const customerRow = {
-                    full_name: row.customer || "",
-                    phone: row.phone || "",
-                    whatsapp: row.phone || "",
-                    email: row.email || "",
-                    location: row.address || ""
-                };
-                await openInvoiceGenerator(customerRow, {
-                    manualLines: row.lines || [],
-                    notes: row.notes || "",
-                    training: !!row.training,
-                    invoiceNumber: row.invoiceNumber,
-                    discountPercent: Number(row.discountPercent || 0)
-                });
+                if (row.type === "Invoice") {
+                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
+                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                } else { await openSavedReceiptRecord(row); }
+            };
+        });
+        list.querySelectorAll("[data-edit-saved-record]").forEach(button => {
+            button.onclick = async () => {
+                const row = records.find(r => r.key === button.dataset.editSavedRecord);
+                if (!row) return;
+                if (row.type === "Invoice") {
+                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
+                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                } else { await openSavedReceiptRecord(row); }
+            };
+        });
+        list.querySelectorAll("[data-share-saved-record]").forEach(button => {
+            button.onclick = async () => {
+                const row = records.find(r => r.key === button.dataset.shareSavedRecord);
+                if (!row) return;
+                if (row.type === "Invoice") {
+                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
+                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                    setTimeout(()=>generateInvoicePdf(true),350);
+                } else {
+                    await openSavedReceiptRecord(row);
+                    setTimeout(()=>generateReceiptPdf(true),350);
+                }
             };
         });
 
@@ -2081,7 +2123,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="form-group"><label>Email</label><input id="generatedInvoiceEmail" value="${escapeHTML(row.email || "")}"></div>
                 <div class="form-group"><label>Location / Address</label><input id="generatedInvoiceAddress" value="${escapeHTML(row.location || "")}"></div>
             </div>
-            <div class="form-group"><label>Invoice Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML(details?.notes || (isTrainingInvoice ? "Kindly note that full payment is expected to be made before class begins.\n\nThank you for choosing Aprils Signature." : "Kindly note that production begins only after the initial deposit of 75% has been paid and confirmed.\n\nThank you for choosing Aprils Signature."))}</textarea></div>
+            <div class="form-group"><label>Payment Notes</label><textarea id="generatedInvoiceNotes">${escapeHTML((details?.notes || "").split(/\n\s*Thank you for choosing Aprils Signature\.?/i)[0].trim() || (isTrainingInvoice ? "Kindly note that full payment is expected to be made before class begins." : "Kindly note that production begins only after the initial deposit of 75% has been paid and confirmed."))}</textarea></div>
         </div>
         <div id="generatedInvoicePreview"></div>
     `;
@@ -2134,9 +2176,10 @@ async function openInvoiceGenerator(row, details) {
                             <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
-                    ${!isTrainingInvoice && paymentAccounts.filter(item=>item.note).length ? `<div class="invoice-payment-note"><strong>*** Payment Note ***</strong><br><em>${paymentAccounts.filter(item=>item.note).map(item=>escapeHTML(item.note)).filter(Boolean).join("<br>")}</em></div>` : ""}
-                </div>
-                <div class="invoice-note"><strong><em>${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</em></strong></div>
+                    </div>
+                <div class="invoice-note invoice-payment-note"><strong>*** Payment Notes ***</strong><br><em>${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</em></div>
+                <div class="invoice-note invoice-thank-you"><strong>Thank you for choosing Aprils Signature.</strong></div>
+                <div class="invoice-footer">Aprils Signature • Elegance in Every Stitch</div>
             </div>
         `;
     }
@@ -2331,7 +2374,8 @@ async function shareGeneratedInvoiceWhatsApp() {
     const customer = document.getElementById("generatedInvoicePhone")?.value || "";
     const text = getGeneratedInvoiceShareText();
     try {
-        if (state && window.html2pdf && navigator.share && navigator.canShare) {
+        const html2pdf = await ensureHtml2Pdf();
+        if (state && html2pdf && navigator.share && navigator.canShare) {
             state.renderInvoice();
             const paper = document.getElementById("invoicePaper");
             const number = document.getElementById("generatedInvoiceNumber")?.value || "Aprils-Signature-Invoice";
@@ -2381,7 +2425,7 @@ function printGeneratedInvoice() {
         return;
     }
     printWindow.document.write(`<html><head><title>Aprils Signature Invoice</title><style>
-        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}</style></head><body>${paper.outerHTML}</body></html>`);
+        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}.invoice-thank-you{text-align:center}</style></head><body>${paper.outerHTML}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 400);
@@ -2532,7 +2576,7 @@ function openReceiptGenerator() {
                         </div>`).join("")}
                     </div>
                 </div>
-                <div class="receipt-note"><strong>Note</strong><br>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</div>
+                <div class="receipt-note"><strong>Note</strong><br><em>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</em></div>
                 <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
             </div>
         `;
@@ -2586,6 +2630,7 @@ function openReceiptGenerator() {
                     saveType: "manual"
                 })
             );
+            try { if (window.syncInventoryFromPayment) await window.syncInventoryFromPayment(document.getElementById("generatedReceiptInvoiceNumber")?.value || ""); } catch (inventoryError) { console.warn("Inventory sync after payment skipped:", inventoryError); }
             const latest = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
             if (invoiceState) {
                 invoiceState.savedPayments = latest;
@@ -2671,7 +2716,8 @@ async function shareGeneratedReceiptWhatsApp() {
     const customer = document.getElementById("generatedReceiptPhone")?.value || "";
     const text = getGeneratedReceiptShareText();
     try {
-        if (state && window.html2pdf && navigator.share && navigator.canShare) {
+        const html2pdf = await ensureHtml2Pdf();
+        if (state && html2pdf && navigator.share && navigator.canShare) {
             state.renderReceipt();
             const paper = document.getElementById("receiptPaper");
             const number = document.getElementById("generatedReceiptNumber")?.value || "Aprils-Signature-Receipt";
@@ -2727,6 +2773,27 @@ function printGeneratedReceipt() {
    END MANUAL INVOICE GENERATOR
 ========================================================= */
 
+function setupShopAdmin(){
+    const input=document.getElementById("publicShopUrl");if(!input)return;const url=new URL("../shop.html",window.location.href).href;input.value=url;const open=document.getElementById("openPublicShop");if(open)open.href=url;
+    document.getElementById("copyPublicShop")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(url);message("Shop link copied.","success");}catch(_){input.select();document.execCommand("copy");message("Shop link copied.","success");}});
+    document.getElementById("sharePublicShop")?.addEventListener("click",async()=>{try{if(navigator.share)await navigator.share({title:"Aprils Signature Shop",text:"Shop Aprils Signature online",url});else{await navigator.clipboard.writeText(url);message("Shop link copied.","success");}}catch(error){if(error?.name!=="AbortError")message("The Shop link could not be shared on this device.","error");}});
+}
+
+async function loadAdminServices() {
+    const list=document.getElementById("adminServicesList"); if(!list)return;
+    try { const result=await db.from("admin_services").select("*").order("display_order",{ascending:true}).order("title"); if(result.error)throw result.error; const rows=result.data||[];
+        list.innerHTML=rows.length?`<table><thead><tr><th>Service</th><th>Category</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-service="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-service="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No services have been added yet.</div>`;
+        list.querySelectorAll("[data-edit-service]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editService));if(!r)return;document.getElementById("adminServiceId").value=r.id;document.getElementById("adminServiceTitle").value=r.title||"";document.getElementById("adminServiceCategory").value=r.category||"";document.getElementById("adminServiceOrder").value=r.display_order??1;document.getElementById("adminServiceDescription").value=r.description||"";document.getElementById("adminServiceActive").checked=r.active!==false;document.getElementById("adminServiceForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminServiceTitle")?.focus();});
+        list.querySelectorAll("[data-delete-service]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this service?"))return;const r=await db.from("admin_services").delete().eq("id",b.dataset.deleteService);if(r.error){message("Service could not be deleted: "+r.error.message,"error");return;}await loadAdminServices();});
+    } catch(error) { list.innerHTML=`<div class="empty">Services could not be loaded. Check the Supabase table/policy. ${escapeHTML(error.message||"")}</div>`; }
+}
+function setupAdminServiceForm(){
+    const form=document.getElementById("adminServiceForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
+    form.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("adminServiceId").value.trim();const payload={title:document.getElementById("adminServiceTitle").value.trim(),category:document.getElementById("adminServiceCategory").value.trim(),display_order:Number(document.getElementById("adminServiceOrder").value||1),description:document.getElementById("adminServiceDescription").value.trim(),active:document.getElementById("adminServiceActive").checked,updated_at:new Date().toISOString()};if(!payload.title){message("Enter a service name.","error");return;}try{const r=id?await db.from("admin_services").update(payload).eq("id",id):await db.from("admin_services").insert(payload);if(r.error)throw r.error;form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;message("Service saved successfully.","success");await loadAdminServices();}catch(error){message("Service could not be saved: "+error.message,"error");}});
+    document.getElementById("adminServiceCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;});
+}
+function newAdminService(){const f=document.getElementById("adminServiceForm");if(!f)return;f.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;f.scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminServiceTitle")?.focus();}
+
 async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
@@ -2763,6 +2830,23 @@ async function loadServices() {
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
         <div class="form-card" style="margin-top:20px;">
+            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
+            <p class="intro">Add, edit, delete and reorder services separately from products.</p>
+            <button type="button" class="secondary" id="newAdminServiceButton">+ Add New Service</button>
+            <form id="adminServiceForm" style="margin-top:12px;">
+                <input type="hidden" id="adminServiceId">
+                <div class="form-grid">
+                    <div class="form-group"><label>Service Name</label><input id="adminServiceTitle" required></div>
+                    <div class="form-group"><label>Category</label><input id="adminServiceCategory"></div>
+                    <div class="form-group"><label>Display Order</label><input id="adminServiceOrder" type="number" min="1" value="1"></div>
+                </div>
+                <div class="form-group"><label>Description</label><textarea id="adminServiceDescription"></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="adminServiceActive" checked> Active</label><br>
+                <button type="submit" class="primary">Save Service</button> <button type="button" class="secondary" id="adminServiceCancel">Cancel</button>
+            </form>
+        </div>
+        <div id="adminServicesList" class="table-wrap"></div>
+        <div class="form-card" style="margin-top:20px;">
             <h3 style="color:#008c95;margin-bottom:10px;">Training</h3>
             <p class="intro">Add, edit, delete and price training programmes. Public prices are optional and will appear on the public Training page when entered. Invoice prices are separate and admin-only.</p>
             <form id="trainingForm">
@@ -2781,7 +2865,7 @@ async function loadServices() {
             </form>
         </div>
         <div id="trainingList" class="table-wrap"></div>`;
-    await loadProducts(); setupProductForm(); await loadTraining(); setupTrainingForm();
+    await loadProducts(); setupProductForm(); setupAdminServiceForm(); const newServiceButton=document.getElementById("newAdminServiceButton"); if(newServiceButton&&!newServiceButton.dataset.bound){newServiceButton.dataset.bound="1";newServiceButton.addEventListener("click",newAdminService);} await loadAdminServices(); await loadTraining(); setupTrainingForm();
 }
 
 async function loadTraining() {
@@ -2791,7 +2875,7 @@ async function loadTraining() {
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
     list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"start"});});
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;document.getElementById("trainingForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("trainingTitle")?.focus();});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
