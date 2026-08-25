@@ -2,7 +2,6 @@
    APRILS SIGNATURE
    MASTER WEBSITE STYLESHEET
    ========================================================= */
-\\\\\
 
 
 /* =========================================================
@@ -3123,3 +3122,7 @@ table td {
         grid-template-columns: 1fr;
     }
 }
+.shop-availability{font-weight:700;margin:8px 0 14px;letter-spacing:.2px}
+.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}
+.invoice-thank-you{text-align:center;margin-top:14px}
+.invoice-payment-note{border-left:4px solid #d6a542;background:#f8f8f8}
