@@ -159,8 +159,7 @@ PUBLIC FORM FIXES
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
                     catch (uploadError) {
                         console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        message(output, "The image upload could not be completed. Please check the files and try again.", false);
-                        return;
+                        throw new Error("The image upload could not be completed. Please try again.");
                     }
                 }
 
@@ -185,8 +184,6 @@ PUBLIC FORM FIXES
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
                     embellishmentDetails: {},
                     serviceOther: String(data.get("serviceOther") || "").trim(),
-                    serviceOtherSize: String(data.get("serviceOtherSize") || "").trim(),
-                    serviceOtherColour: String(data.get("serviceOtherColour") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
@@ -208,8 +205,8 @@ PUBLIC FORM FIXES
                     const active = input.type === "checkbox" ? input.checked : Number(String(data.get(input.name) || "").trim() || 0) > 0;
                     if (!active) return;
                     const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
-                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || "").trim();
-                    const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || "").trim();
+                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
+                    const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
                     const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || (input.type === "checkbox" ? "1" : data.get(input.name) || "1")).trim();
                     const localDetails = String(box?.querySelector('[data-detail="details"]')?.value || "").trim();
                     details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour, details: localDetails };
@@ -354,9 +351,13 @@ PUBLIC FORM FIXES
 
 
                 if (button) {
-                    button.disabled = true;
-                    button.classList.add("button-working");
-                    button.setAttribute("aria-busy", "true");
+
+                    button.disabled =
+                        true;
+
+                    button.textContent =
+                        "Submitting...";
+
                 }
 
 
@@ -375,16 +376,6 @@ PUBLIC FORM FIXES
 
                     if (result.error) {
                         console.error("QUOTE ERROR:", result.error);
-                        // Keep the customer's request locally if the database is
-                        // temporarily unavailable. It can be retried automatically
-                        // when the page is next opened online.
-                        try {
-                            const queue = JSON.parse(localStorage.getItem("aprils_quote_retry_queue") || "[]");
-                            queue.push({payload, queued_at:new Date().toISOString()});
-                            localStorage.setItem("aprils_quote_retry_queue", JSON.stringify(queue.slice(-100)));
-                            message(output, "Your request has been saved on this device and will be retried when the connection is restored.", true);
-                            return;
-                        } catch (_) {}
                         throw result.error;
                     }
 
@@ -425,9 +416,13 @@ PUBLIC FORM FIXES
                 } finally {
 
                     if (button) {
-                        button.disabled = false;
-                        button.classList.remove("button-working");
-                        button.removeAttribute("aria-busy");
+
+                        button.disabled =
+                            false;
+
+                        button.textContent =
+                            "Submit Order / Request a Quote";
+
                     }
 
                 }
@@ -569,9 +564,13 @@ PUBLIC FORM FIXES
 
 
                 if (button) {
-                    button.disabled = true;
-                    button.classList.add("button-working");
-                    button.setAttribute("aria-busy", "true");
+
+                    button.disabled =
+                        true;
+
+                    button.textContent =
+                        "Submitting...";
+
                 }
 
 
@@ -630,9 +629,13 @@ PUBLIC FORM FIXES
                 } finally {
 
                     if (button) {
-                        button.disabled = false;
-                        button.classList.remove("button-working");
-                        button.removeAttribute("aria-busy");
+
+                        button.disabled =
+                            false;
+
+                        button.textContent =
+                            "Submit Training Registration";
+
                     }
 
                 }

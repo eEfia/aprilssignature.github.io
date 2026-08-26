@@ -455,9 +455,12 @@ function setupTrainingForm() {
 
 
             if (button) {
+
                 button.disabled = true;
-                button.classList.add("button-working");
-                button.setAttribute("aria-busy", "true");
+
+                button.textContent =
+                    "Submitting...";
+
             }
 
 
@@ -600,9 +603,12 @@ function setupTrainingForm() {
             } finally {
 
                 if (button) {
+
                     button.disabled = false;
-                    button.classList.remove("button-working");
-                    button.removeAttribute("aria-busy");
+
+                    button.textContent =
+                        "Submit Training Registration";
+
                 }
 
             }
@@ -647,9 +653,10 @@ function setupEnquiryForm() {
 
 
             if (button) {
+
                 button.disabled = true;
-                button.classList.add("button-working");
-                button.setAttribute("aria-busy", "true");
+                button.textContent = "Sending...";
+
             }
 
 
@@ -747,9 +754,10 @@ function setupEnquiryForm() {
             } finally {
 
                 if (button) {
+
                     button.disabled = false;
-                    button.classList.remove("button-working");
-                    button.removeAttribute("aria-busy");
+                    button.textContent = "Submit";
+
                 }
 
             }
@@ -814,25 +822,10 @@ function setupQuoteForm() {
             form.querySelectorAll('input[name="services[]"]:checked')
         ).map(input => input.value);
 
-        const panelHost = document.getElementById("selectedServiceDetails");
-        const panels = Array.from(form.querySelectorAll(".quote-service-panel[data-service-panel]"));
-        const panelMap = new Map(panels.map(panel => [panel.dataset.servicePanel, panel]));
-        if (panelHost) {
-            // Newest selection first. Do not move the service-selection box or alter its styling.
-            selected.slice().reverse().forEach(name => {
-                const panel = panelMap.get(name);
-                if (panel) panelHost.prepend(panel);
-            });
-            panels.forEach(panel => {
-                const visible = selected.includes(panel.dataset.servicePanel);
-                panel.hidden = !visible;
-                panel.style.display = visible ? "block" : "none";
-                panel.setAttribute("aria-hidden", String(!visible));
-            });
-        }
-
         const streetwear = document.getElementById("streetwearSection");
-        if (streetwear) streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
+        if (streetwear) {
+            streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
+        }
 
         const ladiesWear = document.getElementById("ladiesWearSection");
         if (ladiesWear) ladiesWear.style.display = selected.includes("Ladies Wear") ? "block" : "none";
@@ -840,7 +833,7 @@ function setupQuoteForm() {
         const kidsWear = document.getElementById("kidsWearSection");
         if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
 
-        const serviceOtherWrap = document.getElementById("serviceOtherSection") || document.getElementById("serviceOtherWrap");
+        const serviceOtherWrap = document.getElementById("serviceOtherWrap");
         const serviceOtherInput = document.getElementById("serviceOther");
         const otherServiceSelected = selected.includes("Others");
         if (serviceOtherWrap) serviceOtherWrap.style.display = otherServiceSelected ? "block" : "none";
@@ -893,18 +886,15 @@ async function loadPublicStreetwearProducts() {
         ["Tops", ["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"]],
         ["Tank Top Options", ["Ladies tank top","Men's tank top"]],
         ["Bottoms", ["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]],
-        ["Sets", ["Hoodies & Joggers","T-shirt & Shorts","T-shirt & Sweatpants","Sweatshirt & Shorts","Sweatshirt & Sweatpants"]]
+        ["Sets", ["T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
     ];
     const aliases = new Map([
         ["jerseys","jersey"],["t shirts","t shirt"],["t-shirts","t shirt"],["polo shirts","polo shirt"],["sweatshirts","sweatshirt"],
         ["ladies tank tops","ladies tank top"],["men's tank tops","men's tank top"],["varsity jackets","varsity jacket"],
         ["super thick cotton joggers","super thick cotton joggers"],["joggers super thick cotton joggers","joggers super thick cotton joggers"],
         ["joggers everyday wear type","everyday wear type of joggers"],["everyday wear type","everyday wear type of joggers"],["jogger shorts","joggers shorts"],
-        ["hoodies and joggers","hoodies & joggers"],["hoodies joggers set","hoodies & joggers"],
-        ["t shirts and shorts","t-shirt & shorts"],["t shirt and shorts","t-shirt & shorts"],
-        ["t shirt sweatpants set","t-shirt & sweatpants"],["t shirt and sweatpants","t-shirt & sweatpants"],
-        ["sweatshirts and shorts","sweatshirt & shorts"],["sweatshirt and shorts","sweatshirt & shorts"],
-        ["sweatshirts and sweatpants","sweatshirt & sweatpants"],["sweatshirt and sweatpants","sweatshirt & sweatpants"]
+        ["t shirts and shorts","t shirt and shorts"],["t shirt sweatpants set","t shirt and sweatpants"],
+        ["sweatshirts and shorts","sweatshirt and shorts"],["sweatshirts and sweatpants","sweatshirt and sweatpants"]
     ]);
     const canonical = new Map();
     groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).forEach(n=>canonical.set(normal(n), n));
@@ -914,8 +904,8 @@ async function loadPublicStreetwearProducts() {
         return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML(id)}">
             ${includeRequest ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>` : ""}
             <div class="catalogue-detail-grid">
-                <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Enter the size OR complete measurements."></textarea></div>
-                <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="Enter colour"></div>
+                <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
+                <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div>
                 <div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div>
             </div>
         </div>`;
@@ -942,16 +932,17 @@ async function loadPublicStreetwearProducts() {
         const rowNames = names => names.map(name => makeRow(labelFor(name))).join("");
         let html = `<h3 class="catalogue-group-title">Tops</h3>${rowNames(["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"])} ${makeRow(labelFor("Varsity Jacket"))}`;
         html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${rowNames(groups[1][1])}`;
-        html += `<h3 class="catalogue-group-title">Bottoms</h3>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
+        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
         html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}${makeRow("Others")}`;
 
-        // New admin Streetwear products are shown in the normal catalogue only.
+        // Any new Streetwear product added from Admin is appended without disturbing
+        // the established catalogue layout.
         const knownNames = new Set(groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).map(normal));
         const custom = products
             .filter(r => normal(r.category) === "streetwear" && r.active !== false)
             .filter(r => !knownNames.has(normal(r.catalogue_key || r.name)))
             .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-        if (custom.length) html += custom.map(r=>makeRow(r.name)).join("");
+        if (custom.length) html += `<h3 class="catalogue-group-title">Additional Streetwear Options</h3>${custom.map(r=>makeRow(r.name)).join("")}`;
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
             input.addEventListener("change",()=>{
@@ -980,7 +971,7 @@ async function loadPublicLadiesWearProducts() {
     const all=groups.flatMap(g=>g[1]); const canon=new Map(all.concat(["Others"]).map(n=>[normal(n),n]));
     const render=products=>{
         const by=new Map(); products.forEach(r=>{const c=canon.get(r.catalogue_key || normal(r.name));if(c&&!by.has(c))by.set(c,{...r,name:r.name || c});});
-        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div>${name === "Others" ? `<div class="form-group wide"><label>Specify Your Request</label><textarea data-detail="details" name="ladiesWearOther" placeholder="Tell us what you need."></textarea></div>` : `<div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div>`}</div></div></div>`;
+        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box">${name === "Others" ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="ladiesWearOther" placeholder="Tell us what you need."></textarea></div>` : ""}<div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div></div></div></div>`;
         const html = groups.map(([title,names])=>`<h3 class="catalogue-group-title">${escapeHTML(title)}</h3>${names.map(n=>make(by.get(n)?.name||n)).join("")}`).join("")+`<h3 class="catalogue-group-title">Others</h3>${make(by.get("Others")?.name||"Others")}`;
         const known = new Set(all.map(normal).concat(["others"]));
         const custom = products.filter(r=>normal(r.category)==="ladies wear" && r.active!==false)
@@ -1104,19 +1095,11 @@ function setupMediaInteractions() {
 }
 
 
-function resolvePublicMediaUrl(value, version = "") {
+function resolvePublicMediaUrl(value) {
     const raw = String(value || "").trim();
     if (!raw) return "";
-    const base = /^(https?:|data:|blob:|\/)/i.test(raw) ? raw : raw.replace(/^(\.\.\/)+/, "");
-    const v = String(version || "").trim();
-    if (!v || /^data:|^blob:/i.test(base)) return base;
-    try {
-        const u = new URL(base, window.location.href);
-        u.searchParams.set("v", v);
-        return /^(https?:)?\/\//i.test(base) || base.startsWith("/") ? u.href : u.pathname.replace(/^\//, "") + u.search;
-    } catch (_) {
-        return base;
-    }
+    if (/^(https?:|data:|blob:|\/)/i.test(raw)) return raw;
+    return raw.replace(/^(\.\.\/)+/, "");
 }
 
 async function loadPublicFeaturedCollection() {
@@ -1130,7 +1113,7 @@ async function loadPublicFeaturedCollection() {
             const nameResult = await supabase.from("settings").select("setting_value").eq("setting_key","homepage_featured_collection_name").limit(1).maybeSingle();
             if (!nameResult.error && nameResult.data?.setting_value) collectionName = String(nameResult.data.setting_value);
             const settings = await supabase.from("settings")
-                .select("id,setting_key,setting_value,updated_at,created_at")
+                .select("setting_key,setting_value")
                 .like("setting_key","homepage_featured_%");
 
             if (!settings.error) {
@@ -1151,15 +1134,12 @@ async function loadPublicFeaturedCollection() {
             .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
     }
 
-    if (!featured.length) {
-        document.body.classList.remove("media-sync-pending");
-        return;
-    }
+    if (!featured.length) return;
 
     const main = document.querySelector("main");
     if (!main) return;
 
-    const existing = main.querySelector(".featured-section");
+    const existing = main.querySelector(".featured-collection");
     if (!existing) return;
 
     existing.innerHTML = `
@@ -1170,7 +1150,7 @@ async function loadPublicFeaturedCollection() {
             </div>
             <div class="featured-grid">
                 ${featured.map(row => {
-                    const mediaUrl = resolvePublicMediaUrl(row.url || row.image_url || "", row.updated_at || row.created_at || row.id);
+                    const mediaUrl = resolvePublicMediaUrl(row.url || row.image_url || "");
                     const media = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl)
                         ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(mediaUrl)}" type="video/mp4"></video></div>`
                         : `<div class="featured-video"><img src="${escapeHTML(mediaUrl)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
@@ -1184,34 +1164,15 @@ async function loadPublicFeaturedCollection() {
             <div class="section-button"><a href="gallery.html" class="btn btn-primary">View Full Gallery</a></div>
         </div>`;
     setupMediaInteractions();
-    document.body.classList.remove("media-sync-pending");
 }
 
 async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
 
-    let rows = await loadPublicRows("gallery_items");
-    // Never leave the public gallery blank when Supabase is temporarily
-    // unavailable. These are the same media records seeded by Admin.
+    const rows = await loadPublicRows("gallery_items");
     if (!rows.length) {
-        rows = [
-            ["Hoodie Set","Streetwear Collection","images/photo (6).jpeg",1],
-            ["Hoodie","Streetwear Collection","images/photo (7).jpeg",2],
-            ["T-Shirt & Shorts","Streetwear Collection","images/photo (8).jpeg",3],
-            ["T-Shirt — Back View","Streetwear Collection","images/photo (9).jpeg",4],
-            ["Tank Top & Joggers","Streetwear Collection","images/photo (10).jpeg",5],
-            ["Jersey","Streetwear Collection","images/photo (11).jpeg",6],
-            ["Rhinestone Kaftan","Rhinestone Embellishment","images/photo (12).jpeg",1],
-            ["Rhinestone Dress","Rhinestone Embellishment","images/photo (1).jpeg",2],
-            ["Elegant Rhinestone Kaftan","Rhinestone Embellishment","images/photo (4).jpeg",3],
-            ["Printed Kaftan","Fashion Creations","images/photo (2).jpeg",1],
-            ["Fashion Creation","Fashion Creations","images/photo (3).jpeg",2],
-            ["Printed Kaftan","Featured Collection","videos/video (2).mp4",1],
-            ["Elegant Rhinestone Kaftan","Featured Collection","videos/video (3).mp4",2],
-            ["Rhinestone Varsity Jackets & Cargo Skirts","Featured Collection","videos/video (4).mp4",3],
-            ["Rhinestone Embellishment","Embellishment Projects","videos/video (1).mp4",1],
-            ["Graphic T-Shirts","Embellishment Projects","videos/video (5).mp4",2]
-        ].map(([title,category,image_url,display_order]) => ({title,category,image_url,display_order,active:true}));
+        setupMediaInteractions();
+        return;
     }
 
     const activeRows = [];
@@ -1225,10 +1186,7 @@ async function loadPublicGallery() {
             activeRows.push(row);
         }
     });
-    if (!activeRows.length) {
-        document.body.classList.remove("media-sync-pending");
-        return;
-    }
+    if (!activeRows.length) return;
 
     const main = document.querySelector("main");
     if (!main) return;
@@ -1245,13 +1203,7 @@ async function loadPublicGallery() {
         groups[category].push(row);
     });
 
-    const collectionOrder = new Map([
-        ["streetwear collection",1],
-        ["featured collection",2],
-        ["embellishment projects",3],
-        ["fashion creations",4],
-        ["rhinestone embellishment",5]
-    ]);
+    const collectionOrder = new Map();
     try {
         const collections = await loadPublicRows("gallery_collections");
         collections.forEach(row => collectionOrder.set(String(row.name || "").trim().toLowerCase(), Number(row.display_order ?? 9999)));
@@ -1270,9 +1222,9 @@ async function loadPublicGallery() {
                     ${groups[category].map(row => `
                         <article class="gallery-item">
                             <div class="gallery-image">
-                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))
-                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))}" type="video/mp4"></video>`
-                                    : `<img src="${escapeHTML(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))}" alt="${escapeHTML(row.title || category)}">`}
+                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(resolvePublicMediaUrl(row.image_url || ""))
+                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" type="video/mp4"></video>`
+                                    : `<img src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" alt="${escapeHTML(row.title || category)}">`}
                             </div>
                             ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
                             ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
@@ -1301,9 +1253,6 @@ async function loadPublicGallery() {
 
     if (intro) intro.after(fragment);
     setupMediaInteractions();
-    // The gallery is now fully rendered. Remove the temporary anti-flash class
-    // so the actual media, footer and controls become visible.
-    document.body.classList.remove("media-sync-pending");
 }
 
 async function loadPublicServices() {
@@ -1865,49 +1814,8 @@ async function setupPublicDatabaseContent() {
    START
 ========================================================= */
 
-function setupButtonFeedback() {
-    if (document.documentElement.dataset.aprilsButtonFeedback === "1") return;
-    document.documentElement.dataset.aprilsButtonFeedback = "1";
-    document.addEventListener("click", event => {
-        const button = event.target.closest("button");
-        if (!button || button.disabled || button.dataset.noWorkingFeedback === "1") return;
-        button.classList.add("button-working");
-        button.setAttribute("aria-busy", "true");
-        clearTimeout(button._aprilsFeedbackTimer);
-        button._aprilsFeedbackTimer = setTimeout(() => {
-            if (!button.isConnected) return;
-            button.classList.remove("button-working");
-            button.removeAttribute("aria-busy");
-        }, 900);
-    }, true);
-}
-
-function setupAutoCapitalization() {
-    const shouldSkip = input => {
-        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName)) return true;
-        const id = String(input.id || "").toLowerCase();
-        const name = String(input.name || "").toLowerCase();
-        return /email|url|phone|whatsapp|password|reference|search/.test(id + " " + name);
-    };
-    const apply = input => {
-        if (shouldSkip(input)) return;
-        const start = input.selectionStart;
-        const end = input.selectionEnd;
-        input.value = String(input.value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
-        try { input.setSelectionRange(start, end); } catch (_) {}
-    };
-    document.addEventListener("input", event => apply(event.target), true);
-    document.addEventListener("focusout", event => apply(event.target), true);
-}
-
 function start() {
 
-    if (document.body.classList.contains("gallery-page") || document.body.classList.contains("home-page")) {
-        document.body.classList.add("media-sync-pending");
-    }
-
-    setupAutoCapitalization();
-    setupButtonFeedback();
     setupMobileMenu();
     normalizeEmailLinks();
     setupHelpChat();
