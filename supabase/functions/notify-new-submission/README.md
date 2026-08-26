@@ -4,7 +4,7 @@ This function receives a Supabase Database Webhook for a newly-created `public.n
 
 ## Secrets / environment variables
 
-Supabase automatically provides:
+Supabase automatically provid:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
