@@ -354,13 +354,9 @@ PUBLIC FORM FIXES
 
 
                 if (button) {
-
-                    button.disabled =
-                        true;
-
-                    button.textContent =
-                        "Submitting...";
-
+                    button.disabled = true;
+                    button.classList.add("button-working");
+                    button.setAttribute("aria-busy", "true");
                 }
 
 
@@ -379,6 +375,16 @@ PUBLIC FORM FIXES
 
                     if (result.error) {
                         console.error("QUOTE ERROR:", result.error);
+                        // Keep the customer's request locally if the database is
+                        // temporarily unavailable. It can be retried automatically
+                        // when the page is next opened online.
+                        try {
+                            const queue = JSON.parse(localStorage.getItem("aprils_quote_retry_queue") || "[]");
+                            queue.push({payload, queued_at:new Date().toISOString()});
+                            localStorage.setItem("aprils_quote_retry_queue", JSON.stringify(queue.slice(-100)));
+                            message(output, "Your request has been saved on this device and will be retried when the connection is restored.", true);
+                            return;
+                        } catch (_) {}
                         throw result.error;
                     }
 
@@ -419,13 +425,9 @@ PUBLIC FORM FIXES
                 } finally {
 
                     if (button) {
-
-                        button.disabled =
-                            false;
-
-                        button.textContent =
-                            "Submit Order / Request a Quote";
-
+                        button.disabled = false;
+                        button.classList.remove("button-working");
+                        button.removeAttribute("aria-busy");
                     }
 
                 }
@@ -567,13 +569,9 @@ PUBLIC FORM FIXES
 
 
                 if (button) {
-
-                    button.disabled =
-                        true;
-
-                    button.textContent =
-                        "Submitting...";
-
+                    button.disabled = true;
+                    button.classList.add("button-working");
+                    button.setAttribute("aria-busy", "true");
                 }
 
 
@@ -632,13 +630,9 @@ PUBLIC FORM FIXES
                 } finally {
 
                     if (button) {
-
-                        button.disabled =
-                            false;
-
-                        button.textContent =
-                            "Submit Training Registration";
-
+                        button.disabled = false;
+                        button.classList.remove("button-working");
+                        button.removeAttribute("aria-busy");
                     }
 
                 }

@@ -455,12 +455,9 @@ function setupTrainingForm() {
 
 
             if (button) {
-
                 button.disabled = true;
-
-                button.textContent =
-                    "Submitting...";
-
+                button.classList.add("button-working");
+                button.setAttribute("aria-busy", "true");
             }
 
 
@@ -603,12 +600,9 @@ function setupTrainingForm() {
             } finally {
 
                 if (button) {
-
                     button.disabled = false;
-
-                    button.textContent =
-                        "Submit Training Registration";
-
+                    button.classList.remove("button-working");
+                    button.removeAttribute("aria-busy");
                 }
 
             }
@@ -653,10 +647,9 @@ function setupEnquiryForm() {
 
 
             if (button) {
-
                 button.disabled = true;
-                button.textContent = "Sending...";
-
+                button.classList.add("button-working");
+                button.setAttribute("aria-busy", "true");
             }
 
 
@@ -754,10 +747,9 @@ function setupEnquiryForm() {
             } finally {
 
                 if (button) {
-
                     button.disabled = false;
-                    button.textContent = "Submit";
-
+                    button.classList.remove("button-working");
+                    button.removeAttribute("aria-busy");
                 }
 
             }
@@ -822,10 +814,25 @@ function setupQuoteForm() {
             form.querySelectorAll('input[name="services[]"]:checked')
         ).map(input => input.value);
 
-        const streetwear = document.getElementById("streetwearSection");
-        if (streetwear) {
-            streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
+        const panelHost = document.getElementById("selectedServiceDetails");
+        const panels = Array.from(form.querySelectorAll(".quote-service-panel[data-service-panel]"));
+        const panelMap = new Map(panels.map(panel => [panel.dataset.servicePanel, panel]));
+        if (panelHost) {
+            // Newest selection first. Do not move the service-selection box or alter its styling.
+            selected.slice().reverse().forEach(name => {
+                const panel = panelMap.get(name);
+                if (panel) panelHost.prepend(panel);
+            });
+            panels.forEach(panel => {
+                const visible = selected.includes(panel.dataset.servicePanel);
+                panel.hidden = !visible;
+                panel.style.display = visible ? "block" : "none";
+                panel.setAttribute("aria-hidden", String(!visible));
+            });
         }
+
+        const streetwear = document.getElementById("streetwearSection");
+        if (streetwear) streetwear.style.display = selected.includes("Streetwear") ? "block" : "none";
 
         const ladiesWear = document.getElementById("ladiesWearSection");
         if (ladiesWear) ladiesWear.style.display = selected.includes("Ladies Wear") ? "block" : "none";
@@ -973,7 +980,7 @@ async function loadPublicLadiesWearProducts() {
     const all=groups.flatMap(g=>g[1]); const canon=new Map(all.concat(["Others"]).map(n=>[normal(n),n]));
     const render=products=>{
         const by=new Map(); products.forEach(r=>{const c=canon.get(r.catalogue_key || normal(r.name));if(c&&!by.has(c))by.set(c,{...r,name:r.name || c});});
-        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box">${name === "Others" ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="ladiesWearOther" placeholder="Tell us what you need."></textarea></div>` : ""}<div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div></div></div></div>`;
+        const make=(name)=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="ladiesWearProducts[]" value="${escapeHTML(name)}" data-ladieswear-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Black, Navy Blue"></div>${name === "Others" ? `<div class="form-group wide"><label>Specify Your Request</label><textarea data-detail="details" name="ladiesWearOther" placeholder="Tell us what you need."></textarea></div>` : `<div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div>`}</div></div></div>`;
         const html = groups.map(([title,names])=>`<h3 class="catalogue-group-title">${escapeHTML(title)}</h3>${names.map(n=>make(by.get(n)?.name||n)).join("")}`).join("")+`<h3 class="catalogue-group-title">Others</h3>${make(by.get("Others")?.name||"Others")}`;
         const known = new Set(all.map(normal).concat(["others"]));
         const custom = products.filter(r=>normal(r.category)==="ladies wear" && r.active!==false)
@@ -1294,6 +1301,9 @@ async function loadPublicGallery() {
 
     if (intro) intro.after(fragment);
     setupMediaInteractions();
+    // The gallery is now fully rendered. Remove the temporary anti-flash class
+    // so the actual media, footer and controls become visible.
+    document.body.classList.remove("media-sync-pending");
 }
 
 async function loadPublicServices() {

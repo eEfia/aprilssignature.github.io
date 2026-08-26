@@ -16,9 +16,12 @@
 
     function render() {
       const selected = inputs.filter(input => input.checked).map(input => input.value);
-      selected.forEach(name => {
+      // Keep the newest selected service at the top of the detail area.
+      // This is deliberately an ordering change only; the existing panel
+      // markup/styling is preserved.
+      [...selected].reverse().forEach(name => {
         const panel = panelMap.get(name);
-        if (panel) detailsHost.appendChild(panel);
+        if (panel) detailsHost.prepend(panel);
       });
       panelMap.forEach((panel, name) => {
         const isSelected = selected.includes(name);
