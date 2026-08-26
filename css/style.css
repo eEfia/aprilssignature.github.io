@@ -3153,3 +3153,24 @@ button.button-working::after {
   animation: aprilsButtonSpin .7s linear infinite;
 }
 @keyframes aprilsButtonSpin { to { transform: rotate(360deg); } }
+
+/* Aprils Signature — non-text button activity feedback. */
+button.button-working, .button.button-working, button[aria-busy="true"] {
+  position: relative;
+  opacity: .72;
+  cursor: wait;
+}
+button.button-working::after, .button.button-working::after, button[aria-busy="true"]::after {
+  content: "";
+  display: inline-block;
+  width: 12px; height: 12px;
+  margin-left: 8px;
+  vertical-align: -2px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: aprils-spin .7s linear infinite;
+}
+@keyframes aprils-spin { to { transform: rotate(360deg); } }
+.invoice-payment-grid.two { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+@media(max-width:760px){ .invoice-payment-grid.two { grid-template-columns:1fr; } }
