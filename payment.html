@@ -4,7 +4,7 @@
 (function(){
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
   const wait=()=>new Promise(resolve=>{let n=0;const t=setInterval(()=>{const d=window.aprilsSupabase;if(d||++n>100){clearInterval(t);resolve(d||null)}},100)});
-  async function load(){lhgh
+  async function load(){
     const box=document.getElementById('paymentDetails');const d=await wait();
     if(!d){box.innerHTML='<div class="empty">Payment details are temporarily unavailable.</div>';return}
     try{
@@ -16,4 +16,4 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load);else load();
 })();
-</script></script><script src="js/pwa-register.js"></script></body></html>
+</script><script src="js/pwa-register.js"></script></body></html>
