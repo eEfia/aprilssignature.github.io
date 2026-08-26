@@ -50,25 +50,6 @@ function resolveAdminMediaUrl(value) {
     return raw;
 }
 
-function autoCapitalizeWords(value) {
-    return String(value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
-}
-function setupAutoCapitalization(root = document) {
-    root.querySelectorAll('input[type="text"], textarea, select').forEach(input => {
-        if (input.dataset.autoCapBound === "1") return;
-        const id = String(input.id || "").toLowerCase();
-        const name = String(input.name || "").toLowerCase();
-        if (/email|password|url|slug|phone|whatsapp|reference|search/.test(id + " " + name)) return;
-        input.dataset.autoCapBound = "1";
-        input.addEventListener("input", () => {
-            if (input.tagName !== "SELECT") input.value = autoCapitalizeWords(input.value);
-        });
-        input.addEventListener("blur", () => {
-            if (input.value && input.tagName !== "SELECT") input.value = autoCapitalizeWords(input.value);
-        });
-    });
-}
-
 function message(text, type = "success") {
     const box = document.getElementById("globalStatus");
     if (!box) return;
@@ -253,7 +234,6 @@ async function syncOfflineInvoiceRecords() {
                 try {
                     const inv = await getInvoiceSavedRecord(payment.invoiceNumber);
                     if (inv?.sourceId && inv.sourceType === "quote_requests") await setAdminRecordStatus("quote_status", inv.sourceId, "in_production");
-                    if (inv?.sourceId && inv.sourceType === "training_registrations") await setAdminRecordStatus("training_status", inv.sourceId, Number(payment.amount || 0) >= Number(inv.total || 0) ? "fully_paid" : "part_paid");
                 } catch (_) {}
             }
         }
@@ -302,7 +282,6 @@ async function checkSession() {
             await syncOfflineInvoiceRecords();
             await loadDashboard();
             await applyCurrentUserAccess(result.data.session.user);
-            await restoreAdminSection();
         } else {
             login.style.display = "flex";
         }
@@ -332,7 +311,6 @@ function setupLogin() {
             box.className = "status success";
             document.getElementById("loginScreen").style.display = "none";
             await loadDashboard();
-            await restoreAdminSection();
         } catch (error) {
             console.error(error);
             box.textContent = "Login failed. Check your email and password.";
@@ -351,18 +329,6 @@ function setupLogout() {
     });
 }
 
-async function restoreAdminSection() {
-    const saved = sessionStorage.getItem("aprils_admin_section");
-    if (!saved || saved === "dashboard") return;
-    const button = document.querySelector(`.sidebar button[data-section="${CSS.escape(saved)}"]`);
-    if (!button || button.style.display === "none") return;
-    document.querySelectorAll(".sidebar button").forEach(b => b.classList.remove("active"));
-    button.classList.add("active");
-    document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
-    document.getElementById(saved)?.classList.add("active");
-    await loadSection(saved);
-}
-
 function setupNavigation() {
     document.querySelectorAll(".sidebar button[data-section]").forEach(button => {
         button.addEventListener("click", async () => {
@@ -372,7 +338,6 @@ function setupNavigation() {
             document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
 
             const id = button.dataset.section;
-            sessionStorage.setItem("aprils_admin_section", id);
             const section = document.getElementById(id);
             if (section) section.classList.add("active");
 
@@ -460,8 +425,6 @@ async function loadSection(id) {
     } catch (error) {
         console.error("ADMIN SECTION ERROR:", id, error);
         message("Could not load this section. Check your Supabase tables and policies.", "error");
-    } finally {
-        setupAutoCapitalization(document);
     }
 }
 
@@ -1203,33 +1166,12 @@ function returnToAdminList(selector, id) {
 async function loadProducts() {
     const list=document.getElementById("adminProductsList"); if(!list)return;
     await ensureStreetwearCatalogue();
-    let rows=await getProducts();
+    const rows=await getProducts();
     const settings=await getRows("settings"); const invoiceMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){} });
-
-    // Show invoice-pricing items here as well, even when the public catalogue
-    // entry has not yet been created. This keeps the Admin view authoritative
-    // and prevents an item from appearing to have disappeared after saving.
-    const existingNames=new Set(rows.map(r=>normalizeInvoiceName(r.name)));
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_") && !String(r.setting_key||"").startsWith("invoice_price_training_")).forEach(r=>{
-        try{
-            const x=JSON.parse(r.setting_value||"{}");
-            if(!x.name || existingNames.has(normalizeInvoiceName(x.name))) return;
-            rows.push({id:"invoice-only-"+r.id,name:x.name,category:x.category||"Products / Services",subcategory:"",public_price:x.public_price??null,display_order:9999,active:x.active!==false,notes:x.notes||"",invoiceOnly:true,invoiceRowId:r.id});
-            existingNames.add(normalizeInvoiceName(x.name));
-        }catch(_){}
-    });
-
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-    const productRowsHtml = rows.map(r => {
-        const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));
-        const actions = r.invoiceOnly
-            ? `<button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <span style="font-size:.8em;opacity:.75">Invoice-only</span>`
-            : `<button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button>`;
-        return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!=="" ? `GHS ${Number(r.public_price).toFixed(2)}` : "—"}</td><td>${i?.price!==undefined ? `GHS ${Number(i.price).toFixed(2)}` : "—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td>${actions}</td></tr>`;
-    }).join("");
-    list.innerHTML=rows.length ? `<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${productRowsHtml}</tbody></table>` : `<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));document.getElementById("adminProductId").value=r.invoiceOnly?"":r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}try{await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));}catch(_){}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -1522,32 +1464,13 @@ function setupHomepageMediaForm() {
 
         const id = document.getElementById("homepageMediaId").value.trim();
         const title = document.getElementById("homepageMediaTitle").value.trim();
-        let url = document.getElementById("homepageMediaUrl").value.trim();
-        const file = document.getElementById("homepageMediaFile")?.files?.[0] || null;
+        const url = document.getElementById("homepageMediaUrl").value.trim();
         const order = Number(document.getElementById("homepageMediaOrder").value) || 1;
         const description = document.getElementById("homepageMediaDescription").value.trim();
         const active = document.getElementById("homepageMediaActive").checked;
 
-        if (!title || (!url && !file)) {
-            message("Please enter a title and either an image/video URL or upload a media file.", "error");
-            return;
-        }
-
-        try {
-            if (file) {
-                if (file.size > 50 * 1024 * 1024) {
-                    throw new Error("Homepage media files must be 50 MB or smaller.");
-                }
-                const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
-                const path = `homepage/${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}-${safeName}`;
-                const upload = await db.storage.from("homepage-media").upload(path, file, {upsert:false, contentType:file.type});
-                if (upload.error) throw upload.error;
-                const publicUrl = db.storage.from("homepage-media").getPublicUrl(path);
-                url = publicUrl?.data?.publicUrl || "";
-                if (!url) throw new Error("The uploaded file did not return a public URL.");
-            }
-        } catch (uploadError) {
-            message("Homepage media upload failed: " + uploadError.message + ". You can still paste a hosted media URL.", "error");
+        if (!title || !url) {
+            message("Please enter a title and image/video URL.", "error");
             return;
         }
 
@@ -1658,7 +1581,7 @@ function setupDirectCustomerLinks() {
 ========================================================= */
 
 function normalizeInvoiceName(value) {
-    return String(value || "").trim().toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+    return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 async function getInvoicePriceMap() {
@@ -1668,11 +1591,7 @@ async function getInvoicePriceMap() {
     rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_")).forEach(r => {
         try {
             const item = JSON.parse(r.setting_value || "{}");
-            if (item.name) {
-                const price = Number(item.price) || 0;
-                map.set(normalizeInvoiceName(item.name), price);
-                map.set(String(item.name).trim().toLowerCase(), price);
-            }
+            if (item.name) map.set(normalizeInvoiceName(item.name), Number(item.price) || 0);
         } catch (_) {}
     });
 
@@ -1736,7 +1655,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size || item.measurements || "", item.colour].filter(Boolean).join(" • ")
+                details: [item.size, item.measurements, item.colour].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1746,7 +1665,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             if (!item) return;
             const product = item.product || "Ladies Wear";
             const quantity = Math.max(1, Number(item.quantity || 1));
-            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size || item.measurements || "", item.colour, item.details].filter(Boolean).join(" • ")});
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")});
         });
     }
 
@@ -1775,7 +1694,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: serviceName,
                 quantity: Math.max(1, Number(item.quantity || 1)),
                 unitPrice: invoicePriceFor(priceMap, serviceName),
-                details: [item.size || item.measurements || "", item.colour, request].filter(Boolean).join(" • ")
+                details: [item.size, item.measurements, item.colour, request].filter(Boolean).join(" • ")
             });
         });
     }
@@ -2506,7 +2425,7 @@ async function openInvoiceGenerator(row, details) {
                     <div class="invoice-payment-grid ${paymentAccounts.length > 1 ? "two" : "one"}">
                         ${paymentAccounts.map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>${item.bank ? `<br><span>Bank: ${escapeHTML(item.bank)}</span>` : ""}${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
+                            <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
                     </div>
@@ -2773,10 +2692,12 @@ async function shareGeneratedInvoiceWhatsApp() {
         console.warn("Direct invoice PDF sharing was unavailable:", error);
     }
 
-    // Open WhatsApp directly. Do not force a PDF download merely because the
-    // user selected WhatsApp. On devices supporting the native share sheet, the
-    // PDF attachment path above is used; otherwise WhatsApp opens normally.
+    // WhatsApp's public web/deep-link interface cannot attach a local PDF from
+    // a normal desktop browser. Make sure the real PDF is downloaded first, then
+    // open the customer's WhatsApp chat with the invoice number and instructions.
+    try { await generateInvoicePdf(false); } catch (_) {}
     window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
+    message("Invoice PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
 }
 
 function shareGeneratedInvoiceEmail() {
@@ -2797,7 +2718,7 @@ function printGeneratedInvoice() {
         return;
     }
     printWindow.document.write(`<html><head><title>Aprils Signature Invoice</title><style>
-        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}.invoice-payment-grid.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.invoice-payment-grid.one{display:block}.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}.invoice-thank-you{text-align:center}</style></head><body>${paper.outerHTML}</body></html>`);
+        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}.invoice-thank-you{text-align:center}</style></head><body>${paper.outerHTML}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 400);
@@ -2944,7 +2865,7 @@ function openReceiptGenerator() {
                     <div class="invoice-payment-grid ${(invoiceState.paymentAccounts || []).length > 1 ? "two" : "one"}">
                         ${(invoiceState.paymentAccounts || []).map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>${item.bank ? `<br><span>Bank: ${escapeHTML(item.bank)}</span>` : ""}${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
+                            <span>${escapeHTML(item.name || "")}</span>
                         </div>`).join("")}
                     </div>
                 </div>
@@ -3019,15 +2940,9 @@ function openReceiptGenerator() {
                                 ? (paidTotal > 0 ? "part_paid" : "unpaid")
                                 : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
-                        if (invoiceState.isTrainingInvoice) {
-                            // Training follows its own lifecycle: part paid -> fully paid -> receipt generated -> started class.
-                            if (paidTotal >= total && total > 0) {
-                                await setAdminRecordStatus("training_status", record.id, "receipt_generated");
-                            } else if (paidTotal > 0) {
-                                await setAdminRecordStatus("training_status", record.id, "part_paid");
-                            }
-                        } else if (paidTotal > 0) {
-                            // Production orders enter production automatically once a payment is actually recorded.
+                        // A recorded customer payment means the order has reached the production stage.
+                        // The later fulfilment stages remain manually controlled in the Order Status dropdown.
+                        if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
                             await setAdminRecordStatus("quote_status", record.id, "in_production");
                         }
                     }
@@ -3192,10 +3107,10 @@ async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
     section.innerHTML = `
-        <h2>Products / Service and Training</h2>
+        <h2>Products / Services &amp; Training</h2>
         <p class="intro">Manage the products/services visitors can choose and the training programmes. Public prices are optional and appear on the public website when entered. Invoice prices are separate and remain admin-only.</p>
         <div class="form-card">
-            <h3 style="color:#008c95;margin-bottom:10px;">Products / Service</h3>
+            <h3 style="color:#008c95;margin-bottom:10px;">Products / Services</h3>
             <p class="intro">Add, edit, delete, rename and reorder the product/service choices used by the public request form.</p>
             <form id="adminProductForm">
                 <input type="hidden" id="adminProductId">
@@ -3214,7 +3129,6 @@ async function loadServices() {
 <option value="Practical Fashion Training"></option>
 </datalist></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
-                    <div class="form-group"><label>Invoice Price (GHS) — Internal</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
                 </div>
                 <div class="form-group"><label>Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional internal note."></textarea></div>
@@ -3225,12 +3139,29 @@ async function loadServices() {
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
         <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Training / Programme / Class</h3>
-            <p class="intro">Manage each training programme / class. Public prices are optional; invoice prices are internal and admin-only.</p>
+            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
+            <p class="intro">Add, edit, delete and reorder services separately from products.</p>
+            <button type="button" class="secondary" id="newAdminServiceButton">+ Add New Service</button>
+            <form id="adminServiceForm" style="margin-top:12px;">
+                <input type="hidden" id="adminServiceId">
+                <div class="form-grid">
+                    <div class="form-group"><label>Service Name</label><input id="adminServiceTitle" required></div>
+                    <div class="form-group"><label>Category</label><input id="adminServiceCategory"></div>
+                    <div class="form-group"><label>Display Order</label><input id="adminServiceOrder" type="number" min="1" value="1"></div>
+                </div>
+                <div class="form-group"><label>Description</label><textarea id="adminServiceDescription"></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="adminServiceActive" checked> Active</label><br>
+                <button type="submit" class="primary">Save Service</button> <button type="button" class="secondary" id="adminServiceCancel">Cancel</button>
+            </form>
+        </div>
+        <div id="adminServicesList" class="table-wrap"></div>
+        <div class="form-card" style="margin-top:20px;">
+            <h3 style="color:#008c95;margin-bottom:10px;">Training</h3>
+            <p class="intro">Add, edit, delete and price training programmes. Public prices are optional and will appear on the public Training page when entered. Invoice prices are separate and admin-only.</p>
             <form id="trainingForm">
                 <input type="hidden" id="trainingId">
                 <div class="form-grid">
-                    <div class="form-group"><label>Training / Programme / Class Name</label><input id="trainingTitle" required></div>
+                    <div class="form-group"><label>Programme Name</label><input id="trainingTitle" required></div>
                     <div class="form-group"><label>Duration</label><input id="trainingDuration"></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional public price"></div>
                     <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice rate"></div>
@@ -3238,33 +3169,22 @@ async function loadServices() {
                 </div>
                 <div class="form-group"><label>Description</label><textarea id="trainingDescription"></textarea></div>
                 <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label><br>
-                <button class="primary" type="submit">Save Training / Programme / Class</button>
+                <button class="primary" type="submit">Save Training Programme</button>
                 <button type="button" class="secondary" id="trainingCancel">Cancel</button>
             </form>
         </div>
         <div id="trainingList" class="table-wrap"></div>`;
-    await loadProducts(); setupProductForm(); await loadTraining(); setupTrainingForm();
+    await loadProducts(); setupProductForm(); setupAdminServiceForm(); const newServiceButton=document.getElementById("newAdminServiceButton"); if(newServiceButton&&!newServiceButton.dataset.bound){newServiceButton.dataset.bound="1";newServiceButton.addEventListener("click",newAdminService);} await loadAdminServices(); await loadTraining(); setupTrainingForm();
 }
 
 async function loadTraining() {
     const list=document.getElementById("trainingList"); if(!list)return;
-    let rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){} });
-    settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){} });
-
-    const existing=new Set(rows.map(r=>normalizeInvoiceName(r.title)));
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_training_")).forEach(r=>{
-        try{const x=JSON.parse(r.setting_value||"{}");if(!x.name||existing.has(normalizeInvoiceName(x.name)))return;rows.push({id:"invoice-only-"+r.id,title:x.name,duration:x.duration||x.notes||"",category:x.category||"Training",description:x.notes||"",active:x.active!==false,invoiceOnly:true,invoiceRowId:r.id});existing.add(normalizeInvoiceName(x.name));}catch(_){}
-    });
+    const rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
-    const html=rows.map(r=>{
-        const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title));
-        const p=publicMap.get(String(r.title||"").trim().toLowerCase());
-        const actions=r.invoiceOnly?`<button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <span style="font-size:.8em;opacity:.75">Invoice-only</span>`:`<button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button>`;
-        return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td>${actions}</td></tr>`;
-    }).join("");
-    list.innerHTML=rows.length?`<table><thead><tr><th>Training / Programme / Class</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${html}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.invoiceOnly?"":r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??"";document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));await db.from("settings").delete().eq("setting_key","public_training_price_"+contentSlug(r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -3481,8 +3401,6 @@ function buildQuoteDetailRows(row, details) {
     }
 
     if (details.training) add("Training Request", details.training);
-    add("Other Service Size (UK) / Measurements", details.serviceOtherSize);
-    add("Other Service Colour (S)", details.serviceOtherColour);
     add("Other Service Request", details.serviceOther);
     add("Additional Request Details", details.additionalDetails);
 
@@ -3705,16 +3623,6 @@ const ADMIN_STATUS_OPTIONS = [
     ["received", "Received by Customer"]
 ];
 
-const TRAINING_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],
-    ["invoice_generated", "Invoice Generated"],
-    ["part_paid", "Part Paid"],
-    ["fully_paid", "Fully Paid"],
-    ["receipt_generated", "Receipt Generated"],
-    ["started_class", "Started Class"],
-    ["completed", "Completed"]
-];
-
 async function getAdminRecordStatus(prefix, id) {
     try {
         const row = await getSettingValue(prefix + "_" + id);
@@ -3729,9 +3637,8 @@ async function setAdminRecordStatus(prefix, id, status) {
 function statusSelectHTML(prefix, id, value) {
     const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
     value = legacy[value] || value || "under_review";
-    const options = prefix === "training_status" ? TRAINING_STATUS_OPTIONS : ADMIN_STATUS_OPTIONS;
     return `<div class="status-control"><select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
-        ${options.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
+        ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
     </select><button type="button" class="secondary save-status-button" data-save-status-prefix="${escapeHTML(prefix)}" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
 }
 
@@ -3744,7 +3651,7 @@ function writeOfflineCache(key, rows) {
 }
 
 function humanStatus(value) {
-    const found = [...ADMIN_STATUS_OPTIONS, ...TRAINING_STATUS_OPTIONS].find(([key]) => key === value);
+    const found = ADMIN_STATUS_OPTIONS.find(([key]) => key === value);
     return found ? found[1] : String(value || "Under Review").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
 }
 
@@ -3760,29 +3667,8 @@ async function getInvoiceSummaryForSubmission(row, training=false) {
         const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(p=>String(p.invoiceNumber||"")===String(inv.invoiceNumber||""));
         const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
         const receipts=settings.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(rc=>String(rc.invoiceNumber||"")===String(inv.invoiceNumber||""));
-        return {invoice:inv.invoiceNumber||"—",receipt:receipts[0]?.receiptNumber||"—",amount:Number(inv.total||0),paid,balance:Math.max(0,Number(inv.total||0)-paid),depositDue:Number(inv.total||0)*Math.max(0,Math.min(100,Number(inv.depositPercent||75)))/100};
+        return {invoice:inv.invoiceNumber||"—",receipt:receipts[0]?.receiptNumber||"—",amount:Number(inv.total||0),paid,balance:Math.max(0,Number(inv.total||0)-paid)};
     } catch (_) { return {invoice:"—",receipt:"—",amount:0,paid:0,balance:0}; }
-}
-
-async function syncAutomaticSubmissionStatus(row, summary, training) {
-    if (!row?.id || !summary?.invoice || summary.invoice === "—") return;
-    const prefix = training ? "training_status" : "quote_status";
-    const current = await getAdminRecordStatus(prefix, row.id);
-    const terminal = training ? ["started_class","completed"] : ["ready","completed","dispatched","received"];
-    if (terminal.includes(current)) return;
-
-    let next = "invoice_generated";
-    if (summary.paid > 0 && summary.paid < summary.amount) {
-        next = training ? "part_paid" : (summary.paid >= summary.depositDue && summary.depositDue > 0 ? "deposit_paid" : "part_paid");
-    } else if (summary.amount > 0 && summary.paid >= summary.amount) {
-        if (training) next = summary.receipt !== "—" ? "receipt_generated" : "fully_paid";
-        else next = "in_production";
-    } else if (!training && summary.paid >= summary.depositDue && summary.depositDue > 0) {
-        next = "deposit_paid";
-    }
-    if (current !== next) {
-        try { await setAdminRecordStatus(prefix, row.id, next); } catch (_) {}
-    }
 }
 
 async function loadRegistrations() {
@@ -3802,12 +3688,7 @@ async function loadRegistrations() {
     }
 
     const summaries = new Map();
-    for (const row of rows) {
-        const summary = await getInvoiceSummaryForSubmission(row, true);
-        summaries.set(String(row.id), summary);
-        await syncAutomaticSubmissionStatus(row, summary, true);
-        statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
-    }
+    for (const row of rows) summaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, true));
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         const summary=summaries.get(String(row.id))||{};
         return `<article class="submission-card">
@@ -3913,8 +3794,7 @@ function summarizeQuoteDetails(row) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
-            const sizeOrMeasurement = typeof item === "object" ? (item.size || item.measurements || "") : "";
-            const detailText = typeof item === "object" ? [sizeOrMeasurement, item.colour].filter(Boolean).join(" • ") : "";
+            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
             if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
@@ -3970,12 +3850,7 @@ async function loadQuotes() {
     }
 
     const quoteSummaries = new Map();
-    for (const row of rows) {
-        const summary = await getInvoiceSummaryForSubmission(row, false);
-        quoteSummaries.set(String(row.id), summary);
-        await syncAutomaticSubmissionStatus(row, summary, false);
-        statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
-    }
+    for (const row of rows) quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false));
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         let details = row.journey || row.request_details || row.details || row.message || "";
         const summary=quoteSummaries.get(String(row.id))||{};
@@ -4588,7 +4463,7 @@ async function loadInvoicePricing() {
 
     const renderRows = (items, emptyText, editAttr, sharePrefix) => items.length ? `
         <table>
-            <thead><tr><th>Products/Service</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Products and Services</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
                 ${items.map(r => {
                     let item = {name:"",category:"",price:"",notes:"",active:true};
@@ -4613,7 +4488,7 @@ async function loadInvoicePricing() {
     if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
 
     const trainingList = document.getElementById("invoiceTrainingList");
-    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products/Service</th>","<th>Training / Programme / Class</th>");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products and Services</th>","<th>Program / Class</th>");
 
     const bindList = list => {
         if (!list) return;
@@ -4686,11 +4561,9 @@ function paymentRowTemplate(item = {}) {
     return `
         <div class="invoice-payment-row" data-payment-row style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:12px;">
             <div class="form-grid">
-                <div class="form-group"><label>Payment Method / Network</label><input class="invoice-payment-network" value="${escapeHTML(item.network || item.method || "")}" placeholder="MTN MoMo, Telecel, Bank Transfer, etc."></div>
-                <div class="form-group"><label>Payment Number / Account Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || item.accountNumber || "")}" placeholder="MoMo number or bank account number"></div>
-                <div class="form-group"><label>Account Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || item.accountName || "")}" placeholder="Name on the account"></div>
-                <div class="form-group"><label>Bank Name</label><input class="invoice-payment-bank" value="${escapeHTML(item.bank || item.bankName || "")}" placeholder="Bank name (for bank transfer)"></div>
-                <div class="form-group"><label>Branch (optional)</label><input class="invoice-payment-branch" value="${escapeHTML(item.branch || "")}" placeholder="Bank branch, if applicable"></div>
+                <div class="form-group"><label>MoMo / Payment Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || "")}" placeholder="e.g. 024..."></div>
+                <div class="form-group"><label>Account / MoMo Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || "")}" placeholder="Name on the account"></div>
+                <div class="form-group"><label>Network / Payment Method</label><input class="invoice-payment-network" value="${escapeHTML(item.network || "")}" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
             </div>
             <div class="form-group"><label>Payment Note</label><textarea class="invoice-payment-note" placeholder="Payment instruction to appear on invoices.">${escapeHTML(item.note || "")}</textarea></div>
             <button type="button" class="danger remove-invoice-payment">Remove This Payment Detail</button>
@@ -4708,7 +4581,7 @@ async function getInvoicePaymentAccounts() {
     }
 
     const legacy = {};
-    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_bank","invoice_payment_branch","invoice_payment_note"].includes(String(r.setting_key||"")))
+    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||"")))
         .forEach(r => legacy[r.setting_key] = r.setting_value || "");
 
     if (legacy.invoice_payment_number || legacy.invoice_payment_name || legacy.invoice_payment_network || legacy.invoice_payment_note) {
@@ -4716,8 +4589,6 @@ async function getInvoicePaymentAccounts() {
             number: legacy.invoice_payment_number || "",
             name: legacy.invoice_payment_name || "",
             network: legacy.invoice_payment_network || "",
-            bank: legacy.invoice_payment_bank || "",
-            branch: legacy.invoice_payment_branch || "",
             note: legacy.invoice_payment_note || ""
         }];
     }
@@ -4799,8 +4670,6 @@ function setupInvoicePaymentForm(){
             number: row.querySelector(".invoice-payment-number")?.value.trim() || "",
             name: row.querySelector(".invoice-payment-name")?.value.trim() || "",
             network: row.querySelector(".invoice-payment-network")?.value.trim() || "",
-            bank: row.querySelector(".invoice-payment-bank")?.value.trim() || "",
-            branch: row.querySelector(".invoice-payment-branch")?.value.trim() || "",
             note: row.querySelector(".invoice-payment-note")?.value.trim() || ""
         })).filter(item => item.number || item.name || item.network || item.note);
 
@@ -4815,27 +4684,21 @@ function setupInvoicePaymentForm(){
                     if (deleted.error) throw deleted.error;
                 }
                 const publicRows = accounts.map((item,index)=>({
-                    network:item.network || "", number:item.number || "", name:item.name || "", bank:item.bank || "", branch:item.branch || "",
+                    network:item.network || "", number:item.number || "", name:item.name || "",
                     active:true, display_order:index+1, updated_at:new Date().toISOString()
                 })).filter(item=>item.number || item.name || item.network);
                 if (publicRows.length) {
                     const inserted = await db.from("public_payment_details").insert(publicRows);
                     if (inserted.error) throw inserted.error;
-                    const verify = await db.from("public_payment_details").select("id").eq("active", true);
-                    if (verify.error) throw verify.error;
-                    if ((verify.data || []).length < publicRows.length) throw new Error("Public payment details could not be verified after saving.");
                 }
             } catch (publicSyncError) {
-                console.error("Public payment detail sync failed:", publicSyncError);
-                throw new Error("Payment details were saved privately, but the public Payment Details page could not be synchronized. Check public_payment_details table policies.");
+                console.warn("Public payment detail sync unavailable:", publicSyncError);
             }
             // Keep the older single-value settings in sync for backward compatibility.
             const first = accounts[0] || {};
             await safeSettingUpsert("invoice_payment_number", first.number || "");
             await safeSettingUpsert("invoice_payment_name", first.name || "");
             await safeSettingUpsert("invoice_payment_network", first.network || "");
-            await safeSettingUpsert("invoice_payment_bank", first.bank || "");
-            await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
             await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
             message("Invoice payment details saved.", "success");
@@ -6161,7 +6024,7 @@ function setupManualInvoiceForm() {
    controls which signed-in staff member may use which sections.
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
-    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Service and Training"],
+    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
     ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
     ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
@@ -6229,7 +6092,6 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
     setupUserAccess();
-    setupAutoCapitalization(document);
     if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 
     if (!db) {
