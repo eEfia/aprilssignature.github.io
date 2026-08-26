@@ -833,7 +833,7 @@ function setupQuoteForm() {
         const kidsWear = document.getElementById("kidsWearSection");
         if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
 
-        const serviceOtherWrap = document.getElementById("serviceOtherWrap");
+        const serviceOtherWrap = document.getElementById("serviceOtherSection") || document.getElementById("serviceOtherWrap");
         const serviceOtherInput = document.getElementById("serviceOther");
         const otherServiceSelected = selected.includes("Others");
         if (serviceOtherWrap) serviceOtherWrap.style.display = otherServiceSelected ? "block" : "none";
@@ -886,15 +886,18 @@ async function loadPublicStreetwearProducts() {
         ["Tops", ["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"]],
         ["Tank Top Options", ["Ladies tank top","Men's tank top"]],
         ["Bottoms", ["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]],
-        ["Sets", ["T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
+        ["Sets", ["Hoodies & Joggers","T-shirt & Shorts","T-shirt & Sweatpants","Sweatshirt & Shorts","Sweatshirt & Sweatpants"]]
     ];
     const aliases = new Map([
         ["jerseys","jersey"],["t shirts","t shirt"],["t-shirts","t shirt"],["polo shirts","polo shirt"],["sweatshirts","sweatshirt"],
         ["ladies tank tops","ladies tank top"],["men's tank tops","men's tank top"],["varsity jackets","varsity jacket"],
         ["super thick cotton joggers","super thick cotton joggers"],["joggers super thick cotton joggers","joggers super thick cotton joggers"],
         ["joggers everyday wear type","everyday wear type of joggers"],["everyday wear type","everyday wear type of joggers"],["jogger shorts","joggers shorts"],
-        ["t shirts and shorts","t shirt and shorts"],["t shirt sweatpants set","t shirt and sweatpants"],
-        ["sweatshirts and shorts","sweatshirt and shorts"],["sweatshirts and sweatpants","sweatshirt and sweatpants"]
+        ["hoodies and joggers","hoodies & joggers"],["hoodies joggers set","hoodies & joggers"],
+        ["t shirts and shorts","t-shirt & shorts"],["t shirt and shorts","t-shirt & shorts"],
+        ["t shirt sweatpants set","t-shirt & sweatpants"],["t shirt and sweatpants","t-shirt & sweatpants"],
+        ["sweatshirts and shorts","sweatshirt & shorts"],["sweatshirt and shorts","sweatshirt & shorts"],
+        ["sweatshirts and sweatpants","sweatshirt & sweatpants"],["sweatshirt and sweatpants","sweatshirt & sweatpants"]
     ]);
     const canonical = new Map();
     groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).forEach(n=>canonical.set(normal(n), n));
@@ -904,8 +907,8 @@ async function loadPublicStreetwearProducts() {
         return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML(id)}">
             ${includeRequest ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>` : ""}
             <div class="catalogue-detail-grid">
-                <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
-                <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div>
+                <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Enter the size OR complete measurements."></textarea></div>
+                <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="Enter colour"></div>
                 <div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div>
             </div>
         </div>`;
@@ -932,17 +935,16 @@ async function loadPublicStreetwearProducts() {
         const rowNames = names => names.map(name => makeRow(labelFor(name))).join("");
         let html = `<h3 class="catalogue-group-title">Tops</h3>${rowNames(["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"])} ${makeRow(labelFor("Varsity Jacket"))}`;
         html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${rowNames(groups[1][1])}`;
-        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
+        html += `<h3 class="catalogue-group-title">Bottoms</h3>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
         html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}${makeRow("Others")}`;
 
-        // Any new Streetwear product added from Admin is appended without disturbing
-        // the established catalogue layout.
+        // New admin Streetwear products are shown in the normal catalogue only.
         const knownNames = new Set(groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).map(normal));
         const custom = products
             .filter(r => normal(r.category) === "streetwear" && r.active !== false)
             .filter(r => !knownNames.has(normal(r.catalogue_key || r.name)))
             .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-        if (custom.length) html += `<h3 class="catalogue-group-title">Additional Streetwear Options</h3>${custom.map(r=>makeRow(r.name)).join("")}`;
+        if (custom.length) html += custom.map(r=>makeRow(r.name)).join("");
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
             input.addEventListener("change",()=>{
@@ -1095,11 +1097,19 @@ function setupMediaInteractions() {
 }
 
 
-function resolvePublicMediaUrl(value) {
+function resolvePublicMediaUrl(value, version = "") {
     const raw = String(value || "").trim();
     if (!raw) return "";
-    if (/^(https?:|data:|blob:|\/)/i.test(raw)) return raw;
-    return raw.replace(/^(\.\.\/)+/, "");
+    const base = /^(https?:|data:|blob:|\/)/i.test(raw) ? raw : raw.replace(/^(\.\.\/)+/, "");
+    const v = String(version || "").trim();
+    if (!v || /^data:|^blob:/i.test(base)) return base;
+    try {
+        const u = new URL(base, window.location.href);
+        u.searchParams.set("v", v);
+        return /^(https?:)?\/\//i.test(base) || base.startsWith("/") ? u.href : u.pathname.replace(/^\//, "") + u.search;
+    } catch (_) {
+        return base;
+    }
 }
 
 async function loadPublicFeaturedCollection() {
@@ -1113,7 +1123,7 @@ async function loadPublicFeaturedCollection() {
             const nameResult = await supabase.from("settings").select("setting_value").eq("setting_key","homepage_featured_collection_name").limit(1).maybeSingle();
             if (!nameResult.error && nameResult.data?.setting_value) collectionName = String(nameResult.data.setting_value);
             const settings = await supabase.from("settings")
-                .select("setting_key,setting_value")
+                .select("id,setting_key,setting_value,updated_at,created_at")
                 .like("setting_key","homepage_featured_%");
 
             if (!settings.error) {
@@ -1134,12 +1144,15 @@ async function loadPublicFeaturedCollection() {
             .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
     }
 
-    if (!featured.length) return;
+    if (!featured.length) {
+        document.body.classList.remove("media-sync-pending");
+        return;
+    }
 
     const main = document.querySelector("main");
     if (!main) return;
 
-    const existing = main.querySelector(".featured-collection");
+    const existing = main.querySelector(".featured-section");
     if (!existing) return;
 
     existing.innerHTML = `
@@ -1150,7 +1163,7 @@ async function loadPublicFeaturedCollection() {
             </div>
             <div class="featured-grid">
                 ${featured.map(row => {
-                    const mediaUrl = resolvePublicMediaUrl(row.url || row.image_url || "");
+                    const mediaUrl = resolvePublicMediaUrl(row.url || row.image_url || "", row.updated_at || row.created_at || row.id);
                     const media = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl)
                         ? `<div class="featured-video"><video controls preload="metadata" playsinline muted><source src="${escapeHTML(mediaUrl)}" type="video/mp4"></video></div>`
                         : `<div class="featured-video"><img src="${escapeHTML(mediaUrl)}" alt="${escapeHTML(row.title || "Featured Aprils Signature work")}"></div>`;
@@ -1164,6 +1177,7 @@ async function loadPublicFeaturedCollection() {
             <div class="section-button"><a href="gallery.html" class="btn btn-primary">View Full Gallery</a></div>
         </div>`;
     setupMediaInteractions();
+    document.body.classList.remove("media-sync-pending");
 }
 
 async function loadPublicGallery() {
@@ -1171,6 +1185,7 @@ async function loadPublicGallery() {
 
     const rows = await loadPublicRows("gallery_items");
     if (!rows.length) {
+        document.body.classList.remove("media-sync-pending");
         setupMediaInteractions();
         return;
     }
@@ -1186,7 +1201,10 @@ async function loadPublicGallery() {
             activeRows.push(row);
         }
     });
-    if (!activeRows.length) return;
+    if (!activeRows.length) {
+        document.body.classList.remove("media-sync-pending");
+        return;
+    }
 
     const main = document.querySelector("main");
     if (!main) return;
@@ -1222,9 +1240,9 @@ async function loadPublicGallery() {
                     ${groups[category].map(row => `
                         <article class="gallery-item">
                             <div class="gallery-image">
-                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(resolvePublicMediaUrl(row.image_url || ""))
-                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" type="video/mp4"></video>`
-                                    : `<img src="${escapeHTML(resolvePublicMediaUrl(row.image_url || ""))}" alt="${escapeHTML(row.title || category)}">`}
+                                ${/\.(mp4|webm|ogg)(\?|$)/i.test(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))
+                                    ? `<video controls autoplay muted loop playsinline preload="metadata"><source src="${escapeHTML(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))}" type="video/mp4"></video>`
+                                    : `<img src="${escapeHTML(resolvePublicMediaUrl(row.image_url || "", row.updated_at || row.created_at || row.id))}" alt="${escapeHTML(row.title || category)}">`}
                             </div>
                             ${row.title ? `<h3>${escapeHTML(row.title)}</h3>` : ""}
                             ${row.price !== null && row.price !== undefined && row.price !== "" ? `<p class="gallery-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
@@ -1814,8 +1832,24 @@ async function setupPublicDatabaseContent() {
    START
 ========================================================= */
 
+function setupAutoCapitalization() {
+    const apply = input => {
+        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName)) return;
+        const id = String(input.id || "").toLowerCase();
+        const name = String(input.name || "").toLowerCase();
+        if (/email|url|phone|whatsapp|password|reference|search/.test(id + " " + name)) return;
+        input.value = String(input.value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+    };
+    document.addEventListener("focusout", event => apply(event.target), true);
+}
+
 function start() {
 
+    if (document.body.classList.contains("gallery-page") || document.body.classList.contains("home-page")) {
+        document.body.classList.add("media-sync-pending");
+    }
+
+    setupAutoCapitalization();
     setupMobileMenu();
     normalizeEmailLinks();
     setupHelpChat();

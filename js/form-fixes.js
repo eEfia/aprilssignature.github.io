@@ -205,8 +205,8 @@ PUBLIC FORM FIXES
                     const active = input.type === "checkbox" ? input.checked : Number(String(data.get(input.name) || "").trim() || 0) > 0;
                     if (!active) return;
                     const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
-                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
-                    const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
+                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || "").trim();
+                    const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || "").trim();
                     const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || (input.type === "checkbox" ? "1" : data.get(input.name) || "1")).trim();
                     const localDetails = String(box?.querySelector('[data-detail="details"]')?.value || "").trim();
                     details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour, details: localDetails };
