@@ -1183,11 +1183,28 @@ async function loadPublicFeaturedCollection() {
 async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
 
-    const rows = await loadPublicRows("gallery_items");
+    let rows = await loadPublicRows("gallery_items");
+    // Never leave the public gallery blank when Supabase is temporarily
+    // unavailable. These are the same media records seeded by Admin.
     if (!rows.length) {
-        document.body.classList.remove("media-sync-pending");
-        setupMediaInteractions();
-        return;
+        rows = [
+            ["Hoodie Set","Streetwear Collection","images/photo (6).jpeg",1],
+            ["Hoodie","Streetwear Collection","images/photo (7).jpeg",2],
+            ["T-Shirt & Shorts","Streetwear Collection","images/photo (8).jpeg",3],
+            ["T-Shirt — Back View","Streetwear Collection","images/photo (9).jpeg",4],
+            ["Tank Top & Joggers","Streetwear Collection","images/photo (10).jpeg",5],
+            ["Jersey","Streetwear Collection","images/photo (11).jpeg",6],
+            ["Rhinestone Kaftan","Rhinestone Embellishment","images/photo (12).jpeg",1],
+            ["Rhinestone Dress","Rhinestone Embellishment","images/photo (1).jpeg",2],
+            ["Elegant Rhinestone Kaftan","Rhinestone Embellishment","images/photo (4).jpeg",3],
+            ["Printed Kaftan","Fashion Creations","images/photo (2).jpeg",1],
+            ["Fashion Creation","Fashion Creations","images/photo (3).jpeg",2],
+            ["Printed Kaftan","Featured Collection","videos/video (2).mp4",1],
+            ["Elegant Rhinestone Kaftan","Featured Collection","videos/video (3).mp4",2],
+            ["Rhinestone Varsity Jackets & Cargo Skirts","Featured Collection","videos/video (4).mp4",3],
+            ["Rhinestone Embellishment","Embellishment Projects","videos/video (1).mp4",1],
+            ["Graphic T-Shirts","Embellishment Projects","videos/video (5).mp4",2]
+        ].map(([title,category,image_url,display_order]) => ({title,category,image_url,display_order,active:true}));
     }
 
     const activeRows = [];
@@ -1221,7 +1238,13 @@ async function loadPublicGallery() {
         groups[category].push(row);
     });
 
-    const collectionOrder = new Map();
+    const collectionOrder = new Map([
+        ["streetwear collection",1],
+        ["featured collection",2],
+        ["embellishment projects",3],
+        ["fashion creations",4],
+        ["rhinestone embellishment",5]
+    ]);
     try {
         const collections = await loadPublicRows("gallery_collections");
         collections.forEach(row => collectionOrder.set(String(row.name || "").trim().toLowerCase(), Number(row.display_order ?? 9999)));
@@ -1832,14 +1855,38 @@ async function setupPublicDatabaseContent() {
    START
 ========================================================= */
 
+function setupButtonFeedback() {
+    if (document.documentElement.dataset.aprilsButtonFeedback === "1") return;
+    document.documentElement.dataset.aprilsButtonFeedback = "1";
+    document.addEventListener("click", event => {
+        const button = event.target.closest("button");
+        if (!button || button.disabled || button.dataset.noWorkingFeedback === "1") return;
+        button.classList.add("button-working");
+        button.setAttribute("aria-busy", "true");
+        clearTimeout(button._aprilsFeedbackTimer);
+        button._aprilsFeedbackTimer = setTimeout(() => {
+            if (!button.isConnected) return;
+            button.classList.remove("button-working");
+            button.removeAttribute("aria-busy");
+        }, 900);
+    }, true);
+}
+
 function setupAutoCapitalization() {
-    const apply = input => {
-        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName)) return;
+    const shouldSkip = input => {
+        if (!input || !/^(INPUT|TEXTAREA)$/.test(input.tagName)) return true;
         const id = String(input.id || "").toLowerCase();
         const name = String(input.name || "").toLowerCase();
-        if (/email|url|phone|whatsapp|password|reference|search/.test(id + " " + name)) return;
-        input.value = String(input.value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+        return /email|url|phone|whatsapp|password|reference|search/.test(id + " " + name);
     };
+    const apply = input => {
+        if (shouldSkip(input)) return;
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        input.value = String(input.value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+        try { input.setSelectionRange(start, end); } catch (_) {}
+    };
+    document.addEventListener("input", event => apply(event.target), true);
     document.addEventListener("focusout", event => apply(event.target), true);
 }
 
@@ -1850,6 +1897,7 @@ function start() {
     }
 
     setupAutoCapitalization();
+    setupButtonFeedback();
     setupMobileMenu();
     normalizeEmailLinks();
     setupHelpChat();

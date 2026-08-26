@@ -159,7 +159,8 @@ PUBLIC FORM FIXES
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
                     catch (uploadError) {
                         console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        throw new Error("The image upload could not be completed. Please try again.");
+                        message(output, "The image upload could not be completed. Please check the files and try again.", false);
+                        return;
                     }
                 }
 
@@ -184,6 +185,8 @@ PUBLIC FORM FIXES
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
                     embellishmentDetails: {},
                     serviceOther: String(data.get("serviceOther") || "").trim(),
+                    serviceOtherSize: String(data.get("serviceOtherSize") || "").trim(),
+                    serviceOtherColour: String(data.get("serviceOtherColour") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
