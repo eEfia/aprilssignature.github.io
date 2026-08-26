@@ -1203,12 +1203,33 @@ function returnToAdminList(selector, id) {
 async function loadProducts() {
     const list=document.getElementById("adminProductsList"); if(!list)return;
     await ensureStreetwearCatalogue();
-    const rows=await getProducts();
+    let rows=await getProducts();
     const settings=await getRows("settings"); const invoiceMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){}});
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){} });
+
+    // Show invoice-pricing items here as well, even when the public catalogue
+    // entry has not yet been created. This keeps the Admin view authoritative
+    // and prevents an item from appearing to have disappeared after saving.
+    const existingNames=new Set(rows.map(r=>normalizeInvoiceName(r.name)));
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_") && !String(r.setting_key||"").startsWith("invoice_price_training_")).forEach(r=>{
+        try{
+            const x=JSON.parse(r.setting_value||"{}");
+            if(!x.name || existingNames.has(normalizeInvoiceName(x.name))) return;
+            rows.push({id:"invoice-only-"+r.id,name:x.name,category:x.category||"Products / Services",subcategory:"",public_price:x.public_price??null,display_order:9999,active:x.active!==false,notes:x.notes||"",invoiceOnly:true,invoiceRowId:r.id});
+            existingNames.add(normalizeInvoiceName(x.name));
+        }catch(_){}
+    });
+
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
+    const productRowsHtml = rows.map(r => {
+        const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));
+        const actions = r.invoiceOnly
+            ? `<button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <span style="font-size:.8em;opacity:.75">Invoice-only</span>`
+            : `<button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button>`;
+        return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!=="" ? `GHS ${Number(r.public_price).toFixed(2)}` : "—"}</td><td>${i?.price!==undefined ? `GHS ${Number(i.price).toFixed(2)}` : "—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td>${actions}</td></tr>`;
+    }).join("");
+    list.innerHTML=rows.length ? `<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${productRowsHtml}</tbody></table>` : `<div class="empty">No products / services have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));document.getElementById("adminProductId").value=r.invoiceOnly?"":r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}try{await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));}catch(_){}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -2752,12 +2773,10 @@ async function shareGeneratedInvoiceWhatsApp() {
         console.warn("Direct invoice PDF sharing was unavailable:", error);
     }
 
-    // WhatsApp's public web/deep-link interface cannot attach a local PDF from
-    // a normal desktop browser. Make sure the real PDF is downloaded first, then
-    // open the customer's WhatsApp chat with the invoice number and instructions.
-    try { await generateInvoicePdf(false); } catch (_) {}
+    // Open WhatsApp directly. Do not force a PDF download merely because the
+    // user selected WhatsApp. On devices supporting the native share sheet, the
+    // PDF attachment path above is used; otherwise WhatsApp opens normally.
     window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
-    message("Invoice PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
 }
 
 function shareGeneratedInvoiceEmail() {
@@ -2778,7 +2797,7 @@ function printGeneratedInvoice() {
         return;
     }
     printWindow.document.write(`<html><head><title>Aprils Signature Invoice</title><style>
-        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}.invoice-thank-you{text-align:center}</style></head><body>${paper.outerHTML}</body></html>`);
+        @page{size:A4 portrait;margin:0}body{font-family:Arial,sans-serif;padding:0;margin:0;color:#222}.invoice-paper{width:210mm;max-width:210mm;margin:0 auto;box-sizing:border-box}.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.invoice-brand-row img{width:85px;height:85px;object-fit:contain}.invoice-brand-row h1{color:#0f7775;margin:0}.invoice-meta{margin-left:auto;text-align:right}.invoice-lines{width:100%;border-collapse:collapse;margin-top:25px}.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:8px;text-align:left}.invoice-lines th{background:#0f7775;color:#fff}.invoice-summary{margin-left:auto;max-width:300px;margin-top:20px}.invoice-payment,.invoice-note{margin-top:20px;padding:12px;border:1px solid #aaa}.invoice-payment-grid.two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.invoice-payment-grid.one{display:block}.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}.invoice-thank-you{text-align:center}</style></head><body>${paper.outerHTML}</body></html>`);
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 400);
@@ -3229,12 +3248,23 @@ async function loadServices() {
 
 async function loadTraining() {
     const list=document.getElementById("trainingList"); if(!list)return;
-    const rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){}});
-    settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    let rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){} });
+    settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){} });
+
+    const existing=new Set(rows.map(r=>normalizeInvoiceName(r.title)));
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_training_")).forEach(r=>{
+        try{const x=JSON.parse(r.setting_value||"{}");if(!x.name||existing.has(normalizeInvoiceName(x.name)))return;rows.push({id:"invoice-only-"+r.id,title:x.name,duration:x.duration||x.notes||"",category:x.category||"Training",description:x.notes||"",active:x.active!==false,invoiceOnly:true,invoiceRowId:r.id});existing.add(normalizeInvoiceName(x.name));}catch(_){}
+    });
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
+    const html=rows.map(r=>{
+        const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title));
+        const p=publicMap.get(String(r.title||"").trim().toLowerCase());
+        const actions=r.invoiceOnly?`<button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <span style="font-size:.8em;opacity:.75">Invoice-only</span>`:`<button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button>`;
+        return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td>${actions}</td></tr>`;
+    }).join("");
+    list.innerHTML=rows.length?`<table><thead><tr><th>Training / Programme / Class</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${html}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.invoiceOnly?"":r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??"";document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));await db.from("settings").delete().eq("setting_key","public_training_price_"+contentSlug(r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -4558,7 +4588,7 @@ async function loadInvoicePricing() {
 
     const renderRows = (items, emptyText, editAttr, sharePrefix) => items.length ? `
         <table>
-            <thead><tr><th>Products and Services</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Products/Service</th><th>Category</th><th>Price (GHS)</th><th>Notes</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
                 ${items.map(r => {
                     let item = {name:"",category:"",price:"",notes:"",active:true};
@@ -4583,7 +4613,7 @@ async function loadInvoicePricing() {
     if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
 
     const trainingList = document.getElementById("invoiceTrainingList");
-    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products and Services</th>","<th>Program / Class</th>");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products/Service</th>","<th>Training / Programme / Class</th>");
 
     const bindList = list => {
         if (!list) return;
