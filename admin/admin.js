@@ -50,6 +50,22 @@ function resolveAdminMediaUrl(value) {
     return raw;
 }
 
+function autoCapitalizeWords(value) {
+    return String(value || "").replace(/(^|[\s\-/'’])([a-z])/g, (m, sep, ch) => sep + ch.toUpperCase());
+}
+function setupAutoCapitalization(root = document) {
+    root.querySelectorAll('input[type="text"], textarea, select').forEach(input => {
+        if (input.dataset.autoCapBound === "1") return;
+        const id = String(input.id || "").toLowerCase();
+        const name = String(input.name || "").toLowerCase();
+        if (/email|password|url|slug|phone|whatsapp|reference|search/.test(id + " " + name)) return;
+        input.dataset.autoCapBound = "1";
+        input.addEventListener("blur", () => {
+            if (input.value && input.tagName !== "SELECT") input.value = autoCapitalizeWords(input.value);
+        });
+    });
+}
+
 function message(text, type = "success") {
     const box = document.getElementById("globalStatus");
     if (!box) return;
@@ -234,6 +250,7 @@ async function syncOfflineInvoiceRecords() {
                 try {
                     const inv = await getInvoiceSavedRecord(payment.invoiceNumber);
                     if (inv?.sourceId && inv.sourceType === "quote_requests") await setAdminRecordStatus("quote_status", inv.sourceId, "in_production");
+                    if (inv?.sourceId && inv.sourceType === "training_registrations") await setAdminRecordStatus("training_status", inv.sourceId, Number(payment.amount || 0) >= Number(inv.total || 0) ? "fully_paid" : "part_paid");
                 } catch (_) {}
             }
         }
@@ -282,6 +299,7 @@ async function checkSession() {
             await syncOfflineInvoiceRecords();
             await loadDashboard();
             await applyCurrentUserAccess(result.data.session.user);
+            await restoreAdminSection();
         } else {
             login.style.display = "flex";
         }
@@ -311,6 +329,7 @@ function setupLogin() {
             box.className = "status success";
             document.getElementById("loginScreen").style.display = "none";
             await loadDashboard();
+            await restoreAdminSection();
         } catch (error) {
             console.error(error);
             box.textContent = "Login failed. Check your email and password.";
@@ -329,6 +348,18 @@ function setupLogout() {
     });
 }
 
+async function restoreAdminSection() {
+    const saved = sessionStorage.getItem("aprils_admin_section");
+    if (!saved || saved === "dashboard") return;
+    const button = document.querySelector(`.sidebar button[data-section="${CSS.escape(saved)}"]`);
+    if (!button || button.style.display === "none") return;
+    document.querySelectorAll(".sidebar button").forEach(b => b.classList.remove("active"));
+    button.classList.add("active");
+    document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
+    document.getElementById(saved)?.classList.add("active");
+    await loadSection(saved);
+}
+
 function setupNavigation() {
     document.querySelectorAll(".sidebar button[data-section]").forEach(button => {
         button.addEventListener("click", async () => {
@@ -338,6 +369,7 @@ function setupNavigation() {
             document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
 
             const id = button.dataset.section;
+            sessionStorage.setItem("aprils_admin_section", id);
             const section = document.getElementById(id);
             if (section) section.classList.add("active");
 
@@ -425,6 +457,8 @@ async function loadSection(id) {
     } catch (error) {
         console.error("ADMIN SECTION ERROR:", id, error);
         message("Could not load this section. Check your Supabase tables and policies.", "error");
+    } finally {
+        setupAutoCapitalization(document);
     }
 }
 
@@ -1464,13 +1498,32 @@ function setupHomepageMediaForm() {
 
         const id = document.getElementById("homepageMediaId").value.trim();
         const title = document.getElementById("homepageMediaTitle").value.trim();
-        const url = document.getElementById("homepageMediaUrl").value.trim();
+        let url = document.getElementById("homepageMediaUrl").value.trim();
+        const file = document.getElementById("homepageMediaFile")?.files?.[0] || null;
         const order = Number(document.getElementById("homepageMediaOrder").value) || 1;
         const description = document.getElementById("homepageMediaDescription").value.trim();
         const active = document.getElementById("homepageMediaActive").checked;
 
-        if (!title || !url) {
-            message("Please enter a title and image/video URL.", "error");
+        if (!title || (!url && !file)) {
+            message("Please enter a title and either an image/video URL or upload a media file.", "error");
+            return;
+        }
+
+        try {
+            if (file) {
+                if (file.size > 50 * 1024 * 1024) {
+                    throw new Error("Homepage media files must be 50 MB or smaller.");
+                }
+                const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-");
+                const path = `homepage/${Date.now()}-${crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)}-${safeName}`;
+                const upload = await db.storage.from("homepage-media").upload(path, file, {upsert:false, contentType:file.type});
+                if (upload.error) throw upload.error;
+                const publicUrl = db.storage.from("homepage-media").getPublicUrl(path);
+                url = publicUrl?.data?.publicUrl || "";
+                if (!url) throw new Error("The uploaded file did not return a public URL.");
+            }
+        } catch (uploadError) {
+            message("Homepage media upload failed: " + uploadError.message + ". You can still paste a hosted media URL.", "error");
             return;
         }
 
@@ -1581,7 +1634,7 @@ function setupDirectCustomerLinks() {
 ========================================================= */
 
 function normalizeInvoiceName(value) {
-    return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return String(value || "").trim().toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 async function getInvoicePriceMap() {
@@ -1591,7 +1644,11 @@ async function getInvoicePriceMap() {
     rows.filter(r => String(r.setting_key || "").startsWith("invoice_price_")).forEach(r => {
         try {
             const item = JSON.parse(r.setting_value || "{}");
-            if (item.name) map.set(normalizeInvoiceName(item.name), Number(item.price) || 0);
+            if (item.name) {
+                const price = Number(item.price) || 0;
+                map.set(normalizeInvoiceName(item.name), price);
+                map.set(String(item.name).trim().toLowerCase(), price);
+            }
         } catch (_) {}
     });
 
@@ -1655,7 +1712,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size, item.measurements, item.colour].filter(Boolean).join(" • ")
+                details: [item.size || item.measurements || "", item.colour].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1665,7 +1722,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             if (!item) return;
             const product = item.product || "Ladies Wear";
             const quantity = Math.max(1, Number(item.quantity || 1));
-            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")});
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size || item.measurements || "", item.colour, item.details].filter(Boolean).join(" • ")});
         });
     }
 
@@ -1694,7 +1751,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: serviceName,
                 quantity: Math.max(1, Number(item.quantity || 1)),
                 unitPrice: invoicePriceFor(priceMap, serviceName),
-                details: [item.size, item.measurements, item.colour, request].filter(Boolean).join(" • ")
+                details: [item.size || item.measurements || "", item.colour, request].filter(Boolean).join(" • ")
             });
         });
     }
@@ -2940,9 +2997,15 @@ function openReceiptGenerator() {
                                 ? (paidTotal > 0 ? "part_paid" : "unpaid")
                                 : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
-                        // A recorded customer payment means the order has reached the production stage.
-                        // The later fulfilment stages remain manually controlled in the Order Status dropdown.
-                        if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
+                        if (invoiceState.isTrainingInvoice) {
+                            // Training follows its own lifecycle: part paid -> fully paid -> receipt generated -> started class.
+                            if (paidTotal >= total && total > 0) {
+                                await setAdminRecordStatus("training_status", record.id, "receipt_generated");
+                            } else if (paidTotal > 0) {
+                                await setAdminRecordStatus("training_status", record.id, "part_paid");
+                            }
+                        } else if (paidTotal > 0) {
+                            // Production orders enter production automatically once a payment is actually recorded.
                             await setAdminRecordStatus("quote_status", record.id, "in_production");
                         }
                     }
@@ -3107,10 +3170,10 @@ async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
     section.innerHTML = `
-        <h2>Products / Services &amp; Training</h2>
+        <h2>Products &amp; Training</h2>
         <p class="intro">Manage the products/services visitors can choose and the training programmes. Public prices are optional and appear on the public website when entered. Invoice prices are separate and remain admin-only.</p>
         <div class="form-card">
-            <h3 style="color:#008c95;margin-bottom:10px;">Products / Services</h3>
+            <h3 style="color:#008c95;margin-bottom:10px;">Products</h3>
             <p class="intro">Add, edit, delete, rename and reorder the product/service choices used by the public request form.</p>
             <form id="adminProductForm">
                 <input type="hidden" id="adminProductId">
@@ -3129,6 +3192,7 @@ async function loadServices() {
 <option value="Practical Fashion Training"></option>
 </datalist></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
+                    <div class="form-group"><label>Invoice Price (GHS) — Internal</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
                 </div>
                 <div class="form-group"><label>Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional internal note."></textarea></div>
@@ -3139,29 +3203,12 @@ async function loadServices() {
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
         <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
-            <p class="intro">Add, edit, delete and reorder services separately from products.</p>
-            <button type="button" class="secondary" id="newAdminServiceButton">+ Add New Service</button>
-            <form id="adminServiceForm" style="margin-top:12px;">
-                <input type="hidden" id="adminServiceId">
-                <div class="form-grid">
-                    <div class="form-group"><label>Service Name</label><input id="adminServiceTitle" required></div>
-                    <div class="form-group"><label>Category</label><input id="adminServiceCategory"></div>
-                    <div class="form-group"><label>Display Order</label><input id="adminServiceOrder" type="number" min="1" value="1"></div>
-                </div>
-                <div class="form-group"><label>Description</label><textarea id="adminServiceDescription"></textarea></div>
-                <label class="checkbox"><input type="checkbox" id="adminServiceActive" checked> Active</label><br>
-                <button type="submit" class="primary">Save Service</button> <button type="button" class="secondary" id="adminServiceCancel">Cancel</button>
-            </form>
-        </div>
-        <div id="adminServicesList" class="table-wrap"></div>
-        <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Training</h3>
-            <p class="intro">Add, edit, delete and price training programmes. Public prices are optional and will appear on the public Training page when entered. Invoice prices are separate and admin-only.</p>
+            <h3 style="color:#008c95;margin-bottom:10px;">Program / Class</h3>
+            <p class="intro">Manage each training program / class. Public prices are optional; invoice prices are internal and admin-only.</p>
             <form id="trainingForm">
                 <input type="hidden" id="trainingId">
                 <div class="form-grid">
-                    <div class="form-group"><label>Programme Name</label><input id="trainingTitle" required></div>
+                    <div class="form-group"><label>Program / Class Name</label><input id="trainingTitle" required></div>
                     <div class="form-group"><label>Duration</label><input id="trainingDuration"></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional public price"></div>
                     <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice rate"></div>
@@ -3169,12 +3216,12 @@ async function loadServices() {
                 </div>
                 <div class="form-group"><label>Description</label><textarea id="trainingDescription"></textarea></div>
                 <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label><br>
-                <button class="primary" type="submit">Save Training Programme</button>
+                <button class="primary" type="submit">Save Program / Class</button>
                 <button type="button" class="secondary" id="trainingCancel">Cancel</button>
             </form>
         </div>
         <div id="trainingList" class="table-wrap"></div>`;
-    await loadProducts(); setupProductForm(); setupAdminServiceForm(); const newServiceButton=document.getElementById("newAdminServiceButton"); if(newServiceButton&&!newServiceButton.dataset.bound){newServiceButton.dataset.bound="1";newServiceButton.addEventListener("click",newAdminService);} await loadAdminServices(); await loadTraining(); setupTrainingForm();
+    await loadProducts(); setupProductForm(); await loadTraining(); setupTrainingForm();
 }
 
 async function loadTraining() {
@@ -3623,6 +3670,16 @@ const ADMIN_STATUS_OPTIONS = [
     ["received", "Received by Customer"]
 ];
 
+const TRAINING_STATUS_OPTIONS = [
+    ["under_review", "New Customer — Under Review"],
+    ["invoice_generated", "Invoice Generated"],
+    ["part_paid", "Part Paid"],
+    ["fully_paid", "Fully Paid"],
+    ["receipt_generated", "Receipt Generated"],
+    ["started_class", "Started Class"],
+    ["completed", "Completed"]
+];
+
 async function getAdminRecordStatus(prefix, id) {
     try {
         const row = await getSettingValue(prefix + "_" + id);
@@ -3637,8 +3694,9 @@ async function setAdminRecordStatus(prefix, id, status) {
 function statusSelectHTML(prefix, id, value) {
     const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
     value = legacy[value] || value || "under_review";
+    const options = prefix === "training_status" ? TRAINING_STATUS_OPTIONS : ADMIN_STATUS_OPTIONS;
     return `<div class="status-control"><select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
-        ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
+        ${options.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
     </select><button type="button" class="secondary save-status-button" data-save-status-prefix="${escapeHTML(prefix)}" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
 }
 
@@ -3651,7 +3709,7 @@ function writeOfflineCache(key, rows) {
 }
 
 function humanStatus(value) {
-    const found = ADMIN_STATUS_OPTIONS.find(([key]) => key === value);
+    const found = [...ADMIN_STATUS_OPTIONS, ...TRAINING_STATUS_OPTIONS].find(([key]) => key === value);
     return found ? found[1] : String(value || "Under Review").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
 }
 
@@ -3667,8 +3725,29 @@ async function getInvoiceSummaryForSubmission(row, training=false) {
         const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(p=>String(p.invoiceNumber||"")===String(inv.invoiceNumber||""));
         const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
         const receipts=settings.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).filter(rc=>String(rc.invoiceNumber||"")===String(inv.invoiceNumber||""));
-        return {invoice:inv.invoiceNumber||"—",receipt:receipts[0]?.receiptNumber||"—",amount:Number(inv.total||0),paid,balance:Math.max(0,Number(inv.total||0)-paid)};
+        return {invoice:inv.invoiceNumber||"—",receipt:receipts[0]?.receiptNumber||"—",amount:Number(inv.total||0),paid,balance:Math.max(0,Number(inv.total||0)-paid),depositDue:Number(inv.total||0)*Math.max(0,Math.min(100,Number(inv.depositPercent||75)))/100};
     } catch (_) { return {invoice:"—",receipt:"—",amount:0,paid:0,balance:0}; }
+}
+
+async function syncAutomaticSubmissionStatus(row, summary, training) {
+    if (!row?.id || !summary?.invoice || summary.invoice === "—") return;
+    const prefix = training ? "training_status" : "quote_status";
+    const current = await getAdminRecordStatus(prefix, row.id);
+    const terminal = training ? ["started_class","completed"] : ["ready","completed","dispatched","received"];
+    if (terminal.includes(current)) return;
+
+    let next = "invoice_generated";
+    if (summary.paid > 0 && summary.paid < summary.amount) {
+        next = training ? "part_paid" : (summary.paid >= summary.depositDue && summary.depositDue > 0 ? "deposit_paid" : "part_paid");
+    } else if (summary.amount > 0 && summary.paid >= summary.amount) {
+        if (training) next = summary.receipt !== "—" ? "receipt_generated" : "fully_paid";
+        else next = "in_production";
+    } else if (!training && summary.paid >= summary.depositDue && summary.depositDue > 0) {
+        next = "deposit_paid";
+    }
+    if (current !== next) {
+        try { await setAdminRecordStatus(prefix, row.id, next); } catch (_) {}
+    }
 }
 
 async function loadRegistrations() {
@@ -3688,7 +3767,12 @@ async function loadRegistrations() {
     }
 
     const summaries = new Map();
-    for (const row of rows) summaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, true));
+    for (const row of rows) {
+        const summary = await getInvoiceSummaryForSubmission(row, true);
+        summaries.set(String(row.id), summary);
+        await syncAutomaticSubmissionStatus(row, summary, true);
+        statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
+    }
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         const summary=summaries.get(String(row.id))||{};
         return `<article class="submission-card">
@@ -3794,7 +3878,8 @@ function summarizeQuoteDetails(row) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
-            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
+            const sizeOrMeasurement = typeof item === "object" ? (item.size || item.measurements || "") : "";
+            const detailText = typeof item === "object" ? [sizeOrMeasurement, item.colour].filter(Boolean).join(" • ") : "";
             if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
@@ -3850,7 +3935,12 @@ async function loadQuotes() {
     }
 
     const quoteSummaries = new Map();
-    for (const row of rows) quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false));
+    for (const row of rows) {
+        const summary = await getInvoiceSummaryForSubmission(row, false);
+        quoteSummaries.set(String(row.id), summary);
+        await syncAutomaticSubmissionStatus(row, summary, false);
+        statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
+    }
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         let details = row.journey || row.request_details || row.details || row.message || "";
         const summary=quoteSummaries.get(String(row.id))||{};
@@ -4690,9 +4780,13 @@ function setupInvoicePaymentForm(){
                 if (publicRows.length) {
                     const inserted = await db.from("public_payment_details").insert(publicRows);
                     if (inserted.error) throw inserted.error;
+                    const verify = await db.from("public_payment_details").select("id").eq("active", true);
+                    if (verify.error) throw verify.error;
+                    if ((verify.data || []).length < publicRows.length) throw new Error("Public payment details could not be verified after saving.");
                 }
             } catch (publicSyncError) {
-                console.warn("Public payment detail sync unavailable:", publicSyncError);
+                console.error("Public payment detail sync failed:", publicSyncError);
+                throw new Error("Payment details were saved privately, but the public Payment Details page could not be synchronized. Check public_payment_details table policies.");
             }
             // Keep the older single-value settings in sync for backward compatibility.
             const first = accounts[0] || {};
@@ -6092,6 +6186,7 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
     setupUserAccess();
+    setupAutoCapitalization(document);
     if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 
     if (!db) {
