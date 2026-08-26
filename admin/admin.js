@@ -60,6 +60,9 @@ function setupAutoCapitalization(root = document) {
         const name = String(input.name || "").toLowerCase();
         if (/email|password|url|slug|phone|whatsapp|reference|search/.test(id + " " + name)) return;
         input.dataset.autoCapBound = "1";
+        input.addEventListener("input", () => {
+            if (input.tagName !== "SELECT") input.value = autoCapitalizeWords(input.value);
+        });
         input.addEventListener("blur", () => {
             if (input.value && input.tagName !== "SELECT") input.value = autoCapitalizeWords(input.value);
         });
@@ -1202,10 +1205,10 @@ async function loadProducts() {
     await ensureStreetwearCatalogue();
     const rows=await getProducts();
     const settings=await getRows("settings"); const invoiceMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.name));document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}try{await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));}catch(_){}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -2482,7 +2485,7 @@ async function openInvoiceGenerator(row, details) {
                     <div class="invoice-payment-grid ${paymentAccounts.length > 1 ? "two" : "one"}">
                         ${paymentAccounts.map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>
+                            <span>${escapeHTML(item.name || "")}</span>${item.bank ? `<br><span>Bank: ${escapeHTML(item.bank)}</span>` : ""}${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
                         </div>`).join("")}
                     </div>
                     </div>
@@ -2922,7 +2925,7 @@ function openReceiptGenerator() {
                     <div class="invoice-payment-grid ${(invoiceState.paymentAccounts || []).length > 1 ? "two" : "one"}">
                         ${(invoiceState.paymentAccounts || []).map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>
+                            <span>${escapeHTML(item.name || "")}</span>${item.bank ? `<br><span>Bank: ${escapeHTML(item.bank)}</span>` : ""}${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
                         </div>`).join("")}
                     </div>
                 </div>
@@ -3170,10 +3173,10 @@ async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
     section.innerHTML = `
-        <h2>Products &amp; Training</h2>
+        <h2>Products / Service and Training</h2>
         <p class="intro">Manage the products/services visitors can choose and the training programmes. Public prices are optional and appear on the public website when entered. Invoice prices are separate and remain admin-only.</p>
         <div class="form-card">
-            <h3 style="color:#008c95;margin-bottom:10px;">Products</h3>
+            <h3 style="color:#008c95;margin-bottom:10px;">Products / Service</h3>
             <p class="intro">Add, edit, delete, rename and reorder the product/service choices used by the public request form.</p>
             <form id="adminProductForm">
                 <input type="hidden" id="adminProductId">
@@ -3203,12 +3206,12 @@ async function loadServices() {
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
         <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Program / Class</h3>
-            <p class="intro">Manage each training program / class. Public prices are optional; invoice prices are internal and admin-only.</p>
+            <h3 style="color:#008c95;margin-bottom:10px;">Training / Programme / Class</h3>
+            <p class="intro">Manage each training programme / class. Public prices are optional; invoice prices are internal and admin-only.</p>
             <form id="trainingForm">
                 <input type="hidden" id="trainingId">
                 <div class="form-grid">
-                    <div class="form-group"><label>Program / Class Name</label><input id="trainingTitle" required></div>
+                    <div class="form-group"><label>Training / Programme / Class Name</label><input id="trainingTitle" required></div>
                     <div class="form-group"><label>Duration</label><input id="trainingDuration"></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional public price"></div>
                     <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice rate"></div>
@@ -3216,7 +3219,7 @@ async function loadServices() {
                 </div>
                 <div class="form-group"><label>Description</label><textarea id="trainingDescription"></textarea></div>
                 <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label><br>
-                <button class="primary" type="submit">Save Program / Class</button>
+                <button class="primary" type="submit">Save Training / Programme / Class</button>
                 <button type="button" class="secondary" id="trainingCancel">Cancel</button>
             </form>
         </div>
@@ -3227,11 +3230,11 @@ async function loadServices() {
 async function loadTraining() {
     const list=document.getElementById("trainingList"); if(!list)return;
     const rows=await getRows("training_programs"); const settings=await getRows("settings"); const invoiceMap=new Map(); const publicMap=new Map();
-    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
+    settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name){invoiceMap.set(String(x.name).trim().toLowerCase(),x);invoiceMap.set(normalizeInvoiceName(x.name),x);}}catch(_){}});
     settings.filter(r=>String(r.setting_key||"").startsWith("public_training_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)publicMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>String(a.category||"").localeCompare(String(b.category||""))||String(a.title||"").localeCompare(String(b.title||"")));
-    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(String(r.title||"").trim().toLowerCase()); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
+    list.innerHTML=rows.length?`<table><thead><tr><th>Programme</th><th>Duration</th><th>Category</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); return `<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.duration||"")}</td><td>${escapeHTML(r.category||"")}</td><td>${p?.price!==undefined?`GHS ${Number(p.price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-training="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-training="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No training programmes have been added yet.</div>`;
+    list.querySelectorAll("[data-edit-training]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editTraining));if(!r)return;const i=invoiceMap.get(("Training - "+String(r.title||"")).toLowerCase()) || invoiceMap.get(normalizeInvoiceName("Training - "+String(r.title||""))) || invoiceMap.get(String(r.title||"").trim().toLowerCase()) || invoiceMap.get(normalizeInvoiceName(r.title)); const p=publicMap.get(String(r.title||"").trim().toLowerCase()); document.getElementById("trainingId").value=r.id;document.getElementById("trainingTitle").value=r.title||"";document.getElementById("trainingDuration").value=r.duration||"";document.getElementById("trainingPublicPrice").value=p?.price??""; document.getElementById("trainingPrice").value=i?.price??"";document.getElementById("trainingCategory").value=r.category||"";document.getElementById("trainingDescription").value=r.description||"";document.getElementById("trainingActive").checked=r.active!==false;focusAdminForm("trainingForm","trainingTitle");});
     list.querySelectorAll("[data-delete-training]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteTraining));if(!r||!confirm(`Delete "${r.title}"?`))return;const q=await db.from("training_programs").delete().eq("id",b.dataset.deleteTraining);if(q.error){message("Training programme could not be deleted: "+q.error.message,"error");return;}await db.from("settings").delete().eq("setting_key",invoiceStorageKey("Training - "+r.title));await db.from("settings").delete().eq("setting_key","public_training_price_"+contentSlug(r.title));message("Training programme deleted.","success");await loadTraining();await loadDashboard();});
 }
 
@@ -3448,6 +3451,8 @@ function buildQuoteDetailRows(row, details) {
     }
 
     if (details.training) add("Training Request", details.training);
+    add("Other Service Size (UK) / Measurements", details.serviceOtherSize);
+    add("Other Service Colour (S)", details.serviceOtherColour);
     add("Other Service Request", details.serviceOther);
     add("Additional Request Details", details.additionalDetails);
 
@@ -4651,9 +4656,11 @@ function paymentRowTemplate(item = {}) {
     return `
         <div class="invoice-payment-row" data-payment-row style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:12px;">
             <div class="form-grid">
-                <div class="form-group"><label>MoMo / Payment Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || "")}" placeholder="e.g. 024..."></div>
-                <div class="form-group"><label>Account / MoMo Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || "")}" placeholder="Name on the account"></div>
-                <div class="form-group"><label>Network / Payment Method</label><input class="invoice-payment-network" value="${escapeHTML(item.network || "")}" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
+                <div class="form-group"><label>Payment Method / Network</label><input class="invoice-payment-network" value="${escapeHTML(item.network || item.method || "")}" placeholder="MTN MoMo, Telecel, Bank Transfer, etc."></div>
+                <div class="form-group"><label>Payment Number / Account Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || item.accountNumber || "")}" placeholder="MoMo number or bank account number"></div>
+                <div class="form-group"><label>Account Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || item.accountName || "")}" placeholder="Name on the account"></div>
+                <div class="form-group"><label>Bank Name</label><input class="invoice-payment-bank" value="${escapeHTML(item.bank || item.bankName || "")}" placeholder="Bank name (for bank transfer)"></div>
+                <div class="form-group"><label>Branch (optional)</label><input class="invoice-payment-branch" value="${escapeHTML(item.branch || "")}" placeholder="Bank branch, if applicable"></div>
             </div>
             <div class="form-group"><label>Payment Note</label><textarea class="invoice-payment-note" placeholder="Payment instruction to appear on invoices.">${escapeHTML(item.note || "")}</textarea></div>
             <button type="button" class="danger remove-invoice-payment">Remove This Payment Detail</button>
@@ -4671,7 +4678,7 @@ async function getInvoicePaymentAccounts() {
     }
 
     const legacy = {};
-    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||"")))
+    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_bank","invoice_payment_branch","invoice_payment_note"].includes(String(r.setting_key||"")))
         .forEach(r => legacy[r.setting_key] = r.setting_value || "");
 
     if (legacy.invoice_payment_number || legacy.invoice_payment_name || legacy.invoice_payment_network || legacy.invoice_payment_note) {
@@ -4679,6 +4686,8 @@ async function getInvoicePaymentAccounts() {
             number: legacy.invoice_payment_number || "",
             name: legacy.invoice_payment_name || "",
             network: legacy.invoice_payment_network || "",
+            bank: legacy.invoice_payment_bank || "",
+            branch: legacy.invoice_payment_branch || "",
             note: legacy.invoice_payment_note || ""
         }];
     }
@@ -4760,6 +4769,8 @@ function setupInvoicePaymentForm(){
             number: row.querySelector(".invoice-payment-number")?.value.trim() || "",
             name: row.querySelector(".invoice-payment-name")?.value.trim() || "",
             network: row.querySelector(".invoice-payment-network")?.value.trim() || "",
+            bank: row.querySelector(".invoice-payment-bank")?.value.trim() || "",
+            branch: row.querySelector(".invoice-payment-branch")?.value.trim() || "",
             note: row.querySelector(".invoice-payment-note")?.value.trim() || ""
         })).filter(item => item.number || item.name || item.network || item.note);
 
@@ -4774,7 +4785,7 @@ function setupInvoicePaymentForm(){
                     if (deleted.error) throw deleted.error;
                 }
                 const publicRows = accounts.map((item,index)=>({
-                    network:item.network || "", number:item.number || "", name:item.name || "",
+                    network:item.network || "", number:item.number || "", name:item.name || "", bank:item.bank || "", branch:item.branch || "",
                     active:true, display_order:index+1, updated_at:new Date().toISOString()
                 })).filter(item=>item.number || item.name || item.network);
                 if (publicRows.length) {
@@ -4793,6 +4804,8 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_number", first.number || "");
             await safeSettingUpsert("invoice_payment_name", first.name || "");
             await safeSettingUpsert("invoice_payment_network", first.network || "");
+            await safeSettingUpsert("invoice_payment_bank", first.bank || "");
+            await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
             await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
             message("Invoice payment details saved.", "success");
@@ -6118,7 +6131,7 @@ function setupManualInvoiceForm() {
    controls which signed-in staff member may use which sections.
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
-    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
+    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Service and Training"],
     ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
     ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
