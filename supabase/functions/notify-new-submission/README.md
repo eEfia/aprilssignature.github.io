@@ -1,6 +1,6 @@
 # notify-new-submission
 
-This function receives a Supabase Database Webhook for a newly-created `public.notificatis` row and sends the business notification through server-side providers
+This function receives a Supabase Database Webhook for a newly-created `public.notifications` row and sends the business notification through server-side providers.
 
 ## Secrets / environment variables
 
