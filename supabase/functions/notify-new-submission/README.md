@@ -1,34 +1,43 @@
-# notify-new-submission
+# Aprils Signature — Submission Notifications
 
-This function receives a Supabase Database Webhook for a newly-created `public.notifications` row and sends the business notification through server-side providers.
+This Edge Function sends a notification when a quote request, training registration, or enquiry is received.
 
-## Secrets / environment variables
+## What is automatic
 
-Supabase automatically provid:
+The public website stores the submission in Supabase first. The notification function then sends the business notification to the configured email address and/or WhatsApp Business destination.
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+## Required Supabase secrets
 
-Add these secrets:
+Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` automatically.
+
+Add these secrets in Supabase Edge Function secrets:
 
 - `RESEND_API_KEY`
-- `NOTIFY_EMAIL_FROM` (example: `Aprils Signature <notifications@your-domain>`)
-- `NOTIFY_EMAIL_FALLBACK` (optional)
+- `NOTIFY_EMAIL_FROM` — for example `Aprils Signature <notifications@aprilssignature.com>`
+- `NOTIFY_EMAIL_FALLBACK` — optional
 - `META_WHATSAPP_ACCESS_TOKEN`
 - `META_WHATSAPP_PHONE_NUMBER_ID`
 - `META_WHATSAPP_TEMPLATE_NAME`
-- `META_WHATSAPP_TEMPLATE_LANGUAGE` (default `en_US`)
-- `NOTIFY_WHATSAPP_FALLBACK` (optional)
+- `META_WHATSAPP_TEMPLATE_LANGUAGE` — normally `en_US`
+- `NOTIFY_WHATSAPP_FALLBACK` — optional
 
-The function also reads the current website email/WhatsApp number from `contact_settings`, so changing those values in Admin → Contact Information updates future notifications.
+The function reads the current business email and WhatsApp number from `contact_settings`, so changing them in Admin → Contact Information updates future notifications.
 
-## Webhook
+## Deploy
 
-Create a Supabase Database Webhook:
+Deploy this function as:
+
+`notify-new-submission`
+
+Then create a Supabase Database Webhook:
 
 - Table: `public.notifications`
 - Event: `INSERT`
 - Method: `POST`
-- Target: this Edge Function
+- Target: `notify-new-submission`
 
-Do not expose the function's service-role credentials to the browser.
+Do not put any provider secret, Meta access token, Resend key, or service-role key in the website JavaScript.
+
+## WhatsApp requirement
+
+Automatic WhatsApp delivery requires an approved WhatsApp Business/Meta Cloud API setup and a template that is approved for the message type being sent. A normal `wa.me` link cannot send an unattended server notification.
