@@ -9,7 +9,7 @@
    ========================================================= */
 
 * {
-    box-sizing: border-b;
+    box-sizing: border-box;
 }
 
 html {
@@ -3126,3 +3126,8 @@ table td {
 .invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}
 .invoice-thank-you{text-align:center;margin-top:14px}
 .invoice-payment-note{border-left:4px solid #d6a542;background:#f8f8f8}
+
+/* MEDIA SYNC: prevent stale static gallery/home media from flashing before database content loads. */
+.gallery-page.media-sync-pending .full-gallery,
+.gallery-page.media-sync-pending .featured-collection { visibility:hidden; }
+.home-page.media-sync-pending .featured-section { visibility:hidden; }
