@@ -182,10 +182,16 @@ PUBLIC FORM FIXES
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
-                    addOns: data.getAll("addOns[]").filter(Boolean),
+                    addOns: [],
                     addOnsDetails: {},
                     embellishmentDetails: {},
-                    serviceOther: String(data.get("serviceOther") || "").trim(),
+                    address: {
+                        sizeMeasurements: String(data.get("addressSizeMeasurements") || "").trim(),
+                        colour: String(data.get("addressColour") || "").trim(),
+                        quantity: String(data.get("addressQuantity") || "1").trim(),
+                        request: String(data.get("addressRequest") || "").trim()
+                    },
+                    serviceOther: "",
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
@@ -211,7 +217,7 @@ PUBLIC FORM FIXES
                     const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
                     const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || (input.type === "checkbox" ? "1" : data.get(input.name) || "1")).trim();
                     const localDetails = String(box?.querySelector('[data-detail="details"]')?.value || "").trim();
-                    details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: localSize, colour: localColour, details: localDetails };
+                    details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: "", colour: localColour, details: localDetails };
                     if (product === "Others" && localDetails) details.streetwearOther = localDetails;
                 });
 
@@ -270,7 +276,7 @@ PUBLIC FORM FIXES
                     details.ladiesWearProducts[input.value] = {
                         product: input.value,
                         size: sizeMeasurements,
-                        measurements: sizeMeasurements,
+                        measurements: "",
                         colour: get("colour") || details.ladiesWearColour,
                         quantity: get("quantity") || details.ladiesWearQuantity || "1",
                         details: itemDetails
@@ -284,7 +290,7 @@ PUBLIC FORM FIXES
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
                     const sizeMeasurements = get("sizeMeasurements");
                     details.embellishmentDetails[input.value] = {
-                        service: input.value, size: sizeMeasurements, measurements: sizeMeasurements,
+                        service: input.value, size: sizeMeasurements, measurements: "",
                         colour: get("colour"), quantity: get("quantity") || "1", details: get("details")
                     };
                 });

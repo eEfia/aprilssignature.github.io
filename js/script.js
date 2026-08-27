@@ -833,14 +833,8 @@ function setupQuoteForm() {
         const kidsWear = document.getElementById("kidsWearSection");
         if (kidsWear) kidsWear.style.display = selected.includes("Kids Wear") ? "block" : "none";
 
-        const serviceOtherWrap = document.getElementById("serviceOtherWrap");
-        const serviceOtherInput = document.getElementById("serviceOther");
-        const otherServiceSelected = selected.includes("Others");
-        if (serviceOtherWrap) serviceOtherWrap.style.display = otherServiceSelected ? "block" : "none";
-        if (serviceOtherInput) {
-            serviceOtherInput.required = otherServiceSelected;
-            if (!otherServiceSelected) serviceOtherInput.value = "";
-        }
+        const addressSection = document.getElementById("addressSection");
+        if (addressSection) addressSection.style.display = selected.includes("Address") ? "block" : "none";
 
         const embellishment = document.getElementById("embellishmentSection");
         if (embellishment) {
@@ -857,9 +851,6 @@ function setupQuoteForm() {
             }
         }
 
-        const addOns = document.getElementById("addOnsSection");
-        if (addOns) addOns.style.display = selected.includes("Add-ons") ? "block" : "none";
-
         // The last service clicked is the current work area. Move it directly
         // below Service Selection so the customer never has to hunt for it.
         if (window._aprilsLastServiceInput && window._aprilsLastServiceInput.checked) {
@@ -869,8 +860,7 @@ function setupQuoteForm() {
                 "Ladies Wear":"ladiesWearSection",
                 "Kids Wear":"kidsWearSection",
                 "Embellishment Services":"embellishmentSection",
-                "Add-ons":"addOnsSection",
-                "Others":"serviceOtherWrap"
+                "Address":"addressSection"
             };
             const target = document.getElementById(targetMap[value] || "");
             if (target && target.parentElement === form) {
@@ -911,13 +901,13 @@ async function loadPublicStreetwearProducts() {
         ["Tops", ["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"]],
         ["Tank Top Options", ["Ladies tank top","Men's tank top"]],
         ["Bottoms", ["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]],
-        ["Sets", ["Hoodies and joggers","Hoodies and sweatpants","T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
+        ["Sets", ["Hoodies and joggers","Hoodies and sweatpants","T-shirts and shorts","T-shirts and sweatpants","Sweatshirts and shorts","Sweatshirt and pants"]]
     ];
     const aliases = new Map([
         ["jerseys","jersey"],["t shirts","t shirt"],["t-shirts","t shirt"],["polo shirts","polo shirt"],["sweatshirts","sweatshirt"],
         ["ladies tank tops","ladies tank top"],["men's tank tops","men's tank top"],["varsity jackets","varsity jacket"],
-        ["jogger shorts","joggers shorts"],["t shirts and shorts","t shirt and shorts"],["t shirt sweatpants set","t shirt and sweatpants"],
-        ["sweatshirts and shorts","sweatshirt and shorts"],["sweatshirts and sweatpants","sweatshirt and sweatpants"],
+        ["jogger shorts","joggers shorts"],["t shirts and shorts","t-shirts and shorts"],["t shirt and shorts","t-shirts and shorts"],["t shirt sweatpants set","t-shirts and sweatpants"],["t shirt and sweatpants","t-shirts and sweatpants"],
+        ["sweatshirts and shorts","sweatshirts and shorts"],["sweatshirt and shorts","sweatshirts and shorts"],["sweatshirts and sweatpants","sweatshirt and pants"],["sweatshirt and sweatpants","sweatshirt and pants"],
         ["hoodies joggers set","hoodies and joggers"],["hoodies and joggers set","hoodies and joggers"],
         ["hoodies sweatpants set","hoodies and sweatpants"],["hoodies and sweatpants set","hoodies and sweatpants"]
     ]);
@@ -966,16 +956,17 @@ async function loadPublicStreetwearProducts() {
         html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${rowNames(groups[1][1])}`;
         // Bottoms is the main heading; Joggers is a simple gold subheading, not a black box.
         html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-subgroup-title">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
-        html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}${makeRow("Others")}`;
+        html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}`;
 
-        // New products can still be added from Admin, but the old "Additional
-        // Streetwear Options" block is deliberately not created.
+        // Future admin-added Streetwear products are still public, but are kept
+        // immediately before Others so Others is always the final product.
         const knownNames = new Set(groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).map(normal));
         const custom = products
             .filter(r => normal(r.category) === "streetwear" && r.active !== false)
             .filter(r => !knownNames.has(normal(r.catalogue_key || r.name)))
             .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
         if (custom.length) html += custom.map(r=>makeRow(r.name)).join("");
+        html += makeRow("Others");
 
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
@@ -1025,11 +1016,19 @@ async function loadPublicLadiesWearProducts() {
     try{const supabase=await waitForSupabase();if(!supabase)return;const r=await supabase.from("settings").select("setting_value").like("setting_key","product_%");if(r.error)return;const products=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||"{}")}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false&&normal(x.category)==="ladies wear");render(products.length?products:fallback)}catch(e){console.warn("Ladieswear catalogue unavailable:",e)}
 }
 
-function setupEmbellishmentCatalogue(){
+async function setupEmbellishmentCatalogue(){
     const container=document.getElementById("embellishmentProductsDynamic"); if(!container)return;
-    const names=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","3D Patches","Hand Cut","Others"];
-    container.innerHTML=names.map(name=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="embellishment[]" value="${escapeHTML(name)}" data-embellishment-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Gold"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div><div class="form-group" style="grid-column:1/-1"><label>Details / Style Request</label><textarea data-detail="details" placeholder="Specify what you want us to do."></textarea></div></div></div></div>`).join("");
-    container.querySelectorAll('input[data-embellishment-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{const box=cb.closest(".catalogue-item")?.querySelector(".catalogue-detail-box");if(box)box.classList.toggle("is-open",cb.checked);if(!cb.checked&&box)box.querySelectorAll("input,textarea").forEach(x=>{if(x.type!=="checkbox")x.value=x.type==="number"?"1":""})}));
+    const fallback=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","3D / Rhinestone Patches","Hand / Laser Cuts","Others"];
+    const normal=n=>String(n||"").toLowerCase().replace(/&/g,"and").replace(/\//g," ").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+    const render=products=>{
+        const names=[]; const seen=new Set();
+        (products||[]).sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.name||"").localeCompare(String(b.name||""))).forEach(r=>{const n=String(r.name||"").trim();const k=normal(n);if(n&&!seen.has(k)){seen.add(k);names.push(n);}});
+        if(!names.length) fallback.forEach(n=>{if(!seen.has(normal(n))){seen.add(normal(n));names.push(n);}});
+        container.innerHTML=names.map(name=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="embellishment[]" value="${escapeHTML(name)}" data-embellishment-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" type="text" placeholder="e.g. Gold"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div><div class="form-group" style="grid-column:1/-1"><label>Details / Style Request</label><textarea data-detail="details" placeholder="Specify what you want us to do."></textarea></div></div></div></div>`).join("");
+        container.querySelectorAll('input[data-embellishment-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{const box=cb.closest(".catalogue-item")?.querySelector(".catalogue-detail-box");if(box)box.classList.toggle("is-open",cb.checked);if(!cb.checked&&box)box.querySelectorAll("input,textarea").forEach(x=>{if(x.type!=="checkbox")x.value=x.type==="number"?"1":""})}));
+    };
+    render([]);
+    try{const supabase=await waitForSupabase();if(!supabase)return;const r=await supabase.from("settings").select("setting_value").like("setting_key","product_%");if(r.error)return;const products=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||"{}")}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false&&normal(x.category)==="embellishment services");render(products.length?products:[]);}catch(e){console.warn("Public embellishment catalogue unavailable:",e)}
 }
 function setupAddOnsCatalogue(){
     const container=document.getElementById("addOnsProductsDynamic"); if(!container)return;
@@ -1874,17 +1873,22 @@ async function setupPublicDatabaseContent() {
 }
 
 function setupAutomaticCapitalisation() {
+    if (document.documentElement.dataset.aprilsCapsBound === "1") return;
+    document.documentElement.dataset.aprilsCapsBound = "1";
     const skip = new Set(["email","url","password","tel","number","date","time","hidden"]);
-    document.querySelectorAll("input, textarea").forEach(field => {
-        if (field.dataset.capitalisationBound || skip.has(String(field.type || "").toLowerCase())) return;
-        if (/email|url|password|phone|whatsapp|website|link/i.test(String(field.name || "") + " " + String(field.id || ""))) return;
-        field.dataset.capitalisationBound = "1";
-        field.addEventListener("input", () => {
-            const value = String(field.value || "");
-            field.value = value.replace(/^\s*([a-z])/, (match, letter) => match.replace(letter, letter.toUpperCase()))
-                .replace(/([.!?]\s+)([a-z])/g, (_, prefix, letter) => prefix + letter.toUpperCase());
-        });
-    });
+    const shouldSkip = field => skip.has(String(field?.type||"").toLowerCase()) || /email|url|password|phone|whatsapp|website|link/i.test(String(field?.name||"")+" "+String(field?.id||""));
+    const apply = field => {
+        if (!field || shouldSkip(field)) return;
+        const value=String(field.value||"");
+        if (field.tagName === "TEXTAREA") {
+            field.value=value.replace(/(^|[.!?]\s+)([a-z])/g,(_,prefix,letter)=>prefix+letter.toUpperCase());
+        } else {
+            field.value=value.replace(/(^|\s+)([a-z])/g,(_,prefix,letter)=>prefix+letter.toUpperCase());
+        }
+    };
+    document.addEventListener("input",event=>{const field=event.target;if(field.matches?.("input, textarea"))apply(field);},true);
+    document.addEventListener("change",event=>{const field=event.target;if(field.matches?.("input[type=text], textarea"))apply(field);},true);
+    document.querySelectorAll("input, textarea").forEach(apply);
 }
 
 /* =========================================================
@@ -1912,7 +1916,6 @@ function start() {
     loadPublicStreetwearProducts();
     loadPublicLadiesWearProducts();
     setupEmbellishmentCatalogue();
-    setupAddOnsCatalogue();
     loadPublicFeaturedCollection();
 
     setupPublicDatabaseContent();
