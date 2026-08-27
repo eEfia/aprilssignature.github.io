@@ -1,7 +1,7 @@
 "use strict";
 /*
   APRILS SIGNATURE — final compatibility / interaction fixes.
-  Keeps the dashboard logic in admin.js and adds visible button feedback
+  Keeps the dashboard logic in admin.js and adds visible button feedbk
   without changing the existing admin tabs or their actions.
 */
 (function () {
