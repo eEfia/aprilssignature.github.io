@@ -9,7 +9,7 @@
    ========================================================= */
 
 * {
-    box-sizing: border-bo
+    box-sizing: border-box;
 }
 
 html {
@@ -3126,3 +3126,17 @@ table td {
 .invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}
 .invoice-thank-you{text-align:center;margin-top:14px}
 .invoice-payment-note{border-left:4px solid #d6a542;background:#f8f8f8}
+
+/* Requested catalogue hierarchy: Joggers is a simple subheading, not a black group box. */
+.catalogue-subgroup-title {
+    margin: 14px 0 8px;
+    color: #c9a24a;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* Subtle visual feedback on every clickable control without changing its label. */
+button:active, a.btn:active, a.button:active, .check-option:active {
+    transform: translateY(1px);
+    opacity: .78;
+}
