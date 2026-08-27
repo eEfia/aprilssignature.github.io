@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="vieort"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Order / Request a Quote | Aprils Signature</title>
 <meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
 <link href="css/style.css" rel="stylesheet"/>
@@ -151,7 +151,7 @@
 
         .streetwear-product-row .form-group { margin-bottom: 0; }
 
-        .service-global-details { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+        
         .catalogue-group-title { margin:22px 0 10px; padding:10px 12px; background:#111; color:#d6a542; border-radius:4px; }
         .catalogue-other-row { border:1px solid #ddd; padding:12px; margin-top:10px; border-radius:5px; }
         .catalogue-detail-box { display:none; margin:10px 0 16px; padding:14px; border-left:4px solid #008080; background:#f8f8f8; }
@@ -392,32 +392,38 @@
             Embellishment Services
         </label>
 <label class="check-option">
+<input name="services[]" type="checkbox" value="Add-ons"/>
+            Add-ons
+        </label>
+<label class="check-option">
 <input name="services[]" type="checkbox" value="Others"/>
             Others
+        </label>
+<label class="check-option">
+<input name="services[]" type="checkbox" value="Practical Fashion Training"/>
+            Practical Fashion Training
         </label>
 <div class="form-group hidden-section" id="serviceOtherWrap" style="display:none;">
 <label for="serviceOther">Specify Your Request</label>
 <textarea id="serviceOther" name="serviceOther" placeholder="Please specify your request."></textarea>
 </div>
-<a class="training-service-link" href="training.html">
-            Practical Fashion Training — View Training Programmes &amp; Register
-        </a>
+<p class="training-service-link" style="margin-top:10px;">
+            Practical Fashion Training registrations are completed on the Training page.
+            <a href="training.html">View Training Programmes &amp; Register</a>
+        </p>
+
 </div>
+</section>
+<!-- ADD-ONS -->
+<section class="form-section hidden-section" id="addOnsSection">
+<h2>Add-ons Selection</h2>
+<p>Select any add-on service you need. The detail box opens underneath each selected add-on.</p>
+<div id="addOnsProductsDynamic"></div>
 </section>
 <!-- STREETWEAR -->
 <section class="form-section hidden-section" id="streetwearSection">
 <h2>Streetwear Product Selection</h2>
-<p>Select the streetwear products you need. Enter the size / measurements, colour(s), and quantity information requested for your order.</p>
-<div class="streetwear-global-details">
-<div class="form-group">
-<label for="streetwearSizeMeasurements">Size (UK) / Measurements</label>
-<textarea id="streetwearSizeMeasurements" name="streetwearSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
-</div>
-<div class="form-group">
-<label for="streetwearColour">Colour (S)</label>
-<input id="streetwearColour" name="streetwearColour" placeholder="Enter one or more colours." type="text"/>
-</div>
-</div>
+<p>Select the streetwear products you need. Enter the details requested for each product you select.</p>
 <div id="streetwearProductsDynamic">
 <div class="empty">Loading streetwear options…</div>
 </div>
@@ -427,21 +433,7 @@
 <!-- LADIES WEAR -->
 <section class="form-section hidden-section" id="ladiesWearSection">
 <h2>Ladies Wear Product Selection</h2>
-<p>Select the ladieswear products you need. Size/measurements and colour apply to the request. Use the quantity box beside a product when selecting multiple products; the general quantity box remains available as a fallback.</p>
-<div class="service-global-details">
-<div class="form-group">
-<label for="ladiesWearSize">Size (UK) / Measurements</label>
-<textarea id="ladiesWearSize" name="ladiesWearSize" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea>
-</div>
-<div class="form-group">
-<label for="ladiesWearColour">Colour (S)</label>
-<input id="ladiesWearColour" name="ladiesWearColour" placeholder="e.g. Black, Navy Blue" type="text"/>
-</div>
-<div class="form-group">
-<label for="ladiesWearQuantity">General Quantity (optional)</label>
-<input id="ladiesWearQuantity" min="1" name="ladiesWearQuantity" type="number" value="1"/>
-</div>
-</div>
+<p>Select the ladieswear products you need. Enter the size / measurements, colour and quantity beside each product you select.</p>
 <div id="ladiesWearProductsDynamic"><div class="empty">Loading ladieswear options…</div></div>
 <input id="ladiesWearOther" name="ladiesWearOther" type="hidden" value=""/>
 </section>
@@ -621,10 +613,10 @@ All rights reserved.
 <img alt="WhatsApp" src="icons/Whatsapp.jpg"/>
 </a>
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260825-final"></script>
-<script src="js/supabase-client.js?v=20260825-final"></script>
+<script src="js/supabase-config.js?v=20260827-final"></script>
+<script src="js/supabase-client.js?v=20260827-final"></script>
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script defer="" src="js/form-fixes.js?v=20260825-final"></script> <script defer="" src="js/script.js?v=20260825-final"></script>
-<script src="js/notification-dispatch.js?v=20260825-final"></script>
+<script defer="" src="js/form-fixes.js?v=20260827-final"></script> <script defer="" src="js/script.js?v=20260827-final"></script>
+<script src="js/notification-dispatch.js?v=20260827-final"></script>
 <script src="js/pwa-register.js"></script></body>
 </html>
