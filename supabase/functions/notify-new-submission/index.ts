@@ -54,6 +54,43 @@ serve(async (request) => {
       if (!recent.error) notification = recent.data?.[0] || null;
     }
     if (recordError && sourceId) throw recordError;
+
+    // Do not depend solely on a database trigger. If an installation has not
+    // created the notification trigger yet, build the notification record
+    // directly from the newly submitted request.
+    if (!notification && sourceId) {
+      const allowedColumns = sourceTable === "training_registrations"
+        ? "id,full_name,phone,whatsapp,email,location,course,message,created_at"
+        : sourceTable === "quote_requests"
+          ? "id,full_name,phone,whatsapp,email,location,service,journey,created_at"
+          : "id,full_name,phone,whatsapp,email,subject,message,created_at";
+      const sourceResult = await supabase.from(sourceTable).select(allowedColumns).eq("id", sourceId).maybeSingle();
+      if (sourceResult.error) throw sourceResult.error;
+      const source = sourceResult.data;
+      if (source) {
+        const details = sourceTable === "quote_requests"
+          ? (() => { try { return JSON.parse(source.journey || "{}"); } catch (_) { return { details: source.journey || "" }; } })()
+          : {
+              location: source.location || "",
+              course: source.course || "",
+              subject: source.subject || "",
+              message: source.message || ""
+            };
+        const inserted = await supabase.from("notifications").insert({
+          event_type: sourceTable === "training_registrations" ? "Training Registration" : sourceTable === "quote_requests" ? "Order / Quote Request" : "Enquiry",
+          source_table: sourceTable,
+          source_id: sourceId,
+          customer_name: source.full_name || "Customer",
+          phone: source.phone || "",
+          whatsapp: source.whatsapp || "",
+          email: source.email || "",
+          details,
+        }).select("id,event_type,source_table,source_id,customer_name,phone,whatsapp,email,details,created_at").maybeSingle();
+        if (inserted.error) throw inserted.error;
+        notification = inserted.data || null;
+      }
+    }
+
     if (!notification) throw new Error("Notification record not found.");
 
     const { data: contact } = await supabase
