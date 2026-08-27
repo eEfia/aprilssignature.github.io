@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Order / Request a Quote | Aprils Signature</title>
-<meta content="Request a quote or submit an order request to Aprils Signat for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
+<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
 <link href="css/style.css" rel="stylesheet"/>
 <style>
         .quote-page {
@@ -153,6 +153,7 @@
 
         
         .catalogue-group-title { margin:22px 0 10px; padding:10px 12px; background:#111; color:#d6a542; border-radius:4px; }
+        .catalogue-subgroup-title { display:inline-block; margin:14px 0 8px; padding:6px 12px; background:#000; color:#d6a542; border-radius:3px; font-size:16px; font-weight:700; }
         .catalogue-other-row { border:1px solid #ddd; padding:12px; margin-top:10px; border-radius:5px; }
         .catalogue-detail-box { display:none; margin:10px 0 16px; padding:14px; border-left:4px solid #008080; background:#f8f8f8; }
         .catalogue-detail-box.is-open { display:block; }
@@ -392,12 +393,8 @@
             Embellishment Services
         </label>
 <label class="check-option">
-<input name="services[]" type="checkbox" value="Add-ons"/>
-            Add-ons
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Others"/>
-            Others
+<input name="services[]" type="checkbox" value="Address"/>
+            Address
         </label>
 <label class="check-option">
 <input name="services[]" type="checkbox" value="Practical Fashion Training"/>
@@ -414,11 +411,16 @@
 
 </div>
 </section>
-<!-- ADD-ONS -->
-<section class="form-section hidden-section" id="addOnsSection">
-<h2>Add-ons Selection</h2>
-<p>Select any add-on service you need. The detail box opens underneath each selected add-on.</p>
-<div id="addOnsProductsDynamic"></div>
+<!-- ADDRESS -->
+<section class="form-section hidden-section" id="addressSection">
+<h2>Address Details</h2>
+<p>Please provide the details requested for this address-related request.</p>
+<div class="catalogue-detail-grid">
+<div class="form-group"><label for="addressSizeMeasurements">Size (UK) / Measurements</label><textarea id="addressSizeMeasurements" name="addressSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
+<div class="form-group"><label for="addressColour">Colour (S)</label><input id="addressColour" name="addressColour" type="text" placeholder="e.g. Black, Gold"></div>
+<div class="form-group"><label for="addressQuantity">Quantity</label><input id="addressQuantity" name="addressQuantity" type="number" min="1" value="1"></div>
+<div class="form-group full-width"><label for="addressRequest">Specify Your Request</label><textarea id="addressRequest" name="addressRequest" placeholder="Specify your request."></textarea></div>
+</div>
 </section>
 <!-- STREETWEAR -->
 <section class="form-section hidden-section" id="streetwearSection">
