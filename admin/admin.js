@@ -263,6 +263,19 @@ async function applyCurrentUserAccess(user){
     }catch(e){console.warn("Admin access profile could not be applied:",e)}
 }
 
+async function restoreAdminSection() {
+    let id = "dashboard";
+    try { id = sessionStorage.getItem("aprils_admin_current_section") || "dashboard"; } catch (_) {}
+    const button = document.querySelector(`.sidebar button[data-section="${CSS.escape(id)}"]`) || document.querySelector('.sidebar button[data-section="dashboard"]');
+    if (!button) return;
+    document.querySelectorAll(".sidebar button").forEach(b => b.classList.remove("active"));
+    button.classList.add("active");
+    document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
+    const section = document.getElementById(button.dataset.section);
+    if (section) section.classList.add("active");
+    await loadSection(button.dataset.section);
+}
+
 async function checkSession() {
     const login = document.getElementById("loginScreen");
     if (!login) return;
@@ -280,8 +293,8 @@ async function checkSession() {
             try { await seedInitialPublicContent(); } catch (_) {}
             try { await cleanupExactDuplicates(); } catch (_) {}
             await syncOfflineInvoiceRecords();
-            await loadDashboard();
             await applyCurrentUserAccess(result.data.session.user);
+            await restoreAdminSection();
         } else {
             login.style.display = "flex";
         }
@@ -334,6 +347,9 @@ function setupNavigation() {
         button.addEventListener("click", async () => {
             document.querySelectorAll(".sidebar button").forEach(b => b.classList.remove("active"));
             button.classList.add("active");
+            button.classList.add("button-working");
+            setTimeout(() => button.classList.remove("button-working"), 350);
+            try { sessionStorage.setItem("aprils_admin_current_section", button.dataset.section || "dashboard"); } catch (_) {}
 
             document.querySelectorAll(".section").forEach(section => section.classList.remove("active"));
 
@@ -418,7 +434,7 @@ async function loadSection(id) {
         if (id === "policies") await loadPolicies();
         if (id === "content") await loadContent();
         if (id === "social") await loadSocial();
-        if (id === "services") { await loadServices(); await loadTraining(); }
+        if (id === "services") await loadServices();
         if (id === "contact") await loadContact();
         if (id === "settings") await loadSettings();
         if (id === "users") await loadUserAccess();
@@ -1117,7 +1133,32 @@ async function ensureStreetwearCatalogue() {
             }
         }
 
-        // Do not recreate deleted products. Existing rows are normalized only.
+        // Add the specifically requested new catalogue items once. These are
+        // new catalogue entries, not a recreation of any product the admin may
+        // have deliberately deleted from the older catalogue.
+        const requestedNewProducts = [
+            ["Streetwear","Hoodies and joggers",20,"Sets"],
+            ["Streetwear","Hoodies and sweatpants",21,"Sets"],
+            ["Ladies Wear","Customised / Embellished Bubu",6,"Dresses and Gowns"],
+            ["Ladies Wear","Customised / Embellished Kaftan",8,"Dresses and Gowns"],
+            ["Ladies Wear","Customised / Embellished Bubu Kaftan",10,"Dresses and Gowns"],
+            ["Embellishment Services","3D Patches",5,"Embellishment"],
+            ["Embellishment Services","Hand Cut",6,"Embellishment"]
+        ];
+        for (const [category,name,order,subcategory] of requestedNewProducts) {
+            const key = productKeyFromName(name);
+            const exists = await db.from("settings").select("id").eq("setting_key",key).limit(1);
+            if (!exists.error && !exists.data?.length) {
+                await db.from("settings").insert({
+                    setting_key:key,
+                    setting_value:JSON.stringify({name,category,public_price:null,subcategory,notes:"",display_order:order,active:true,catalogue_key:catalogueKeyFromName(name)}),
+                    updated_at:new Date().toISOString()
+                });
+            }
+        }
+
+        // Do not recreate products removed from the existing catalogue. Existing
+        // rows are normalised only.
         const knownOrders = new Map([...DEFAULT_PRODUCTS,...DEFAULT_LADIES_PRODUCTS,...DEFAULT_EMBELLISHMENT_PRODUCTS].map(x=>[x[1].toLowerCase(),x]));
         for (const row of rows) {
             let current={}; try{current=JSON.parse(row.setting_value||"{}")}catch(_){continue;}
@@ -1171,7 +1212,7 @@ async function loadProducts() {
     settings.filter(r=>String(r.setting_key||"").startsWith("invoice_price_")).forEach(r=>{try{const x=JSON.parse(r.setting_value||"{}");if(x.name)invoiceMap.set(String(x.name).trim().toLowerCase(),x);}catch(_){}});
     rows.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
     list.innerHTML=rows.length?`<table><thead><tr><th>Product / Service</th><th>Category</th><th>Group</th><th>Public Price (GHS)</th><th>Invoice Price (GHS)</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>{const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());return `<tr><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.subcategory||"")}</td><td>${r.public_price!==undefined && r.public_price!==null && r.public_price!==""?`GHS ${Number(r.public_price).toFixed(2)}`:"—"}</td><td>${i?.price!==undefined?`GHS ${Number(i.price).toFixed(2)}`:"—"}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-product="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-product="${escapeHTML(r.id)}">Delete</button></td></tr>`;}).join("")}</tbody></table>`:`<div class="empty">No products / services have been added yet.</div>`;
-    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";getEl("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
+    list.querySelectorAll("[data-edit-product]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editProduct));if(!r)return;const i=invoiceMap.get(String(r.name||"").trim().toLowerCase());document.getElementById("adminProductId").value=r.id;document.getElementById("adminProductTitle").value=r.name||"";document.getElementById("adminProductCategory").value=r.category||"Streetwear";document.getElementById("adminProductPublicPrice").value=r.public_price??"";document.getElementById("adminProductInvoicePrice").value=i?.price??"";document.getElementById("adminProductOrder").value=r.display_order??1;document.getElementById("adminProductSubcategory").value=r.subcategory||"";document.getElementById("adminProductNotes").value=i?.notes||r.notes||"";document.getElementById("adminProductActive").checked=r.active!==false;focusAdminForm("adminProductForm","adminProductTitle");});
     list.querySelectorAll("[data-delete-product]").forEach(b=>b.onclick=async()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.deleteProduct));if(!r||!confirm(`Delete "${r.name}"?`))return;const q=await db.from("settings").delete().eq("id",b.dataset.deleteProduct);if(q.error){message("Product / service could not be deleted: "+q.error.message,"error");return;}try{await db.from("settings").delete().eq("setting_key",invoiceStorageKey(r.name));}catch(_){}message("Product / service deleted.","success");await loadProducts();});
 }
 
@@ -1628,7 +1669,12 @@ function invoicePriceFor(map, name) {
         "sweatshirt sweatpants set": ["sweatshirts sweatpants set", "sweatshirt and sweatpants"]
     };
     for (const alias of (aliases[normalized] || [])) {
-        if (map.has(alias)) return map.get(alias) ?? 0;
+        const key = normalizeInvoiceName(alias);
+        if (map.has(key)) return map.get(key) ?? 0;
+    }
+    // Last-resort exact word-normalised matching for legacy names.
+    for (const [key, value] of map.entries()) {
+        if (key === normalized || key.replace(/^training /, "") === normalized) return value ?? 0;
     }
     return 0;
 }
@@ -1655,7 +1701,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size, item.measurements, item.colour].filter(Boolean).join(" • ")
+                details: [item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1665,7 +1711,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             if (!item) return;
             const product = item.product || "Ladies Wear";
             const quantity = Math.max(1, Number(item.quantity || 1));
-            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")});
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour, item.details].filter(Boolean).join(" • ")});
         });
     }
 
@@ -1700,10 +1746,11 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
     }
 
     if (details?.training) {
+        const trainingName = String(row?.course || details.training || "").trim();
         lines.push({
-            description: "Practical Fashion Training",
+            description: trainingName || "Training / Programme / Class",
             quantity: 1,
-            unitPrice: invoicePriceFor(priceMap, "Training - Practical Fashion Training") || invoicePriceFor(priceMap, "Practical Fashion Training"),
+            unitPrice: invoicePriceFor(priceMap, trainingName) || invoicePriceFor(priceMap, "Training - " + trainingName),
             details: details.training
         });
     }
@@ -2425,7 +2472,7 @@ async function openInvoiceGenerator(row, details) {
                     <div class="invoice-payment-grid ${paymentAccounts.length > 1 ? "two" : "one"}">
                         ${paymentAccounts.map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>
+                            <span>${escapeHTML(item.name || "")}</span>${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
                         </div>`).join("")}
                     </div>
                     </div>
@@ -2661,45 +2708,15 @@ function getGeneratedInvoiceShareText() {
 }
 
 async function shareGeneratedInvoiceWhatsApp() {
-    const state = window._aprilsCurrentInvoice;
     const customer = document.getElementById("generatedInvoicePhone")?.value || "";
     const text = getGeneratedInvoiceShareText();
-    try {
-        const html2pdf = await ensureHtml2Pdf();
-        if (state && html2pdf && navigator.share && navigator.canShare) {
-            state.renderInvoice();
-            const paper = document.getElementById("invoicePaper");
-            const number = document.getElementById("generatedInvoiceNumber")?.value || "Aprils-Signature-Invoice";
-            const options = {
-                margin: 0,
-                filename: number + ".pdf",
-                image: {type:"jpeg",quality:0.98},
-                html2canvas: {scale:2,useCORS:true},
-                jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
-            };
-            const blob = await pdfFromVisibleElement(paper, options);
-            const file = new File([blob], options.filename, {type:"application/pdf"});
-            if (navigator.canShare({files:[file]})) {
-                await navigator.share({
-                    title: "Aprils Signature Invoice",
-                    text: text,
-                    files: [file]
-                });
-                return;
-            }
-        }
-    } catch (error) {
-        console.warn("Direct invoice PDF sharing was unavailable:", error);
-    }
 
-    // WhatsApp's public web/deep-link interface cannot attach a local PDF from
-    // a normal desktop browser. Make sure the real PDF is downloaded first, then
-    // open the customer's WhatsApp chat with the invoice number and instructions.
+    // WhatsApp cannot receive a browser-local PDF as an attachment through a
+    // normal wa.me link. Prepare the PDF locally, then take the user directly
+    // to the customer's WhatsApp chat rather than opening a PDF preview page.
     try { await generateInvoicePdf(false); } catch (_) {}
-    window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
-    message("Invoice PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
+    window.location.href = customerWhatsAppUrl(customer, text);
 }
-
 function shareGeneratedInvoiceEmail() {
     const subject = encodeURIComponent("Aprils Signature Invoice " + (document.getElementById("generatedInvoiceNumber")?.value || ""));
     const body = encodeURIComponent(getGeneratedInvoiceShareText());
@@ -2865,7 +2882,7 @@ function openReceiptGenerator() {
                     <div class="invoice-payment-grid ${(invoiceState.paymentAccounts || []).length > 1 ? "two" : "one"}">
                         ${(invoiceState.paymentAccounts || []).map(item=>`<div class="invoice-payment-account">
                             <strong>${escapeHTML([item.network,item.number].filter(Boolean).join(" "))}</strong><br>
-                            <span>${escapeHTML(item.name || "")}</span>
+                            <span>${escapeHTML(item.name || "")}</span>${item.branch ? `<br><span>Branch: ${escapeHTML(item.branch)}</span>` : ""}
                         </div>`).join("")}
                     </div>
                 </div>
@@ -2940,8 +2957,9 @@ function openReceiptGenerator() {
                                 ? (paidTotal > 0 ? "part_paid" : "unpaid")
                                 : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
-                        // A recorded customer payment means the order has reached the production stage.
-                        // The later fulfilment stages remain manually controlled in the Order Status dropdown.
+                        if (invoiceState.isTrainingInvoice && paidTotal >= total && total > 0) {
+                            await setAdminRecordStatus("training_status", record.id, "started_class");
+                        }
                         if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
                             await setAdminRecordStatus("quote_status", record.id, "in_production");
                         }
@@ -3106,75 +3124,62 @@ function newAdminService(){const f=document.getElementById("adminServiceForm");i
 async function loadServices() {
     const section = document.getElementById("services");
     if (!section) return;
+
     section.innerHTML = `
         <h2>Products / Services &amp; Training</h2>
-        <p class="intro">Manage the products/services visitors can choose and the training programmes. Public prices are optional and appear on the public website when entered. Invoice prices are separate and remain admin-only.</p>
+        <p class="intro">Manage the public product/service catalogue and training programmes. Public and invoice prices are saved together here so each item can be used correctly when an invoice is generated.</p>
+
         <div class="form-card">
             <h3 style="color:#008c95;margin-bottom:10px;">Products / Services</h3>
-            <p class="intro">Add, edit, delete, rename and reorder the product/service choices used by the public request form.</p>
+            <p class="intro">Add, edit, delete, rename and reorder products/services. Both the public price and internal invoice price can be entered here.</p>
             <form id="adminProductForm">
                 <input type="hidden" id="adminProductId">
                 <div class="form-grid">
                     <div class="form-group"><label>Product / Service Name</label><input type="text" id="adminProductTitle" required placeholder="e.g. Custom Hoodie"></div>
                     <div class="form-group"><label for="adminProductCategory">Category</label><input type="text" id="adminProductCategory" list="serviceCategoryOptions" placeholder="e.g. Streetwear">
-<datalist id="serviceCategoryOptions">
-<option value="Streetwear"></option>
-<option value="Ladies Wear"></option>
-<option value="Kids Wear"></option>
-<option value="Rhinestone Embellishment"></option>
-<option value="T-Shirt Printing"></option>
-<option value="Dressmaking Training"></option>
-<option value="Screen Painting"></option>
-<option value="Glitter Works"></option>
-<option value="Practical Fashion Training"></option>
-</datalist></div>
+                        <datalist id="serviceCategoryOptions">
+                            <option value="Streetwear"></option><option value="Ladies Wear"></option><option value="Kids Wear"></option>
+                            <option value="Rhinestone Embellishment"></option><option value="T-Shirt Printing"></option><option value="Screen Printing"></option>
+                            <option value="Fabric Painting"></option><option value="Glitter Works"></option><option value="Practical Fashion Training"></option>
+                        </datalist>
+                    </div>
                     <div class="form-group"><label>Public Price (GHS)</label><input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="Optional public price"></div>
+                    <div class="form-group"><label>Invoice Price (GHS)</label><input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice price"></div>
                     <div class="form-group"><label>Display Order</label><input type="number" id="adminProductOrder" min="1" value="1"></div>
                 </div>
-                <div class="form-group"><label>Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional internal note."></textarea></div>
+                <div class="form-group"><label>Product / Service Group</label><input type="text" id="adminProductSubcategory" placeholder="e.g. Tops, Bottoms, Sets, Dresses and Gowns"></div>
+                <div class="form-group"><label>Product Details / Notes</label><textarea id="adminProductNotes" rows="4" placeholder="Optional details."></textarea></div>
                 <label class="checkbox"><input type="checkbox" id="adminProductActive" checked> Active / Available for selection</label><br>
                 <button class="primary" type="submit">Save Product / Service</button>
                 <button class="secondary" type="button" id="adminProductCancel">Cancel</button>
             </form>
         </div>
         <div id="adminProductsList" class="table-wrap"></div>
+
         <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Services</h3>
-            <p class="intro">Add, edit, delete and reorder services separately from products.</p>
-            <button type="button" class="secondary" id="newAdminServiceButton">+ Add New Service</button>
-            <form id="adminServiceForm" style="margin-top:12px;">
-                <input type="hidden" id="adminServiceId">
-                <div class="form-grid">
-                    <div class="form-group"><label>Service Name</label><input id="adminServiceTitle" required></div>
-                    <div class="form-group"><label>Category</label><input id="adminServiceCategory"></div>
-                    <div class="form-group"><label>Display Order</label><input id="adminServiceOrder" type="number" min="1" value="1"></div>
-                </div>
-                <div class="form-group"><label>Description</label><textarea id="adminServiceDescription"></textarea></div>
-                <label class="checkbox"><input type="checkbox" id="adminServiceActive" checked> Active</label><br>
-                <button type="submit" class="primary">Save Service</button> <button type="button" class="secondary" id="adminServiceCancel">Cancel</button>
-            </form>
-        </div>
-        <div id="adminServicesList" class="table-wrap"></div>
-        <div class="form-card" style="margin-top:20px;">
-            <h3 style="color:#008c95;margin-bottom:10px;">Training</h3>
-            <p class="intro">Add, edit, delete and price training programmes. Public prices are optional and will appear on the public Training page when entered. Invoice prices are separate and admin-only.</p>
+            <h3 style="color:#008c95;margin-bottom:10px;">Training / Programme / Class</h3>
+            <p class="intro">Add, edit, delete and reorder training programmes/classes. Public and invoice prices are both available.</p>
             <form id="trainingForm">
                 <input type="hidden" id="trainingId">
                 <div class="form-grid">
-                    <div class="form-group"><label>Programme Name</label><input id="trainingTitle" required></div>
-                    <div class="form-group"><label>Duration</label><input id="trainingDuration"></div>
+                    <div class="form-group"><label>Training / Programme / Class</label><input id="trainingTitle" required placeholder="e.g. One Month Corset Training"></div>
+                    <div class="form-group"><label>Duration</label><input id="trainingDuration" placeholder="e.g. 1 month"></div>
+                    <div class="form-group"><label>Category</label><input id="trainingCategory" placeholder="e.g. Specialty Class"></div>
                     <div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional public price"></div>
-                    <div class="form-group"><label>Invoice Price (GHS) — Internal Only</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice rate"></div>
-                    <div class="form-group"><label>Category</label><input id="trainingCategory"></div>
+                    <div class="form-group"><label>Invoice Price (GHS)</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional invoice price"></div>
                 </div>
-                <div class="form-group"><label>Description</label><textarea id="trainingDescription"></textarea></div>
-                <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label><br>
-                <button class="primary" type="submit">Save Training Programme</button>
+                <div class="form-group"><label>Description</label><textarea id="trainingDescription" rows="4"></textarea></div>
+                <label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active / Available for selection</label><br>
+                <button class="primary" type="submit">Save Training / Programme / Class</button>
                 <button type="button" class="secondary" id="trainingCancel">Cancel</button>
             </form>
         </div>
         <div id="trainingList" class="table-wrap"></div>`;
-    await loadProducts(); setupProductForm(); setupAdminServiceForm(); const newServiceButton=document.getElementById("newAdminServiceButton"); if(newServiceButton&&!newServiceButton.dataset.bound){newServiceButton.dataset.bound="1";newServiceButton.addEventListener("click",newAdminService);} await loadAdminServices(); await loadTraining(); setupTrainingForm();
+
+    await loadProducts();
+    setupProductForm();
+    await loadTraining();
+    setupTrainingForm();
 }
 
 async function loadTraining() {
@@ -3373,7 +3378,7 @@ function buildQuoteDetailRows(row, details) {
         if (details.ladiesWearProducts && typeof details.ladiesWearProducts === "object") {
             Object.entries(details.ladiesWearProducts).forEach(([name,item]) => {
                 if (!item) return;
-                add("Ladies Wear — " + name, [item.quantity ? `Quantity: ${item.quantity}` : "", item.size ? `Size: ${item.size}` : "", item.measurements ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : "", item.details ? `Details: ${item.details}` : ""].filter(Boolean).join(" • "));
+                add("Ladies Wear — " + name, [item.quantity ? `Quantity: ${item.quantity}` : "", item.size ? `Size: ${item.size}` : "", item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : "", item.details ? `Details: ${item.details}` : ""].filter(Boolean).join(" • "));
             });
         }
         add("Ladies Wear Other Request", details.ladiesWearOther);
@@ -3393,7 +3398,7 @@ function buildQuoteDetailRows(row, details) {
         embellishments.forEach(serviceName => {
             const item = details.embellishmentDetails?.[serviceName] || {};
             add(`${serviceName} — Size (UK)`, item.size || details.embellishmentSize);
-            add(`${serviceName} — Measurements`, item.measurements);
+            if (String(item.measurements || "").trim() && String(item.measurements || "").trim() !== String(item.size || "").trim()) add(`${serviceName} — Measurements`, item.measurements);
             add(`${serviceName} — Colour`, item.colour);
             add(`${serviceName} — Quantity`, item.quantity || details.embellishmentQuantity);
             add(`${serviceName} — Details / Style Request`, item.details || details.embellishmentOther);
@@ -3609,7 +3614,7 @@ function closeSubmissionDetails(){
 ========================================================= */
 
 
-const ADMIN_STATUS_OPTIONS = [
+const ORDER_STATUS_OPTIONS = [
     ["under_review", "New Customer — Under Review"],
     ["invoice_generated", "Invoice Generated"],
     ["deposit_paid", "Deposit Paid"],
@@ -3622,6 +3627,19 @@ const ADMIN_STATUS_OPTIONS = [
     ["dispatched", "Dispatched"],
     ["received", "Received by Customer"]
 ];
+
+const TRAINING_STATUS_OPTIONS = [
+    ["under_review", "New Customer — Under Review"],
+    ["invoice_generated", "Invoice Generated"],
+    ["part_paid", "Part Paid"],
+    ["fully_paid", "Fully Paid"],
+    ["started_class", "Started Class"],
+    ["completed", "Completed"]
+];
+
+function statusOptionsForPrefix(prefix) {
+    return String(prefix || "").startsWith("training_status_") ? TRAINING_STATUS_OPTIONS : ORDER_STATUS_OPTIONS;
+}
 
 async function getAdminRecordStatus(prefix, id) {
     try {
@@ -3638,7 +3656,7 @@ function statusSelectHTML(prefix, id, value) {
     const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
     value = legacy[value] || value || "under_review";
     return `<div class="status-control"><select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
-        ${ADMIN_STATUS_OPTIONS.map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
+        ${statusOptionsForPrefix(prefix).map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
     </select><button type="button" class="secondary save-status-button" data-save-status-prefix="${escapeHTML(prefix)}" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
 }
 
@@ -3651,7 +3669,7 @@ function writeOfflineCache(key, rows) {
 }
 
 function humanStatus(value) {
-    const found = ADMIN_STATUS_OPTIONS.find(([key]) => key === value);
+    const found = (String(value || "").startsWith("started_class") ? TRAINING_STATUS_OPTIONS : ORDER_STATUS_OPTIONS).find(([key]) => key === value);
     return found ? found[1] : String(value || "Under Review").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
 }
 
@@ -4488,7 +4506,7 @@ async function loadInvoicePricing() {
     if (productList) productList.innerHTML = renderRows(productInvoices, "No item or service invoice prices have been added yet.", "data-edit-invoice", "product");
 
     const trainingList = document.getElementById("invoiceTrainingList");
-    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products and Services</th>","<th>Program / Class</th>");
+    if (trainingList) trainingList.innerHTML = renderRows(trainingInvoices, "No training invoice prices have been added yet.", "data-edit-training-invoice", "training").replace("<th>Products and Services</th>","<th>Programme / Class</th>");
 
     const bindList = list => {
         if (!list) return;
@@ -4561,9 +4579,10 @@ function paymentRowTemplate(item = {}) {
     return `
         <div class="invoice-payment-row" data-payment-row style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:12px;">
             <div class="form-grid">
-                <div class="form-group"><label>MoMo / Payment Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || "")}" placeholder="e.g. 024..."></div>
-                <div class="form-group"><label>Account / MoMo Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || "")}" placeholder="Name on the account"></div>
-                <div class="form-group"><label>Network / Payment Method</label><input class="invoice-payment-network" value="${escapeHTML(item.network || "")}" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
+                <div class="form-group"><label>Payment Method / Network</label><input class="invoice-payment-network" value="${escapeHTML(item.network || "")}" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
+                <div class="form-group"><label>Account / Payment Number</label><input class="invoice-payment-number" value="${escapeHTML(item.number || "")}" placeholder="e.g. 024... or account number"></div>
+                <div class="form-group"><label>Account Name</label><input class="invoice-payment-name" value="${escapeHTML(item.name || "")}" placeholder="Name on the account"></div>
+                <div class="form-group"><label>Bank Branch</label><input class="invoice-payment-branch" value="${escapeHTML(item.branch || "")}" placeholder="For bank accounts"></div>
             </div>
             <div class="form-group"><label>Payment Note</label><textarea class="invoice-payment-note" placeholder="Payment instruction to appear on invoices.">${escapeHTML(item.note || "")}</textarea></div>
             <button type="button" class="danger remove-invoice-payment">Remove This Payment Detail</button>
@@ -4581,7 +4600,7 @@ async function getInvoicePaymentAccounts() {
     }
 
     const legacy = {};
-    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_note"].includes(String(r.setting_key||"")))
+    rows.filter(r => ["invoice_payment_number","invoice_payment_name","invoice_payment_network","invoice_payment_branch","invoice_payment_note"].includes(String(r.setting_key||"")))
         .forEach(r => legacy[r.setting_key] = r.setting_value || "");
 
     if (legacy.invoice_payment_number || legacy.invoice_payment_name || legacy.invoice_payment_network || legacy.invoice_payment_note) {
@@ -4589,6 +4608,7 @@ async function getInvoicePaymentAccounts() {
             number: legacy.invoice_payment_number || "",
             name: legacy.invoice_payment_name || "",
             network: legacy.invoice_payment_network || "",
+            branch: legacy.invoice_payment_branch || "",
             note: legacy.invoice_payment_note || ""
         }];
     }
@@ -4625,7 +4645,7 @@ async function loadInvoicePaymentDetails() {
                     <div style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:10px;">
                         <strong>Payment Detail ${index+1}</strong><br>
                         ${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}<br>
-                        ${escapeHTML(item.name || "")}<br>
+                        ${escapeHTML(item.name || "")}${item.branch ? `<br>Branch: ${escapeHTML(item.branch)}` : ""}<br>
                         <div style="margin-top:8px;font-weight:700;border-left:4px solid #c9a227;padding:8px 10px;">
                             <strong>*** Payment Note ***</strong><br>
                             ${escapeHTML(item.note || "No payment note saved.")}
@@ -4670,6 +4690,7 @@ function setupInvoicePaymentForm(){
             number: row.querySelector(".invoice-payment-number")?.value.trim() || "",
             name: row.querySelector(".invoice-payment-name")?.value.trim() || "",
             network: row.querySelector(".invoice-payment-network")?.value.trim() || "",
+            branch: row.querySelector(".invoice-payment-branch")?.value.trim() || "",
             note: row.querySelector(".invoice-payment-note")?.value.trim() || ""
         })).filter(item => item.number || item.name || item.network || item.note);
 
@@ -4684,7 +4705,7 @@ function setupInvoicePaymentForm(){
                     if (deleted.error) throw deleted.error;
                 }
                 const publicRows = accounts.map((item,index)=>({
-                    network:item.network || "", number:item.number || "", name:item.name || "",
+                    network:item.network || "", number:item.number || "", name:item.name || "", branch:item.branch || "",
                     active:true, display_order:index+1, updated_at:new Date().toISOString()
                 })).filter(item=>item.number || item.name || item.network);
                 if (publicRows.length) {
@@ -4699,6 +4720,7 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_number", first.number || "");
             await safeSettingUpsert("invoice_payment_name", first.name || "");
             await safeSettingUpsert("invoice_payment_network", first.network || "");
+            await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
             await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
             message("Invoice payment details saved.", "success");
