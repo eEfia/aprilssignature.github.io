@@ -36,8 +36,9 @@ font:inherit;
 }
 
 header{
-background:#008c95;
-color:white;
+background:#fff;
+color:#222;
+border-bottom:1px solid #ddd;
 padding:18px 22px;
 display:flex;
 justify-content:space-between;
@@ -96,6 +97,7 @@ background:#008c95;
 flex:1;
 padding:28px;
 overflow:auto;
+border-top:3px solid #008c95;
 }
 
 .section{
@@ -442,6 +444,39 @@ flex-direction:column;
         align-items:flex-start;
     }
 }
+
+
+.admin-brand{display:flex;align-items:center;gap:10px;}
+.admin-logo{width:46px;height:46px;object-fit:contain;display:block;}
+.admin-brand h1{font-size:22px;color:#0f7775;}
+.admin-brand p{color:#222;}
+@media(max-width:700px){.admin-logo{width:46px;height:46px}.admin-brand h1{font-size:19px;}}
+
+/* Final table-width corrections: wrap long values without creating a horizontal page scroll. */
+#orders .table-wrap, #registrations .table-wrap, #manualInvoiceLines { overflow-x:auto; }
+#orders table { min-width:0; table-layout:fixed; }
+#orders th:nth-child(1), #orders td:nth-child(1) { width:9%; }
+#orders th:nth-child(2), #orders td:nth-child(2) { width:9%; }
+#orders th:nth-child(3), #orders td:nth-child(3) { width:9%; }
+#orders th:nth-child(4), #orders td:nth-child(4) { width:9%; }
+#orders th:nth-child(5), #orders td:nth-child(5) { width:9%; }
+#orders th:nth-child(6), #orders td:nth-child(6) { width:10%; }
+#orders th:nth-child(7), #orders td:nth-child(7) { width:11%; }
+#orders th:nth-child(8), #orders td:nth-child(8) { width:15%; }
+#orders th:nth-child(9), #orders td:nth-child(9) { width:19%; }
+#orders th:nth-child(9), #orders td:nth-child(9) { width:10%; }
+#orders th:nth-child(10), #orders td:nth-child(10) { width:14%; }
+#orders th:nth-child(8), #orders td:nth-child(8) { width:13%; }
+#orders th, #orders td { overflow-wrap:anywhere; word-break:break-word; padding:9px; }
+#orders .admin-details-preview { white-space:normal; overflow-wrap:anywhere; }
+#registrations table { min-width:0; table-layout:fixed; }
+#registrations th, #registrations td { overflow-wrap:anywhere; word-break:break-word; padding:9px; }
+.manual-invoice-line { display:grid; grid-template-columns:2fr 1fr .8fr 1fr auto; gap:10px; align-items:end; margin-bottom:10px; }
+.manual-invoice-line input { width:100%; padding:10px; border:1.5px solid #8a8a8a; border-radius:5px; }
+.manual-invoice-line label { display:block; font-weight:bold; font-size:12px; margin-bottom:5px; }
+@media(max-width:900px){ .manual-invoice-line{grid-template-columns:1fr 1fr;} }
+
+#discountList table{min-width:0;}#discountList th,#discountList td{overflow-wrap:anywhere;}
 </style>
 
 <style>.submission-modal-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.submission-modal-actions button{margin:0}</style></head>
@@ -491,6 +526,8 @@ Log In
 
 </form>
 
+<a href="offline.html" class="secondary" style="display:block;text-align:center;text-decoration:none;margin-top:10px;">Offline Access</a>
+
 <div
 id="loginMessage"
 class="status"
@@ -505,16 +542,13 @@ style="margin-top:15px"
 
 <header>
 
+<div class="admin-brand">
+<img src="../icons/Aprils Signature logo.jpeg" alt="Aprils Signature logo" class="admin-logo">
 <div>
+<h1>Aprils Signature</h1>
 
-<h1>
-Aprils Signature
-</h1>
-
-<p>
-Admin Dashboard
-</p>
-
+<p>Admin Dashboard</p>
+</div>
 </div>
 
 <button
@@ -551,21 +585,18 @@ data-section="gallery"
 Gallery &amp; Media
 </button>
 
+<button
+data-section="homepage"
+>
+Homepage Featured Collection
+</button>
+
 
 <button
 data-section="services"
 >
-Services
+Products / Services &amp; Training
 </button>
-
-
-<button
-data-section="training"
->
-Training
-</button>
-
-
 <button
 data-section="registrations"
 >
@@ -583,6 +614,24 @@ Order / Quote Requests
 data-section="invoice"
 >
 Invoice Pricing
+</button>
+<button
+data-section="manualInvoice"
+>
+Invoice &amp; Receipts
+</button>
+
+<button data-section="shopAdmin">Shop</button>
+<button data-section="inventory">Inventory / Stock</button>
+<button data-section="checkout">Checkout Orders</button>
+<button data-section="errors">System Error Log</button>
+<button data-section="notifications">Notifications</button>
+<button type="button" onclick="window.location.href='offline.html'">Offline Access</button>
+
+<button
+data-section="accounting"
+>
+Sales &amp; Accounting
 </button>
 
 <button
@@ -602,6 +651,8 @@ Testimonials
 <button data-section="policies">Policies &amp; Terms</button>
 <button data-section="contact">Contact Information</button>
 <button data-section="social">Social Links</button>
+<button data-section="discounts">Discount Codes</button>
+<button data-section="users">Admin Users &amp; Access</button>
 <button data-section="settings">Website Settings</button>
 
 
@@ -972,198 +1023,122 @@ class="table-wrap"
 SERVICES
 ===================================================== -->
 
+<section id="homepage" class="section">
+<h2>Homepage Featured Collection</h2>
+<p class="intro">This section is completely separate from Gallery &amp; Media. Add, edit, delete and reorder homepage images or videos here without changing the public gallery.</p>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Homepage Collection Name</h3>
+<form id="homepageCollectionNameForm">
+<div class="form-grid">
+<div class="form-group"><label for="homepageCollectionName">Collection Name</label><input id="homepageCollectionName" placeholder="Featured Collection"></div>
+</div>
+<button class="primary" type="submit">Save Collection Name</button>
+</form>
+</div>
+<div class="form-card">
+<form id="homepageMediaForm">
+<input type="hidden" id="homepageMediaId">
+<div class="form-grid">
+<div class="form-group"><label for="homepageMediaTitle">Title</label><input id="homepageMediaTitle" required placeholder="e.g. New Featured Collection"></div>
+<div class="form-group"><label for="homepageMediaUrl">Image / Video URL</label><input id="homepageMediaUrl" required placeholder="https://... or videos/video.mp4"></div>
+<div class="form-group"><label for="homepageMediaOrder">Display Order</label><input id="homepageMediaOrder" type="number" min="1" value="1"></div>
+</div>
+<div class="form-group"><label for="homepageMediaDescription">Description</label><textarea id="homepageMediaDescription" placeholder="Optional description to show on the homepage."></textarea></div>
+<label class="checkbox"><input type="checkbox" id="homepageMediaActive" checked> Show on Homepage</label><br>
+<button class="primary" type="submit">Save Homepage Media</button>
+<button type="button" class="secondary" id="homepageMediaCancel">Cancel</button>
+</form>
+</div>
+<div id="homepageMediaList" class="table-wrap"></div>
+</section>
+
 <section
 id="services"
 class="section"
 >
 
 <h2>
-Services
+Products / Services &amp; Training
 </h2>
 
 <p class="intro">
-Add, edit and remove the services displayed on the public website.
+Manage the public product catalogue and services. Product prices here are the public catalogue prices; internal invoice prices remain in the separate Invoice Pricing section.
 </p>
 
 <div class="form-card">
-<form id="adminServiceForm">
-<input type="hidden" id="adminServiceId">
-
+<h3 style="color:#008c95;margin-bottom:10px;">Products / Services</h3>
+<p class="intro">Products are grouped by category. You can add, edit, delete and change the public price for each product.</p>
+<form id="adminProductForm">
+<input type="hidden" id="adminProductId">
 <div class="form-grid">
 <div class="form-group">
-<label>Service Name</label>
-<input type="text" id="adminServiceTitle" required placeholder="Service name">
+<label>Product / Service Name</label>
+<input type="text" id="adminProductTitle" required placeholder="e.g. Hoodies">
 </div>
-
 <div class="form-group">
-<label>Category</label>
-<input type="text" id="adminServiceCategory" placeholder="Select a category">
+<label for="adminProductCategory">Category</label>
+<input type="text" id="adminProductCategory" list="serviceCategoryOptions" placeholder="e.g. Streetwear">
+<datalist id="serviceCategoryOptions">
+<option value="Streetwear"></option>
+<option value="Ladies Wear"></option>
+<option value="Kids Wear"></option>
+<option value="Rhinestone Embellishment"></option>
+<option value="T-Shirt Printing"></option>
+<option value="Dressmaking Training"></option>
+<option value="Screen Painting"></option>
+<option value="Glitter Works"></option>
+<option value="Practical Fashion Training"></option>
+</datalist>
 </div>
-</div>
-
 <div class="form-group">
-<label>Description</label>
-<textarea id="adminServiceDescription" rows="5" placeholder="Describe this service"></textarea>
+<label>Public Price (GHS)</label>
+<input type="number" id="adminProductPublicPrice" min="0" step="0.01" placeholder="e.g. 450.00">
 </div>
-
-<label class="checkbox">
-<input type="checkbox" id="adminServiceActive" checked> Active
-</label>
+<div class="form-group">
+<label>Invoice Price (GHS)</label>
+<input type="number" id="adminProductInvoicePrice" min="0" step="0.01" placeholder="Optional invoice rate">
+</div>
+<div class="form-group">
+<label>Display Order</label>
+<input type="number" id="adminProductOrder" min="1" value="1">
+</div>
+</div>
+<div class="form-group"><label>Subcategory / Group</label><input type="text" id="adminProductSubcategory" placeholder="e.g. Tops, Bottoms, Sets, Dresses and Gowns"></div>
+<div class="form-group">
+<label>Product Details / Notes</label>
+<textarea id="adminProductNotes" rows="4" placeholder="Describe the product or option."></textarea>
+</div>
+<label class="checkbox"><input type="checkbox" id="adminProductActive" checked> Active</label>
 <br>
-<button class="primary" type="submit">Save Service</button>
-<button class="secondary" type="button" id="adminServiceCancel">Cancel</button>
+<button class="primary" type="submit">Save Product</button>
+<button class="secondary" type="button" id="adminProductCancel">Cancel</button>
 </form>
 </div>
 
-<div id="adminServicesList" class="table-wrap"></div>
+<div id="adminProductsList" class="table-wrap"></div>
 
-</section>
-
-
-
-<!-- =====================================================
-TRAINING
-===================================================== -->
-
-<section
-id="training"
-class="section"
->
-
-<h2>
-Training
-</h2>
-
-<p class="intro">
-Add, edit and remove training programmes.
-</p>
-
-
-<div class="form-card">
-
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Training / Programme / Class</h3>
+<p class="intro">Manage the training programmes shown in the public Training page. Prices here are optional; internal invoice prices are also available in Invoice Pricing.</p>
 <form id="trainingForm">
-
-<input
-type="hidden"
-id="trainingId"
->
-
-
+<input type="hidden" id="trainingId">
 <div class="form-grid">
-
-
-<div class="form-group">
-
-<label>
-Programme Name
-</label>
-
-<input
-id="trainingTitle"
-required
->
-
+<div class="form-group"><label>Training / Programme / Class</label><input id="trainingTitle" required placeholder="e.g. 6 Months Fashion Training"></div>
+<div class="form-group"><label>Duration</label><input id="trainingDuration" placeholder="e.g. 6 months"></div>
+<div class="form-group"><label>Category</label><input id="trainingCategory" placeholder="Fashion Training, Streetwear Class, etc."></div>
+<div class="form-group"><label>Public Price (GHS)</label><input id="trainingPublicPrice" type="number" min="0" step="0.01" placeholder="Optional"></div>
+<div class="form-group"><label>Invoice Price (GHS)</label><input id="trainingPrice" type="number" min="0" step="0.01" placeholder="Optional"></div>
 </div>
-
-
-<div class="form-group">
-
-<label>
-Duration
-</label>
-
-<input
-id="trainingDuration"
->
-
-</div>
-
-
-<div class="form-group">
-
-<label>
-Price (GHS)
-</label>
-
-<input
-id="trainingPrice"
-type="number"
-min="0"
-step="0.01"
-placeholder="e.g. 3000.00"
->
-
-</div>
-
-<div class="form-group">
-
-<label>
-Category
-</label>
-
-<input
-id="trainingCategory"
->
-
-</div>
-
-
-</div>
-
-
-<div class="form-group">
-
-<label>
-Description
-</label>
-
-<textarea
-id="trainingDescription"
-></textarea>
-
-</div>
-
-
-<label class="checkbox">
-
-<input
-type="checkbox"
-id="trainingActive"
-checked
->
-
-Active
-
-</label>
-
+<div class="form-group"><label>Description</label><textarea id="trainingDescription" rows="4" placeholder="Describe the programme."></textarea></div>
+<label class="checkbox"><input type="checkbox" id="trainingActive" checked> Active</label>
 <br>
-
-
-<button
-class="primary"
-type="submit"
->
-Save Training Programme
-</button>
-
-
-<button
-type="button"
-class="secondary"
-id="trainingCancel"
->
-Cancel
-</button>
-
+<button class="primary" type="submit">Save Training / Programme / Class</button>
+<button type="button" class="secondary" id="trainingCancel">Cancel</button>
 </form>
-
 </div>
+<div id="trainingList" class="table-wrap"></div>
 
 
-<div
-id="trainingList"
-class="table-wrap"
-></div>
 
 </section>
 
@@ -1498,23 +1473,25 @@ INVOICE PRICING
 ===================================================== -->
 <section id="invoice" class="section">
 <h2>Invoice Pricing</h2>
-<p class="intro">Separate internal pricing for invoices. These prices do not change the public Services, Training or Gallery prices.</p><div class="toolbar"><button type="button" class="primary" id="newInvoiceButton">+ Add Invoice Price</button></div>
+<p class="intro">Internal prices used when generating invoices. Public catalogue prices remain separate.</p>
 
 <div class="notice">
-<strong>Internal use only.</strong> Invoice prices are stored separately from public website pricing and are not displayed on the public website.
+<strong>Internal use only.</strong> These prices are not displayed as public website prices.
 </div>
 
 <div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Products &amp; Services</h3>
+<p class="intro">Add any custom item or service you may need on a future invoice. These are independent of public pricing.</p>
 <form id="invoiceForm">
 <input type="hidden" id="invoiceId">
 <div class="form-grid">
 <div class="form-group">
-<label for="invoiceItem">Item / Service</label>
-<input id="invoiceItem" required placeholder="Example: Custom Hoodie">
+<label for="invoiceItem">Products / Services</label>
+<input id="invoiceItem" required placeholder="Example: Custom Hoodie or Rhinestone Embellishment">
 </div>
 <div class="form-group">
 <label for="invoiceCategory">Category</label>
-<input id="invoiceCategory" placeholder="Streetwear, Ladies Wear, etc.">
+<input id="invoiceCategory" placeholder="Streetwear, Ladies Wear, Embellishment, etc.">
 </div>
 <div class="form-group">
 <label for="invoicePrice">Invoice Price (GHS)</label>
@@ -1525,35 +1502,239 @@ INVOICE PRICING
 <label for="invoiceNotes">Notes</label>
 <textarea id="invoiceNotes" placeholder="Optional internal invoicing note"></textarea>
 </div>
-<label class="checkbox">
-<input type="checkbox" id="invoiceActive" checked>
-Active
-</label>
+<label class="checkbox"><input type="checkbox" id="invoiceActive" checked> Active</label>
 <br>
 <button class="primary" type="submit">Save Invoice Price</button>
 <button type="button" class="secondary" id="invoiceCancel">Cancel</button>
 </form>
 </div>
+<div id="invoiceProductList" class="table-wrap"></div>
+
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Training / Programme / Class</h3>
+<p class="intro">Training prices are kept separately so training registrations automatically use the correct full-payment price.</p>
+<form id="trainingInvoiceForm">
+<input type="hidden" id="trainingInvoiceId">
+<div class="form-grid">
+<div class="form-group">
+<label for="trainingInvoiceItem">Training / Programme / Class</label>
+<input id="trainingInvoiceItem" required placeholder="Example: 6 Months Fashion Training">
+</div>
+<div class="form-group">
+<label for="trainingInvoiceCategory">Category</label>
+<input id="trainingInvoiceCategory" placeholder="Fashion Training, Streetwear Class, Specialty Class">
+</div>
+<div class="form-group">
+<label for="trainingInvoiceDuration">Duration</label>
+<input id="trainingInvoiceDuration" placeholder="Example: 6 months">
+</div>
+<div class="form-group">
+<label for="trainingInvoicePrice">Invoice Price (GHS)</label>
+<input id="trainingInvoicePrice" type="number" min="0" step="0.01" required placeholder="0.00">
+</div>
+</div>
+<div class="form-group">
+<label for="trainingInvoiceNotes">Notes</label>
+<textarea id="trainingInvoiceNotes" placeholder="Optional internal training note"></textarea>
+</div>
+<label class="checkbox"><input type="checkbox" id="trainingInvoiceActive" checked> Active</label>
+<br>
+<button class="primary" type="submit">Save Training Price</button>
+<button type="button" class="secondary" id="trainingInvoiceCancel">Cancel</button>
+</form>
+</div>
+<div id="invoiceTrainingList" class="table-wrap"></div>
 
 <div class="form-card" style="margin-top:20px;">
 <h3>Invoice Payment Details</h3>
-<p class="intro">Save these once so future invoices can automatically show the payment information at the bottom.</p>
+<p class="intro">Add one or more payment methods. The details saved here will appear on future invoices and receipts.</p>
 <form id="invoicePaymentForm">
-<div class="form-grid">
-<div class="form-group"><label for="invoicePaymentNumber">MoMo / Payment Number</label><input id="invoicePaymentNumber" placeholder="e.g. 024..." ></div>
-<div class="form-group"><label for="invoicePaymentName">Account / MoMo Name</label><input id="invoicePaymentName" placeholder="Name on the account" ></div>
-<div class="form-group"><label for="invoicePaymentNetwork">Network / Payment Method</label><input id="invoicePaymentNetwork" placeholder="MTN MoMo, Telecel, Bank, etc."></div>
-</div>
-<div class="form-group"><label for="invoicePaymentNote">Payment Note</label><textarea id="invoicePaymentNote" placeholder="Any payment instruction to appear on invoices."></textarea></div>
+<div id="invoicePaymentRows"></div>
+<div class="admin-actions">
+<button type="button" class="secondary" id="addInvoicePaymentDetail">+ Add Payment Detail</button>
 <button class="primary" type="submit">Save Payment Details</button>
+</div>
 </form>
 </div>
-<div id="invoiceList" class="table-wrap"></div>
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Saved Invoice Payment Details</h3>
+<p class="intro">You can edit or remove any saved payment detail.</p>
+<div id="invoicePaymentSaved"></div>
+</div>
+
+<div id="invoiceList" class="table-wrap" style="display:none;"></div>
+</section>
+
+<!-- =====================================================
+MANUAL INVOICE / RECEIPT
+===================================================== -->
+<section id="manualInvoice" class="section">
+<h2>Invoice &amp; Receipts</h2>
+<p class="intro">Generate a professional invoice or receipt for a customer who did not submit an order through the website. Enter the customer and item details below; invoice prices can also be pulled from the internal Invoice Pricing list.</p>
+
+<div class="form-card">
+<form id="manualInvoiceForm">
+<div class="form-grid">
+<div class="form-group"><label for="manualInvoiceCustomer">Customer Name</label><input id="manualInvoiceCustomer" required></div>
+<div class="form-group"><label for="manualInvoicePhone">Phone / WhatsApp</label><input id="manualInvoicePhone"></div>
+<div class="form-group"><label for="manualInvoiceEmail">Email</label><input id="manualInvoiceEmail" type="email"></div>
+<div class="form-group"><label for="manualInvoiceAddress">Location / Address</label><input id="manualInvoiceAddress"></div>
+</div>
+<div class="form-group"><label for="manualInvoiceNotes">Invoice Notes</label><textarea id="manualInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
+
+<h3 style="color:#008c95;margin:12px 0;">Invoice Items</h3>
+<div id="manualInvoiceLines"></div>
+<div class="admin-actions">
+<button type="button" class="secondary" id="manualAddLine">+ Add Item</button>
+<button type="submit" class="primary">Generate Invoice</button>
+<button type="button" class="secondary" id="manualInvoiceReset">Clear</button>
+</div>
+</form>
+</div>
+<div class="notice"><strong>Payment tracking:</strong> production quotes use the standard 75% initial payment. Training registrations require full payment, so training invoices do not show a 75% payment due or a balance. After payment is received, use <strong>Generate Receipt</strong> and save the payment. The invoice status will then show the payment state.
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Saved Invoices &amp; Receipts</h3>
+<p class="intro">All invoices and payment receipts generated in the admin system are listed here. You can reopen, download/print, or delete unwanted records.</p>
+<div id="savedInvoiceReceiptList" class="table-wrap"></div>
+</div>
+
+</section>
+
+<!-- =====================================================
+SHOP MANAGEMENT
+===================================================== -->
+<section id="shopAdmin" class="section">
+<h2>Shop</h2>
+<p class="intro">Manage and share the public Aprils Signature Shop. Inventory entered below controls what appears in the Shop.</p>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Public Shop</h3>
+<p class="intro">Use this link to open or share the public Shop page. Stock availability is controlled from Inventory / Stock.</p>
+<div class="toolbar">
+<a class="primary" id="openPublicShop" href="../shop.html" target="_blank" rel="noopener noreferrer">Open Shop</a>
+<button type="button" class="secondary" id="sharePublicShop">Share Shop Link</button>
+<button type="button" class="secondary" id="copyPublicShop">Copy Shop Link</button>
+</div>
+<div class="form-group" style="margin-top:12px;"><label>Shop Link</label><input id="publicShopUrl" readonly></div>
+<div id="shopInventoryPreview" class="table-wrap" style="margin-top:18px;"></div>
+</div>
+</section>
+
+<!-- =====================================================
+INVENTORY / STOCK
+===================================================== -->
+<section id="inventory" class="section">
+<h2>Inventory / Stock</h2>
+<p class="intro">Enter garments available for sale, track quantities, and keep the public Shop page in sync. Stock is deducted when a paid checkout is confirmed.</p>
+<div class="form-card"><form id="inventoryForm"><input type="hidden" id="inventoryId"><div class="form-grid">
+<div class="form-group"><label>Collection / Batch</label><input id="inventoryCollection" required placeholder="e.g. April Essentials — Batch 1"></div>
+<div class="form-group"><label>Garment / Product</label><input id="inventoryName" required placeholder="e.g. Black Super Thick Joggers"></div>
+<div class="form-group"><label>Garment Image</label><input id="inventoryImage" type="file" accept="image/*"><small>Upload a product image for the internal inventory and public Shop.</small></div>
+<div class="form-group"><label>Price (GHS)</label><input id="inventoryPrice" type="number" min="0" step="0.01" required></div>
+<div class="form-group"><label>Quantity Available</label><input id="inventoryQuantity" type="number" min="0" step="1" required></div>
+<div class="form-group"><label>Display Order</label><input id="inventoryOrder" type="number" min="1" value="1"></div>
+</div><div class="form-group"><label>Description</label><textarea id="inventoryDescription"></textarea></div><label class="checkbox"><input type="checkbox" id="inventoryActive" checked> Show on public Shop</label><br>
+<button class="primary" type="submit">Save Inventory Item</button><button type="button" class="secondary" id="inventoryCancel">Cancel</button></form></div>
+<div class="toolbar" style="margin:12px 0;">
+<button type="button" class="secondary" id="inventoryExport">Export Inventory CSV</button>
+<button type="button" class="secondary" id="inventorySharePdf">Share / Export Inventory PDF</button>
+</div>
+<div class="form-card" style="margin:18px 0;"><h3 style="color:#008c95;margin-bottom:10px;">Collection Order</h3><p class="intro">Add collections/batches and control the order in which collections appear on the public Shop.</p><div class="toolbar"><button type="button" class="secondary" id="addInventoryCollection">+ Add Collection</button></div><div id="inventoryCollectionOrderList" class="table-wrap"></div></div>
+<div id="inventoryList" class="table-wrap"></div>
+</section>
+
+<!-- CHECKOUT ORDERS -->
+<section id="checkout" class="section">
+<h2>Checkout Orders</h2>
+<p class="intro">Orders submitted through the public Shop checkout are listed here. Payment confirmation is kept separate from invoice generation so unpaid quote requests do not become sales.</p>
+<div id="checkoutList" class="table-wrap"></div>
+</section>
+
+<!-- SYSTEM ERROR LOG -->
+<section id="errors" class="section">
+<h2>System Error Log</h2>
+<p class="intro">Important website and admin errors are recorded here with the page, time and technical message so they can be diagnosed quickly.</p>
+<div class="toolbar"><button type="button" class="secondary" id="refreshErrorLog">Refresh</button><button type="button" class="danger" id="clearErrorLog">Clear Log</button></div>
+<div id="errorLogList" class="table-wrap"></div>
 </section>
 
 <!-- =====================================================
 WEBSITE LINKS
 ===================================================== -->
+<!-- =====================================================
+NOTIFICATIONS
+===================================================== -->
+<section id="notifications" class="section">
+<h2>Notifications</h2>
+<p class="intro">Customer activity from orders, training registrations, enquiries and checkout is collected here. WhatsApp and email actions use the saved website contact details. Browser notifications can also alert you while the admin dashboard is open.</p>
+<div class="form-card">
+    <div class="form-grid">
+        <div class="form-group"><label>Website WhatsApp Number</label><input id="notificationWhatsApp" placeholder="Saved website WhatsApp number"></div>
+        <div class="form-group"><label>Website Email</label><input id="notificationEmail" type="email" placeholder="Saved website email"></div>
+    </div>
+    <div class="toolbar">
+        <button type="button" class="primary" id="saveNotificationSettings">Save Notification Settings</button>
+        <button type="button" class="secondary" id="enableBrowserNotifications">Enable Browser Notifications</button>
+        <button type="button" class="secondary" id="refreshNotifications">Refresh Notifications</button>
+    </div>
+    <div id="notificationSettingsMessage" class="status" style="display:none;margin-top:10px;"></div>
+</div>
+<div id="notificationList" class="table-wrap" style="margin-top:18px;"></div>
+</section>
+
+<!-- =====================================================
+SALES & ACCOUNTING
+===================================================== -->
+<section id="accounting" class="section">
+<h2>Sales &amp; Accounting</h2>
+<p class="intro">A simple business account view for invoices, payments received, outstanding balances, discounts and sales. It uses the invoice and payment records already saved in the admin system.</p>
+
+<div class="cards" id="accountingSummaryCards">
+    <div class="card"><h3>Total Sales</h3><div class="number" id="accountingSales">GHS 0.00</div><p>Invoice totals</p></div>
+    <div class="card"><h3>Money Received</h3><div class="number" id="accountingReceived">GHS 0.00</div><p>Payments recorded</p></div>
+    <div class="card"><h3>Outstanding</h3><div class="number" id="accountingOutstanding">GHS 0.00</div><p>Customer balances</p></div>
+    <div class="card"><h3>Discounts</h3><div class="number" id="accountingDiscounts">GHS 0.00</div><p>Discounts given</p></div>
+    <div class="card"><h3>Expenses</h3><div class="number" id="accountingExpenses">GHS 0.00</div><p>Business expenses recorded</p></div>
+    <div class="card"><h3>Net Cash</h3><div class="number" id="accountingNetCash">GHS 0.00</div><p>Received minus expenses</p></div>
+    <div class="card"><h3>Current Stock Value</h3><div class="number" id="accountingStockValue">GHS 0.00</div><p>Current inventory at saved prices</p></div>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Record a Business Expense</h3>
+<form id="accountingExpenseForm">
+<input type="hidden" id="accountingExpenseId">
+<div class="form-grid">
+<div class="form-group"><label for="accountingExpenseDate">Date</label><input type="date" id="accountingExpenseDate" required></div>
+<div class="form-group"><label for="accountingExpenseCategory">Category</label><input id="accountingExpenseCategory" list="expenseCategories" placeholder="Fabric, transport, utilities, etc." required>
+<datalist id="expenseCategories"><option value="Fabric"><option value="Rhinestones"><option value="Printing"><option value="Packaging"><option value="Transport"><option value="Training Materials"><option value="Utilities"><option value="Equipment"><option value="Other"></datalist></div>
+<div class="form-group"><label for="accountingExpenseAmount">Amount (GHS)</label><input type="number" id="accountingExpenseAmount" min="0" step="0.01" required></div>
+</div>
+<div class="form-group"><label for="accountingExpenseDescription">Description</label><input id="accountingExpenseDescription" placeholder="What was the expense for?" required></div>
+<button type="submit" class="primary">Save Expense</button>
+<button type="button" class="secondary" id="accountingExpenseCancel">Cancel</button>
+</form>
+</div>
+
+<div class="form-card">
+    <div class="toolbar">
+        <button type="button" class="secondary" id="accountingRefresh">Refresh</button>
+        <button type="button" class="primary" id="accountingExport">Export CSV</button>
+        <button type="button" class="secondary" id="accountingSharePdf">Share / Export PDF</button>
+        <button type="button" class="secondary" id="accountingExpensesPdf">Share / Export Expenses PDF</button>
+    </div>
+    <div id="accountingList" class="table-wrap"></div>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Current Inventory / Stock</h3>
+<div id="accountingInventoryList" class="table-wrap"></div>
+</div>
+
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Business Expenses</h3>
+<div id="accountingExpenseList" class="table-wrap"></div>
+</div>
+</section>
+
 <section id="links" class="section">
 <h2>Website Links</h2>
 <p class="intro">Manage the public navigation links. You can add future links, edit existing links, change their order, or remove links you no longer want.</p><div class="toolbar"><button type="button" class="primary" id="newLinkButton">+ Add New Link</button></div>
@@ -1593,6 +1774,11 @@ Active
 </div>
 
 <div id="linkList" class="table-wrap"></div>
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Quick Customer Links</h3>
+<p class="intro">Use these direct links when you want to send a customer straight to the correct public page.</p>
+<div id="directLinksList"></div>
+</div>
 </section>
 
 <!-- =====================================================
@@ -1621,6 +1807,12 @@ Winneba, Central Region, Ghana.</textarea></div>
 <div class="form-group"><label>Opening Hours</label><textarea id="contactHours">Monday – Friday: 8:00 AM – 6:00 PM
 Saturday: Closed
 Sunday: Closed</textarea></div>
+<div class="form-card" style="margin-top:15px;">
+<h3 style="color:#008c95;margin-bottom:8px;">Additional Contact Details</h3>
+<p class="intro">Add extra phone numbers, payment contacts, addresses or other contact details in future.</p>
+<div id="contactExtraRows"></div>
+<button type="button" class="secondary" id="addContactExtra">+ Add Contact Detail</button>
+</div>
 <button class="primary" type="submit">Save Contact Information</button>
 </form>
 </div>
@@ -1629,11 +1821,49 @@ Sunday: Closed</textarea></div>
 <!-- =====================================================
 SOCIAL LINKS
 ===================================================== -->
-<section id="social" class="section"><h2>Social Links</h2><p class="intro">Manage the social-media links used across the website.</p><div class="form-card"><form id="socialForm"><input type="hidden" id="socialId"><div class="form-grid"><div class="form-group"><label>Platform</label><select id="socialPlatform" required><option>TikTok</option><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Other</option></select></div><div class="form-group"><label>Link / Number</label><input id="socialUrl" required placeholder="https://... or WhatsApp number"></div></div><button class="primary" type="submit">Save Social Link</button><button type="button" class="secondary" id="socialCancel">Cancel</button></form></div><div id="socialList" class="table-wrap"></div></section>
+<section id="social" class="section"><h2>Social Links</h2><p class="intro">Manage the social-media links used across the website. You can add as many additional platforms or links as you need.</p><div class="toolbar"><button type="button" class="primary" id="newSocialButton">+ Add New Social Link</button></div><div class="form-card"><form id="socialForm"><input type="hidden" id="socialId"><div class="form-grid"><div class="form-group"><label>Platform</label><select id="socialPlatform" required><option>TikTok</option><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Other</option></select></div><div class="form-group"><label>Link / Number</label><input id="socialUrl" required placeholder="https://... or WhatsApp number"></div><div class="form-group" id="socialCustomNameWrap" style="display:none;"><label>Custom Platform Name</label><input id="socialCustomName" placeholder="e.g. Pinterest"></div></div><button class="primary" type="submit">Save Social Link</button><button type="button" class="secondary" id="socialCancel">Cancel</button></form></div><div id="socialList" class="table-wrap"></div></section>
+
+<!-- =====================================================
+DISCOUNT CODES
+===================================================== -->
+<section id="discounts" class="section">
+<h2>Customer Discount Codes</h2>
+<p class="intro">Create the code customers enter on the discount redemption page. The percentage is entered here by you and is applied to the invoice when a valid redemption is matched to the customer.</p>
+<div class="form-card">
+<form id="discountForm">
+<input type="hidden" id="discountId">
+<div class="form-grid">
+<div class="form-group"><label for="discountCode">Discount Code</label><input id="discountCode" required placeholder="e.g. APRILS10"></div>
+<div class="form-group"><label for="discountPercent">Discount Percentage</label><input id="discountPercent" type="number" min="0" max="100" step="0.01" required placeholder="10"></div>
+<div class="form-group"><label for="discountActive">Status</label><select id="discountActive"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+</div>
+<button class="primary" type="submit">Save Discount Code</button>
+<button type="button" class="secondary" id="discountCancel">Clear</button>
+</form>
+</div>
+<div id="discountList" class="table-wrap"></div>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Customer Redemptions</h3>
+<div id="discountRedemptionList" class="table-wrap"></div>
+</div>
+<div class="form-card">
+<h3 style="color:#008c95;margin-bottom:10px;">Customer Redemption Page</h3>
+<p class="intro">Send customers this page so they can enter the common code and their details. No order total is shown on this page.</p>
+<div id="discountRedemptionLink"></div>
+</div>
+</section>
 
 <!-- =====================================================
 WEBSITE SETTINGS
 ===================================================== -->
+
+<section id="users" class="section">
+<h2>Admin Users &amp; Access</h2>
+<p class="intro">Control which signed-in staff can access parts of the Admin Dashboard. Staff accounts must first exist in Supabase Authentication; this section controls their Aprils Signature permissions.</p>
+<div class="notice"><strong>Security:</strong> Never put a Supabase service-role key in the website. Create staff accounts in Supabase Authentication, then assign their permissions here.</div>
+<div class="form-card"><form id="userAccessForm"><input type="hidden" id="userAccessId"><div class="form-grid"><div class="form-group"><label>Staff Email</label><input id="userAccessEmail" type="email" required></div><div class="form-group"><label>Display Name</label><input id="userAccessName"></div><div class="form-group"><label>Role</label><select id="userAccessRole"><option value="owner">Owner</option><option value="manager">Manager</option><option value="sales">Sales</option><option value="training">Training</option><option value="inventory">Inventory</option><option value="content">Content</option></select></div></div><div class="form-group"><label>Allowed Sections</label><div id="userAccessChecks" class="form-grid"></div></div><label class="checkbox"><input type="checkbox" id="userAccessActive" checked> Active</label><br><button class="primary" type="submit">Save User Access</button><button type="button" class="secondary" id="userAccessCancel">Cancel</button></form></div><div id="userAccessList" class="table-wrap"></div>
+</section>
+
 <section id="settings" class="section">
 <h2>Website Settings</h2>
 <p class="intro">Manage basic website settings and the website logo.</p>
@@ -1689,11 +1919,14 @@ You can also remove the current public logo without deleting the original projec
 
 
 
-<script src="../js/supabase-config.js?v=20260821"></script>
-<script src="../js/supabase-client.js?v=20260821"></script>
-<script src="admin.js?v=20260821" defer></script>
-<script src="Admin-fixes.js?v=20260821" defer></script>
-</body>
+<script src="../js/supabase-config.js?v=20260827-final"></script>
+<script src="../js/supabase-client.js?v=20260827-final"></script>
+<script src="../js/notification-dispatch.js?v=20260827-final"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+<script src="admin.js?v=20260827-final" defer></script>
+<script src="Admin-fixes.js?v=20260827-final" defer></script>
+<script src="commerce-admin.js?v=20260827-final" defer></script>
+
 
 <style>
 .submission-table-wrap{width:100%;overflow-x:auto;margin:20px 0}
@@ -1702,9 +1935,6 @@ You can also remove the current public logo without deleting the original projec
 .submission-details-table thead th{background:#008c95;color:#fff}
 .submission-details-table tbody th{width:34%;background:#f7f7f7;color:#075957}
 </style>
-</body>
-</html>
-
 <style>
 .submission-modal{position:fixed;inset:5vh 5vw;background:#fff;z-index:10001;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.3);padding:26px;overflow:auto;display:none}
 .submission-modal.open{display:block}
@@ -1721,4 +1951,119 @@ You can also remove the current public logo without deleting the original projec
 table, th, td { border: 2px solid #666666 !important; }
 th { border-color: #075957 !important; border-width: 2px !important; }
 .form-card, .table-wrap, .card { border: 2px solid #666666; }
+</style>
+
+<style>
+.submission-modal-actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.receipt-intro{margin:0 0 12px;color:#555}.receipt-paper{background:#fff;max-width:900px;margin:0 auto;padding:36px;border:1px solid #bbb;box-shadow:0 3px 15px rgba(0,0,0,.12)}.receipt-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}.receipt-brand-row img{width:90px;height:90px;object-fit:contain}.receipt-brand-row h1{margin:0;color:#0f7775}.receipt-brand-row p{margin:2px 0 0}.receipt-meta{margin-left:auto;text-align:right}.receipt-meta strong{display:block;font-size:20px;color:#0f7775}.receipt-meta span{display:block;margin-top:3px}.receipt-status{margin:22px 0;padding:12px;text-align:center;border:2px solid #0f7775;border-radius:6px;color:#0f7775;font-weight:700;letter-spacing:1px}.receipt-customer{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:15px;border:1px solid #aaa}.receipt-lines{width:100%;border-collapse:collapse;margin-top:22px}.receipt-lines th,.receipt-lines td{border:1px solid #777;padding:9px;text-align:left}.receipt-lines th{background:#0f7775;color:#fff}.receipt-lines small{display:block;margin-top:4px;color:#555}.receipt-summary{margin:20px 0 0 auto;max-width:330px;text-align:right}.receipt-summary p{margin:6px 0}.receipt-note{margin-top:20px;padding:14px;border:1px solid #aaa}.receipt-footer{text-align:center;margin-top:32px;color:#666;font-size:12px}.receipt-generator-modal .invoice-generator-toolbar h2{color:#0f7775}@media(max-width:700px){.receipt-paper{padding:18px}.receipt-brand-row{flex-wrap:wrap}.receipt-meta{margin-left:0;text-align:left;width:100%}.receipt-customer{grid-template-columns:1fr}.receipt-generator-modal{inset:1vh 1vw;padding:14px}}
+.invoice-generator-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:10050}
+.invoice-generator-modal{position:fixed;inset:3vh 3vw;background:#f3f3f3;z-index:10051;overflow:auto;padding:24px;border-radius:10px;box-shadow:0 12px 50px rgba(0,0,0,.35)}
+.invoice-generator-toolbar{position:sticky;top:0;z-index:3;background:#f3f3f3;padding-bottom:15px;border-bottom:2px solid #aaa;margin-bottom:15px}
+.invoice-generator-toolbar h2{color:#0f7775;margin:0 0 12px}
+.invoice-action-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.invoice-generator-editor{background:#fff;padding:18px;border:2px solid #666;margin-bottom:18px}
+.invoice-line-editor{margin-top:15px;padding-top:15px;border-top:1px solid #aaa}
+.invoice-edit-row{display:grid;grid-template-columns:1.2fr 1.5fr .5fr .8fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.invoice-edit-row input{width:100%;padding:9px;border:1.5px solid #777;border-radius:4px}
+.invoice-paper{background:#fff;max-width:900px;margin:0 auto;padding:36px;border:1px solid #bbb;box-shadow:0 3px 15px rgba(0,0,0,.12)}
+.invoice-brand-row{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}
+.invoice-brand-row img{width:90px;height:90px;object-fit:contain}
+.invoice-brand-row h1{margin:0;color:#0f7775}
+.invoice-brand-row p{margin:2px 0 0}
+.invoice-meta{margin-left:auto;text-align:right}
+.invoice-meta strong{display:block;font-size:22px;color:#0f7775}
+.invoice-customer{margin-top:20px;padding:14px;border:1px solid #aaa}
+.invoice-lines{width:100%;border-collapse:collapse;margin-top:22px}
+.invoice-lines th,.invoice-lines td{border:1px solid #777;padding:9px;text-align:left}
+.invoice-lines th{background:#0f7775;color:#fff}
+.invoice-summary{margin:20px 0 0 auto;max-width:330px;text-align:right}
+.invoice-summary p{margin:5px 0}
+.invoice-payment,.invoice-note{margin-top:20px;padding:14px;border:1px solid #aaa}
+@media(max-width:800px){
+ .invoice-generator-modal{inset:1vh 1vw;padding:14px}
+ .invoice-edit-row{grid-template-columns:1fr 1fr}
+ .invoice-paper{padding:18px}
+ .invoice-brand-row{flex-wrap:wrap}
+ .invoice-meta{margin-left:0;text-align:left;width:100%}
+}
+@media print{
+ .invoice-generator-modal,.invoice-generator-backdrop{position:static;display:block}
+ .invoice-generator-editor,.invoice-generator-toolbar{display:none!important}
+ .invoice-paper{box-shadow:none;border:0;max-width:none}
+}
+
+
+/* Final correction pass */
+.admin-logo{width:32px;height:32px;}
+#orders .table-wrap, #registrations .table-wrap{overflow-x:auto;}
+#orders table, #registrations table{width:100%;table-layout:fixed;font-size:11px;}
+#orders th,#orders td,#registrations th,#registrations td{padding:6px 5px;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;}
+#orders th:nth-child(1){width:8%}#orders th:nth-child(2){width:9%}#orders th:nth-child(3){width:8%}#orders th:nth-child(4){width:8%}#orders th:nth-child(5){width:8%}#orders th:nth-child(6){width:8%}#orders th:nth-child(7){width:9%}#orders th:nth-child(8){width:13%}#orders th:nth-child(9){width:8%}#orders th:nth-child(10){width:21%;}
+#registrations th,#registrations td{font-size:11px;}
+.invoice-payment-row .form-group{margin-bottom:8px;}
+.invoice-payment-note{background:#fffdf5;}
+
+
+/* Final correction pass — professional admin/invoice presentation */
+.policy-number-badge{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;margin-right:10px;border-radius:50%;background:#008c95;color:#fff;font-weight:700;vertical-align:middle;}
+#settings .logo-preview img,#logoPreview img{width:48px!important;height:48px!important;object-fit:contain;}
+.invoice-paper,.receipt-paper{font-family:"Segoe UI",Arial,sans-serif;color:#222;box-sizing:border-box;width:210mm;max-width:210mm;min-height:297mm;margin:0 auto;padding:14mm;background:#fff;font-size:12px;line-height:1.4;}
+.invoice-paper *,.receipt-paper *{box-sizing:border-box;}
+.invoice-brand-row,.receipt-brand-row{gap:10px;}
+.invoice-brand-row img,.receipt-brand-row img{width:52px;height:52px;object-fit:contain;}
+.invoice-brand-row h1,.receipt-brand-row h1{font-size:20px;line-height:1.15;}
+.invoice-brand-row p,.receipt-brand-row p{font-size:11px;}
+.invoice-lines th,.invoice-lines td,.receipt-lines th,.receipt-lines td{padding:6px 7px;font-size:11px;vertical-align:top;}
+.invoice-summary,.receipt-summary{font-size:12px;}
+.invoice-payment,.receipt-payment{margin-top:14px;padding:10px;border:1px solid #aaa;}
+.invoice-payment-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-top:9px;} .invoice-payment-grid.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+.invoice-payment-account{border:1px solid #ddd;border-radius:5px;padding:8px;min-height:54px;}
+.invoice-payment-note{margin-top:10px;background:#fffdf5;border-left:4px solid #c9a227;padding:8px 10px;font-size:11.5px;font-weight:600;}
+.invoice-note,.receipt-note{margin-top:14px;padding:10px;font-size:11.5px;}
+@page{size:A4 portrait;margin:0;}
+@media print{.invoice-lines tr,.receipt-lines tr{break-inside:avoid;page-break-inside:avoid;} body{margin:0!important;background:#fff!important;} .invoice-paper,.receipt-paper{width:210mm!important;max-width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;border:0!important;padding:12mm!important;font-size:11.5px!important;} .invoice-lines th,.invoice-lines td,.receipt-lines th,.receipt-lines td{font-size:10.5px!important;padding:5px!important;} .invoice-brand-row img,.receipt-brand-row img{width:46px!important;height:46px!important;}}
+@media(max-width:800px){.invoice-payment-grid{grid-template-columns:1fr;} .invoice-paper,.receipt-paper{width:100%;max-width:100%;min-height:auto;padding:18px;}}
+.inventory-thumb{width:70px;height:70px;object-fit:cover;border-radius:6px;border:1px solid #aaa}
+.invoice-footer,.receipt-footer{text-align:center;margin-top:48px;padding-top:8px;font-size:12px;color:#666;}
+</style>
+<style>
+/* Final interaction polish */
+button.button-working{opacity:.78;cursor:wait;transform:translateY(1px);box-shadow:inset 0 0 0 2px rgba(255,255,255,.28);}
+.admin-return-highlight{outline:3px solid #c9a227!important;outline-offset:2px;transition:outline .2s ease;}
+
+</style>
+
+<style>
+/* Compact professional customer-request cards */
+.submission-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;}
+.submission-card{background:#fff;border:2px solid #666;border-radius:8px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);min-height:0;}
+.submission-card-top{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #ddd;padding-bottom:9px;margin-bottom:9px;}
+.submission-card-top strong,.submission-card-top span,.submission-card-top time{display:block;}
+.submission-card-top strong{font-size:15px;color:#075957;}
+.submission-card-top span,.submission-card-top time{font-size:11px;color:#666;margin-top:2px;}
+.submission-card-gridline{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;font-size:11px;line-height:1.35;}
+.submission-card-gridline span{background:#f7f7f7;border:1px solid #ddd;border-radius:5px;padding:7px;overflow-wrap:anywhere;}
+.submission-card-gridline .wide{grid-column:1/-1;}
+.submission-card-gridline b,.submission-status-strip b{display:block;color:#555;font-size:10px;text-transform:uppercase;margin-bottom:2px;}
+.submission-status-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid #ddd;}
+.submission-status-strip>span{font-size:10.5px;min-width:0;overflow-wrap:anywhere;}
+.status-control{display:flex;gap:5px;align-items:center;}
+.status-control select{width:100%;min-width:0;padding:5px;border:1px solid #888;border-radius:4px;font-size:10px;}
+.status-control .save-status-button{padding:5px 7px;font-size:10px;white-space:nowrap;}
+.submission-card-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.submission-card-actions button{padding:7px 9px;font-size:11px;}
+.duplicate-note{color:#b00020;font-weight:700;}
+.button-working{box-shadow:inset 0 0 0 2px rgba(255,255,255,.45)!important;opacity:.78!important;transform:translateY(1px);cursor:wait!important;}
+@media(max-width:900px){.submission-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:600px){.submission-card-grid{grid-template-columns:1fr;}.submission-card-gridline{grid-template-columns:1fr;}.submission-card-gridline .wide{grid-column:auto;}.submission-status-strip{grid-template-columns:1fr;}}
+</style>
+<script src="../js/pwa-register.js"></script></body>
+</html>
+
+<style>
+/* Payment methods: equal left/right columns on invoices and admin payment entries. */
+#invoicePaymentRows { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+#invoicePaymentRows .invoice-payment-row { margin-bottom:0 !important; }
+@media(max-width:800px){ #invoicePaymentRows { grid-template-columns:1fr; } }
 </style>
