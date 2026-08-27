@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.AprSupabase || null;
+        return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
@@ -182,17 +182,12 @@ PUBLIC FORM FIXES
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
-                    addOns: [],
-                    addOnsDetails: {},
                     embellishmentDetails: {},
-                    address: {
-                        sizeMeasurements: String(data.get("addressSizeMeasurements") || "").trim(),
-                        colour: String(data.get("addressColour") || "").trim(),
-                        quantity: String(data.get("addressQuantity") || "1").trim(),
-                        request: String(data.get("addressRequest") || "").trim()
-                    },
-                    serviceOther: "",
+                    address: {},
+                    serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
+                    deliveryDate: String(data.get("deliveryDate") || "").trim(),
+                    deliveryTime: String(data.get("deliveryTime") || "").trim(),
                     uploads: uploadedFiles,
                     mockups: Array.from(document.getElementById("mockups")?.files || []).map(file => file.name),
                     inspiration: Array.from(document.getElementById("inspiration")?.files || []).map(file => file.name),
@@ -295,20 +290,18 @@ PUBLIC FORM FIXES
                     };
                 });
 
-                Array.from(form.querySelectorAll('input[data-addon-product="true"]:checked')).forEach(function(input) {
-                    const item = input.closest(".catalogue-item");
-                    const box = item?.querySelector(".catalogue-detail-box");
-                    const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
-                    const sizeMeasurements = get("sizeMeasurements");
-                    details.addOnsDetails[input.value] = {
-                        service: input.value,
-                        size: sizeMeasurements,
-                        measurements: sizeMeasurements,
-                        colour: get("colour"),
-                        quantity: get("quantity") || "1",
-                        details: get("details")
+
+
+                if (services.includes("Address")) {
+                    const getAddress = key => String(form.querySelector(`#addressSection [data-detail="${key}"]`)?.value || data.get("address" + key.charAt(0).toUpperCase()+key.slice(1)) || "").trim();
+                    details.address = {
+                        size: getAddress("sizeMeasurements"),
+                        measurements: "",
+                        colour: getAddress("colour"),
+                        quantity: getAddress("quantity") || "1",
+                        details: getAddress("details")
                     };
-                });
+                }
 
                 const payload = {
 
