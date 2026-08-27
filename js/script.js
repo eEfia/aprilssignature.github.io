@@ -856,10 +856,34 @@ function setupQuoteForm() {
                 if (!otherEmbellishmentSelected) embellishmentOtherInput.value = "";
             }
         }
+
+        const addOns = document.getElementById("addOnsSection");
+        if (addOns) addOns.style.display = selected.includes("Add-ons") ? "block" : "none";
+
+        // The last service clicked is the current work area. Move it directly
+        // below Service Selection so the customer never has to hunt for it.
+        if (window._aprilsLastServiceInput && window._aprilsLastServiceInput.checked) {
+            const value = window._aprilsLastServiceInput.value;
+            const targetMap = {
+                "Streetwear":"streetwearSection",
+                "Ladies Wear":"ladiesWearSection",
+                "Kids Wear":"kidsWearSection",
+                "Embellishment Services":"embellishmentSection",
+                "Add-ons":"addOnsSection",
+                "Others":"serviceOtherWrap"
+            };
+            const target = document.getElementById(targetMap[value] || "");
+            if (target && target.parentElement === form) {
+                form.insertBefore(target, serviceSection.nextSibling);
+            }
+        }
     }
 
     serviceInputs.forEach(function (input) {
-        input.addEventListener("change", updateServiceSections);
+        input.addEventListener("change", function () {
+            if (this.checked) window._aprilsLastServiceInput = this;
+            updateServiceSections();
+        });
     });
 
     form.querySelectorAll('input[name="embellishment[]"]').forEach(function (input) {
@@ -881,28 +905,36 @@ function setupQuoteForm() {
 async function loadPublicStreetwearProducts() {
     const container = document.getElementById("streetwearProductsDynamic");
     if (!container) return;
+
     const normal = n => String(n || "").trim().toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
     const groups = [
         ["Tops", ["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"]],
         ["Tank Top Options", ["Ladies tank top","Men's tank top"]],
         ["Bottoms", ["Super thick cotton joggers","Everyday wear type of joggers","Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"]],
-        ["Sets", ["T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
+        ["Sets", ["Hoodies and joggers","Hoodies and sweatpants","T-shirt and shorts","T-shirt and sweatpants","Sweatshirt and shorts","Sweatshirt and sweatpants"]]
     ];
     const aliases = new Map([
         ["jerseys","jersey"],["t shirts","t shirt"],["t-shirts","t shirt"],["polo shirts","polo shirt"],["sweatshirts","sweatshirt"],
         ["ladies tank tops","ladies tank top"],["men's tank tops","men's tank top"],["varsity jackets","varsity jacket"],
-        ["super thick cotton joggers","super thick cotton joggers"],["joggers super thick cotton joggers","joggers super thick cotton joggers"],
-        ["joggers everyday wear type","everyday wear type of joggers"],["everyday wear type","everyday wear type of joggers"],["jogger shorts","joggers shorts"],
-        ["t shirts and shorts","t shirt and shorts"],["t shirt sweatpants set","t shirt and sweatpants"],
-        ["sweatshirts and shorts","sweatshirt and shorts"],["sweatshirts and sweatpants","sweatshirt and sweatpants"]
+        ["jogger shorts","joggers shorts"],["t shirts and shorts","t shirt and shorts"],["t shirt sweatpants set","t shirt and sweatpants"],
+        ["sweatshirts and shorts","sweatshirt and shorts"],["sweatshirts and sweatpants","sweatshirt and sweatpants"],
+        ["hoodies joggers set","hoodies and joggers"],["hoodies and joggers set","hoodies and joggers"],
+        ["hoodies sweatpants set","hoodies and sweatpants"],["hoodies and sweatpants set","hoodies and sweatpants"]
     ]);
     const canonical = new Map();
     groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).forEach(n=>canonical.set(normal(n), n));
 
     function detailBox(rowName, includeRequest = false) {
-        const id = "product_" + normal(rowName).replace(/ /g,"_");
-        return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML(id)}">
+        return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML("product_" + normal(rowName).replace(/ /g,"_"))}">
             ${includeRequest ? `<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>` : ""}
+            <div class="catalogue-detail-grid">
+                <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
+                <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div>
+            </div>
+        </div>`;
+    }
+    function detailBoxOther(rowName) {
+        return `<div class="catalogue-detail-box" data-detail-for="${escapeHTML("product_" + normal(rowName).replace(/ /g,"_"))}">
             <div class="catalogue-detail-grid">
                 <div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
                 <div class="form-group"><label>Colour (S)</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div>
@@ -914,7 +946,7 @@ async function loadPublicStreetwearProducts() {
         const id = "product_" + normal(name).replace(/ /g,"_");
         if (name === "Others") return `<div class="quantity-row streetwear-product-row catalogue-other-row">
             <div class="form-group"><label for="${escapeHTML(id)}">Others</label><input type="checkbox" id="${escapeHTML(id)}" name="${escapeHTML(id)}" value="1" data-streetwear-product="true" data-product-name="Others"></div>
-            ${detailBox(name, true)}
+            ${detailBoxOther(name)}
         </div>`;
         return `<div class="quantity-row streetwear-product-row catalogue-product-with-details">
             <div class="form-group"><label for="${escapeHTML(id)}">${escapeHTML(name)}</label><input type="number" id="${escapeHTML(id)}" name="${escapeHTML(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${escapeHTML(name)}"></div>
@@ -930,19 +962,21 @@ async function loadPublicStreetwearProducts() {
         });
         const labelFor = name => by.get(name)?.name || name;
         const rowNames = names => names.map(name => makeRow(labelFor(name))).join("");
-        let html = `<h3 class="catalogue-group-title">Tops</h3>${rowNames(["Jersey","Jersey Sample","T-shirt","T-Shirt Sample","Polo shirt","Hoodies","Sweatshirt"])} ${makeRow(labelFor("Varsity Jacket"))}`;
+        let html = `<h3 class="catalogue-group-title">Tops</h3>${rowNames(groups[0][1])}${makeRow(labelFor("Varsity Jacket"))}`;
         html += `<h3 class="catalogue-group-title">Tank Top Options</h3>${rowNames(groups[1][1])}`;
-        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-group-title" style="font-size:15px;margin-top:8px;">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
+        // Bottoms is the main heading; Joggers is a simple gold subheading, not a black box.
+        html += `<h3 class="catalogue-group-title">Bottoms</h3><h4 class="catalogue-subgroup-title">Joggers</h4>${rowNames(["Super thick cotton joggers","Everyday wear type of joggers"])}${rowNames(["Joggers shorts","Sweatpants","Cargo pants","Cargo skirts","Jorts"])}`;
         html += `<h3 class="catalogue-group-title">Sets</h3>${rowNames(groups[3][1])}${makeRow("Others")}`;
 
-        // Any new Streetwear product added from Admin is appended without disturbing
-        // the established catalogue layout.
+        // New products can still be added from Admin, but the old "Additional
+        // Streetwear Options" block is deliberately not created.
         const knownNames = new Set(groups.flatMap(g=>g[1]).concat(["Varsity Jacket","Others"]).map(normal));
         const custom = products
             .filter(r => normal(r.category) === "streetwear" && r.active !== false)
             .filter(r => !knownNames.has(normal(r.catalogue_key || r.name)))
             .sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999));
-        if (custom.length) html += `<h3 class="catalogue-group-title">Additional Streetwear Options</h3>${custom.map(r=>makeRow(r.name)).join("")}`;
+        if (custom.length) html += custom.map(r=>makeRow(r.name)).join("");
+
         container.innerHTML = html;
         container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>{
             input.addEventListener("change",()=>{
@@ -955,13 +989,20 @@ async function loadPublicStreetwearProducts() {
     }
     const fallback = groups.flatMap(g=>g[1]).concat(["Varsity Jacket"]).map((name,i)=>({name,category:"Streetwear",active:true,display_order:i+1,catalogue_key:normal(name)}));
     render(fallback);
-    try { const supabase=await waitForSupabase(); if(!supabase)return; const result=await supabase.from("settings").select("setting_key,setting_value").like("setting_key","product_%"); if(result.error)return; const products=(result.data||[]).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(r=>r&&r.name&&r.active!==false&&normal(r.category)==="streetwear"); render(products.length?products:fallback); } catch(e){ console.warn("Public streetwear catalogue unavailable:",e); }
+    try {
+        const supabase=await waitForSupabase(); if(!supabase)return;
+        const result=await supabase.from("settings").select("setting_key,setting_value").like("setting_key","product_%");
+        if(result.error)return;
+        const products=(result.data||[]).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}})
+            .filter(r=>r&&r.name&&r.active!==false&&normal(r.category)==="streetwear");
+        render(products.length?products:fallback);
+    } catch(e){ console.warn("Public streetwear catalogue unavailable:",e); }
 }
 
 async function loadPublicLadiesWearProducts() {
     const container=document.getElementById("ladiesWearProductsDynamic"); if(!container)return;
     const groups=[
-        ["Dresses and Gowns",["Short gown/dress","Long gown/dress","Corset gown/dress (short)","Corset gown/dress (long)","Bubu","Kaftan","Bubu Kaftan"]],
+        ["Dresses and Gowns",["Short gown/dress","Long gown/dress","Corset gown/dress (short)","Corset gown/dress (long)","Bubu","Customised / Embellished Bubu","Kaftan","Customised / Embellished Kaftan","Bubu Kaftan","Customised / Embellished Bubu Kaftan"]],
         ["Tops & Blouses",["Top/blouse","Corset top","Base corset"]],
         ["Bottoms",["Trousers","Palazzo pants","Palazzo shorts","Wrap shorts"]],
         ["Two-Piece Outfits",["Trousers & short top","Trousers & long top","Skirt & short top","Skirt & long top"]],
@@ -985,10 +1026,16 @@ async function loadPublicLadiesWearProducts() {
 }
 
 function setupEmbellishmentCatalogue(){
-    const container=document.getElementById("embellishmentProductsDynamic");if(!container)return;
-    const names=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","Others"];
+    const container=document.getElementById("embellishmentProductsDynamic"); if(!container)return;
+    const names=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","3D Patches","Hand Cut","Others"];
     container.innerHTML=names.map(name=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="embellishment[]" value="${escapeHTML(name)}" data-embellishment-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Gold"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div><div class="form-group" style="grid-column:1/-1"><label>Details / Style Request</label><textarea data-detail="details" placeholder="Specify what you want us to do."></textarea></div></div></div></div>`).join("");
     container.querySelectorAll('input[data-embellishment-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{const box=cb.closest(".catalogue-item")?.querySelector(".catalogue-detail-box");if(box)box.classList.toggle("is-open",cb.checked);if(!cb.checked&&box)box.querySelectorAll("input,textarea").forEach(x=>{if(x.type!=="checkbox")x.value=x.type==="number"?"1":""})}));
+}
+function setupAddOnsCatalogue(){
+    const container=document.getElementById("addOnsProductsDynamic"); if(!container)return;
+    const names=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","3D Patches","Hand Cut","All-in-one Fabric Embellishment","Others"];
+    container.innerHTML=names.map(name=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="addOns[]" value="${escapeHTML(name)}" data-addon-product="true"> ${escapeHTML(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour (S)</label><input data-detail="colour" placeholder="e.g. Gold"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div><div class="form-group" style="grid-column:1/-1"><label>Specify Your Request</label><textarea data-detail="details" placeholder="Specify what you need."></textarea></div></div></div></div>`).join("");
+    container.querySelectorAll('input[data-addon-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{const box=cb.closest(".catalogue-item")?.querySelector(".catalogue-detail-box");if(box)box.classList.toggle("is-open",cb.checked);if(!cb.checked&&box)box.querySelectorAll("input,textarea").forEach(x=>{if(x.type!=="checkbox")x.value=x.type==="number"?"1":""})}));
 }
 
 /* =========================================================
@@ -1104,6 +1151,8 @@ function resolvePublicMediaUrl(value) {
 
 async function loadPublicFeaturedCollection() {
     if (!document.body.classList.contains("home-page")) return;
+    const homeFeatured = document.querySelector(".featured-section");
+    if (homeFeatured) homeFeatured.style.visibility = "hidden";
 
     let featured = [];
     let collectionName = "Featured Collection";
@@ -1134,13 +1183,19 @@ async function loadPublicFeaturedCollection() {
             .sort((a,b) => Number(a.display_order || 9999) - Number(b.display_order || 9999));
     }
 
-    if (!featured.length) return;
+    if (!featured.length) {
+        if (homeFeatured) homeFeatured.style.visibility = "visible";
+        return;
+    }
 
     const main = document.querySelector("main");
     if (!main) return;
 
-    const existing = main.querySelector(".featured-collection");
-    if (!existing) return;
+    const existing = main.querySelector(".featured-collection, .featured-section");
+    if (!existing) {
+        if (homeFeatured) homeFeatured.style.visibility = "visible";
+        return;
+    }
 
     existing.innerHTML = `
         <div class="container">
@@ -1164,14 +1219,18 @@ async function loadPublicFeaturedCollection() {
             <div class="section-button"><a href="gallery.html" class="btn btn-primary">View Full Gallery</a></div>
         </div>`;
     setupMediaInteractions();
+    if (homeFeatured) homeFeatured.style.visibility = "visible";
 }
 
 async function loadPublicGallery() {
     if (!document.body.classList.contains("gallery-page")) return;
+    const galleryMain = document.querySelector("main");
+    if (galleryMain) galleryMain.style.visibility = "hidden";
 
     const rows = await loadPublicRows("gallery_items");
     if (!rows.length) {
         setupMediaInteractions();
+        if (galleryMain) galleryMain.style.visibility = "visible";
         return;
     }
 
@@ -1186,7 +1245,10 @@ async function loadPublicGallery() {
             activeRows.push(row);
         }
     });
-    if (!activeRows.length) return;
+    if (!activeRows.length) {
+        if (galleryMain) galleryMain.style.visibility = "visible";
+        return;
+    }
 
     const main = document.querySelector("main");
     if (!main) return;
@@ -1253,6 +1315,7 @@ async function loadPublicGallery() {
 
     if (intro) intro.after(fragment);
     setupMediaInteractions();
+    if (galleryMain) galleryMain.style.visibility = "visible";
 }
 
 async function loadPublicServices() {
@@ -1810,6 +1873,20 @@ async function setupPublicDatabaseContent() {
     setupMediaInteractions();
 }
 
+function setupAutomaticCapitalisation() {
+    const skip = new Set(["email","url","password","tel","number","date","time","hidden"]);
+    document.querySelectorAll("input, textarea").forEach(field => {
+        if (field.dataset.capitalisationBound || skip.has(String(field.type || "").toLowerCase())) return;
+        if (/email|url|password|phone|whatsapp|website|link/i.test(String(field.name || "") + " " + String(field.id || ""))) return;
+        field.dataset.capitalisationBound = "1";
+        field.addEventListener("input", () => {
+            const value = String(field.value || "");
+            field.value = value.replace(/^\s*([a-z])/, (match, letter) => match.replace(letter, letter.toUpperCase()))
+                .replace(/([.!?]\s+)([a-z])/g, (_, prefix, letter) => prefix + letter.toUpperCase());
+        });
+    });
+}
+
 /* =========================================================
    START
 ========================================================= */
@@ -1831,9 +1908,11 @@ function start() {
     setupEnquiryForm();
 
     setupQuoteForm();
+    setupAutomaticCapitalisation();
     loadPublicStreetwearProducts();
     loadPublicLadiesWearProducts();
     setupEmbellishmentCatalogue();
+    setupAddOnsCatalogue();
     loadPublicFeaturedCollection();
 
     setupPublicDatabaseContent();

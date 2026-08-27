@@ -182,6 +182,8 @@ PUBLIC FORM FIXES
                     training: String(data.get("trainingDetails") || "").trim(),
                     embellishment: data.getAll("embellishment[]").filter(Boolean),
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
+                    addOns: data.getAll("addOns[]").filter(Boolean),
+                    addOnsDetails: {},
                     embellishmentDetails: {},
                     serviceOther: String(data.get("serviceOther") || "").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
@@ -284,6 +286,21 @@ PUBLIC FORM FIXES
                     details.embellishmentDetails[input.value] = {
                         service: input.value, size: sizeMeasurements, measurements: sizeMeasurements,
                         colour: get("colour"), quantity: get("quantity") || "1", details: get("details")
+                    };
+                });
+
+                Array.from(form.querySelectorAll('input[data-addon-product="true"]:checked')).forEach(function(input) {
+                    const item = input.closest(".catalogue-item");
+                    const box = item?.querySelector(".catalogue-detail-box");
+                    const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
+                    const sizeMeasurements = get("sizeMeasurements");
+                    details.addOnsDetails[input.value] = {
+                        service: input.value,
+                        size: sizeMeasurements,
+                        measurements: sizeMeasurements,
+                        colour: get("colour"),
+                        quantity: get("quantity") || "1",
+                        details: get("details")
                     };
                 });
 
