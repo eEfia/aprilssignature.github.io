@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viert"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Order / Request a Quote | Aprils Signature</title>
 <meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
 <link href="css/style.css" rel="stylesheet"/>
@@ -153,7 +153,6 @@
 
         
         .catalogue-group-title { margin:22px 0 10px; padding:10px 12px; background:#111; color:#d6a542; border-radius:4px; }
-        .catalogue-subgroup-title { display:inline-block; margin:14px 0 8px; padding:6px 12px; background:#000; color:#d6a542; border-radius:3px; font-size:16px; font-weight:700; }
         .catalogue-other-row { border:1px solid #ddd; padding:12px; margin-top:10px; border-radius:5px; }
         .catalogue-detail-box { display:none; margin:10px 0 16px; padding:14px; border-left:4px solid #008080; background:#f8f8f8; }
         .catalogue-detail-box.is-open { display:block; }
@@ -372,54 +371,30 @@
 <section class="form-section">
 <h2>Service Selection</h2>
 <p>
-        Select one or more services. Practical Fashion Training is handled
-        through the Training page because it is a training programme, not a garment order.
+        Select one or more services. Practical Fashion Training registrations are completed on the Training page.
     </p>
 <div class="service-options">
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Streetwear"/>
-            Streetwear
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Ladies Wear"/>
-            Ladies Wear
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Kids Wear"/>
-            Kids Wear
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Embellishment Services"/>
-            Embellishment Services
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Address"/>
-            Address
-        </label>
-<label class="check-option">
-<input name="services[]" type="checkbox" value="Practical Fashion Training"/>
-            Practical Fashion Training
-        </label>
-<div class="form-group hidden-section" id="serviceOtherWrap" style="display:none;">
-<label for="serviceOther">Specify Your Request</label>
-<textarea id="serviceOther" name="serviceOther" placeholder="Please specify your request."></textarea>
-</div>
+<label class="check-option"><input name="services[]" type="checkbox" value="Streetwear"/>Streetwear</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Ladies Wear"/>Ladies Wear</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Kids Wear"/>Kids Wear</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Embellishment Services"/>Embellishment Services</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Address"/>Address</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Practical Fashion Training"/>Practical Fashion Training</label>
 <p class="training-service-link" style="margin-top:10px;">
             Practical Fashion Training registrations are completed on the Training page.
             <a href="training.html">View Training Programmes &amp; Register</a>
         </p>
-
 </div>
 </section>
-<!-- ADDRESS -->
+<!-- ADDRESS / DELIVERY DETAILS -->
 <section class="form-section hidden-section" id="addressSection">
 <h2>Address Details</h2>
-<p>Please provide the details requested for this address-related request.</p>
+<p>Provide the details needed for your order address.</p>
 <div class="catalogue-detail-grid">
-<div class="form-group"><label for="addressSizeMeasurements">Size (UK) / Measurements</label><textarea id="addressSizeMeasurements" name="addressSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
-<div class="form-group"><label for="addressColour">Colour (S)</label><input id="addressColour" name="addressColour" type="text" placeholder="e.g. Black, Gold"></div>
-<div class="form-group"><label for="addressQuantity">Quantity</label><input id="addressQuantity" name="addressQuantity" type="number" min="1" value="1"></div>
-<div class="form-group full-width"><label for="addressRequest">Specify Your Request</label><textarea id="addressRequest" name="addressRequest" placeholder="Specify your request."></textarea></div>
+<div class="form-group"><label for="addressSizeMeasurements">Size (UK) / Measurements</label><textarea id="addressSizeMeasurements" name="addressSizeMeasurements" data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
+<div class="form-group"><label for="addressColour">Colour</label><input id="addressColour" name="addressColour" data-detail="colour" placeholder="e.g. Black, Gold" type="text"/></div>
+<div class="form-group"><label for="addressQuantity">Quantity</label><input id="addressQuantity" name="addressQuantity" data-detail="quantity" min="1" value="1" type="number"/></div>
+<div class="form-group" style="grid-column:1/-1"><label for="addressRequest">Specify Your Request</label><textarea id="addressRequest" name="addressRequest" data-detail="details" placeholder="Specify your address request."></textarea></div>
 </div>
 </section>
 <!-- STREETWEAR -->
@@ -466,6 +441,15 @@
 <div id="embellishmentProductsDynamic"><div class="empty">Loading embellishment services…</div></div>
 </section>
 <!-- ADDITIONAL DETAILS -->
+<section class="form-section">
+<h2>
+        Delivery Details
+    </h2>
+<div class="form-grid">
+<div class="form-group"><label for="deliveryDate">Preferred Delivery / Collection Date</label><input id="deliveryDate" name="deliveryDate" type="date"/></div>
+<div class="form-group"><label for="deliveryTime">Preferred Delivery / Collection Time</label><input id="deliveryTime" name="deliveryTime" type="time"/></div>
+</div>
+</section>
 <section class="form-section">
 <h2>
         Additional Request Details
@@ -615,10 +599,10 @@ All rights reserved.
 <img alt="WhatsApp" src="icons/Whatsapp.jpg"/>
 </a>
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260827-final"></script>
-<script src="js/supabase-client.js?v=20260827-final"></script>
+<script src="js/supabase-config.js?v=20260827-corrections"></script>
+<script src="js/supabase-client.js?v=20260827-corrections"></script>
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script defer="" src="js/form-fixes.js?v=20260827-final"></script> <script defer="" src="js/script.js?v=20260827-final"></script>
-<script src="js/notification-dispatch.js?v=20260827-final"></script>
+<script defer="" src="js/form-fixes.js?v=20260827-corrections"></script> <script defer="" src="js/script.js?v=20260827-corrections"></script>
+<script src="js/notification-dispatch.js?v=20260827-corrections"></script>
 <script src="js/pwa-register.js"></script></body>
 </html>
