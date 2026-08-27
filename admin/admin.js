@@ -1019,7 +1019,7 @@ const DEFAULT_LADIES_PRODUCTS = [
     ["Ladies Wear","Standard kaba and slit/skirt",19,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (with corset)",20,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (kente)",21,"Kaba and Slit/Skirt"],["Ladies Wear","Others",22,"Others"]
 ];
 const DEFAULT_EMBELLISHMENT_PRODUCTS = [
-    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","Others",4,"Embellishment"]
+    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","3D / Rhinestone Patches",4,"Embellishment"],["Embellishment Services","Hand / Laser Cuts",5,"Embellishment"],["Embellishment Services","Others",6,"Embellishment"]
 ];
 
 const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
@@ -1142,8 +1142,8 @@ async function ensureStreetwearCatalogue() {
             ["Ladies Wear","Customised / Embellished Bubu",6,"Dresses and Gowns"],
             ["Ladies Wear","Customised / Embellished Kaftan",8,"Dresses and Gowns"],
             ["Ladies Wear","Customised / Embellished Bubu Kaftan",10,"Dresses and Gowns"],
-            ["Embellishment Services","3D Patches",5,"Embellishment"],
-            ["Embellishment Services","Hand Cut",6,"Embellishment"]
+            ["Embellishment Services","3D / Rhinestone Patches",4,"Embellishment"],
+            ["Embellishment Services","Hand / Laser Cuts",5,"Embellishment"]
         ];
         for (const [category,name,order,subcategory] of requestedNewProducts) {
             const key = productKeyFromName(name);
@@ -1154,6 +1154,16 @@ async function ensureStreetwearCatalogue() {
                     setting_value:JSON.stringify({name,category,public_price:null,subcategory,notes:"",display_order:order,active:true,catalogue_key:catalogueKeyFromName(name)}),
                     updated_at:new Date().toISOString()
                 });
+            }
+        }
+
+        const obsoleteStreetwear = new Set([
+            "everyday wear type of joggers", "joggers shorts", "sweatpants", "cargo pants", "cargo skirts", "jorts"
+        ]);
+        for (const row of rows) {
+            let item={}; try{item=JSON.parse(row.setting_value||"{}")}catch(_){continue;}
+            if (String(item.category||"").trim().toLowerCase()==="streetwear" && obsoleteStreetwear.has(String(item.name||"").trim().toLowerCase())) {
+                try { await db.from("settings").delete().eq("id",row.id); } catch (_) {}
             }
         }
 
@@ -1559,7 +1569,8 @@ function setupDirectCustomerLinks() {
         policies: new URL("../policies.html", window.location.href).href,
         discount: new URL("../redeem.html", window.location.href).href,
         payment: new URL("../payment.html", window.location.href).href,
-        shop: new URL("../shop.html", window.location.href).href
+        shop: new URL("../shop.html", window.location.href).href,
+        googleReview: "https://g.page/r/CcD7hxB7NK7pEAE/review"
     };
 
     const labels = {
@@ -1571,7 +1582,8 @@ function setupDirectCustomerLinks() {
         policies: "Policies & Terms",
         discount: "Discount Redemption",
         payment: "Payment Details",
-        shop: "Shop"
+        shop: "Shop",
+        googleReview: "Leave Us a Google Review"
     };
 
     const list = document.getElementById("directLinksList");
@@ -1701,7 +1713,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour].filter(Boolean).join(" • ")
+                details: [item.size || item.measurements, item.colour].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1731,6 +1743,11 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             });
         }
     });
+
+    if (details?.address && (details.address.quantity || details.address.details || details.address.size || details.address.colour)) {
+        const a=details.address;
+        lines.push({description:"Address",quantity:Math.max(1,Number(a.quantity||1)),unitPrice:invoicePriceFor(priceMap,"Address"),details:[a.size || a.measurements,a.colour,a.details].filter(Boolean).join(" • ")});
+    }
 
     if (Array.isArray(details?.embellishment)) {
         details.embellishment.forEach(serviceName => {
@@ -2496,6 +2513,10 @@ async function openInvoiceGenerator(row, details) {
         <button type="button" class="secondary" id="invoiceAddLine">+ Add Line</button>
     `;
     editor.appendChild(lineEditor);
+    const deliveryEditor = document.createElement("div");
+    deliveryEditor.className = "form-grid";
+    deliveryEditor.innerHTML = `<div class="form-group"><label>Delivery / Collection Date</label><input id="generatedInvoiceDeliveryDate" type="date" value="${escapeHTML(details?.deliveryDate || "")}"></div><div class="form-group"><label>Delivery / Collection Time</label><input id="generatedInvoiceDeliveryTime" type="time" value="${escapeHTML(details?.deliveryTime || "")}"></div>`;
+    editor.appendChild(deliveryEditor);
 
     const lineRows = lineEditor.querySelector("#invoiceLineRows");
     function addLine(line = {description:"",quantity:1,unitPrice:0,details:""}) {
@@ -2961,7 +2982,7 @@ function openReceiptGenerator() {
                             await setAdminRecordStatus("training_status", record.id, "started_class");
                         }
                         if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
-                            await setAdminRecordStatus("quote_status", record.id, "in_production");
+                            await setAdminRecordStatus("quote_status", record.id, paidTotal >= total && total > 0 ? "fully_paid" : "in_production");
                         }
                     }
                 } catch (_) {}
@@ -3619,11 +3640,10 @@ const ORDER_STATUS_OPTIONS = [
     ["invoice_generated", "Invoice Generated"],
     ["deposit_paid", "Deposit Paid"],
     ["part_paid", "Part Paid"],
-    ["fully_paid", "Fully Paid"],
     ["receipt_generated", "Receipt Generated"],
     ["in_production", "In Production"],
     ["ready", "Ready for Collection / Delivery"],
-    ["completed", "Completed"],
+    ["fully_paid", "Fully Paid"],
     ["dispatched", "Dispatched"],
     ["received", "Received by Customer"]
 ];
@@ -3812,12 +3832,18 @@ function summarizeQuoteDetails(row) {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
-            const detailText = typeof item === "object" ? [item.size, item.measurements, item.colour].filter(Boolean).join(" • ") : "";
+            const size = typeof item === "object" ? String(item.size || "").trim() : "";
+            const measurements = typeof item === "object" ? String(item.measurements || "").trim() : "";
+            const detailText = typeof item === "object" ? [size || measurements, item.colour].filter(Boolean).join(" • ") : "";
             if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
     if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
     if (selected.includes("Kids Wear")) parts.push(["Kids Wear", details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
+    if (selected.includes("Address") && details.address) {
+        const a=details.address; parts.push(["Address", a.size || a.measurements, a.colour, a.quantity, a.details].filter(Boolean).join(" • "));
+    }
+    if (details.deliveryDate || details.deliveryTime) parts.push(["Delivery / Collection", details.deliveryDate, details.deliveryTime].filter(Boolean).join(" • "));
     if (selected.includes("Embellishment Services") && Array.isArray(details.embellishment)) {
         details.embellishment.forEach(name => {
             const item = details.embellishmentDetails?.[name] || {};
@@ -3845,6 +3871,13 @@ function groupDuplicateQuotes(rawRows){
     return [...groups.values()].sort((a,b)=>String(b.created_at||b.updated_at||"").localeCompare(String(a.created_at||a.updated_at||"")));
 }
 
+async function getDeliveryTracking(id) {
+    try { const row=await getSettingValue("delivery_tracking_"+id); return row?.setting_value ? JSON.parse(row.setting_value) : {}; } catch (_) { return {}; }
+}
+async function saveDeliveryTracking(id, value) {
+    await safeSettingUpsert("delivery_tracking_"+id, JSON.stringify(value||{}));
+}
+
 async function loadQuotes() {
     let rawRows = [];
     try {
@@ -3868,7 +3901,8 @@ async function loadQuotes() {
     }
 
     const quoteSummaries = new Map();
-    for (const row of rows) quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false));
+    const deliveryTracking = new Map();
+    for (const row of rows) { quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false)); deliveryTracking.set(String(row.id), await getDeliveryTracking(row.id)); }
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         let details = row.journey || row.request_details || row.details || row.message || "";
         const summary=quoteSummaries.get(String(row.id))||{};
@@ -3878,6 +3912,7 @@ async function loadQuotes() {
             <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([row.phone,row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Quantity</b>${escapeHTML(summarizeQuoteQuantities(row))}</span><span class="wide"><b>Details</b>${escapeHTML(preview||"—")}</span></div>
             <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
+            <div class="delivery-tracking" style="margin:12px 0;padding:12px;border:1px solid #aaa;border-radius:6px;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;"><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Date</label><input type="date" data-delivery-date="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.date || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Time</label><input type="time" data-delivery-time="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.time || "")}"></div><button type="button" class="secondary" data-save-delivery="${escapeHTML(row.id)}">Save Delivery Details</button></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button></div>
         </article>`;
     }).join("")}</div>` : `<div class="empty">No quote requests received.</div>`;
@@ -3892,6 +3927,16 @@ async function loadQuotes() {
                 button.classList.add("button-working");
                 setTimeout(()=>button.classList.remove("button-working"),450);
             } catch (error) { message("Status could not be updated: " + error.message, "error"); }
+        };
+    });
+
+    list.querySelectorAll("[data-save-delivery]").forEach(button => {
+        button.onclick = async () => {
+            const id=button.dataset.saveDelivery;
+            try {
+                await saveDeliveryTracking(id,{date:list.querySelector(`[data-delivery-date="${CSS.escape(id)}"]`)?.value||"",time:list.querySelector(`[data-delivery-time="${CSS.escape(id)}"]`)?.value||""});
+                message("Delivery / collection details saved.","success");
+            } catch(error) { message("Delivery details could not be saved: "+error.message,"error"); }
         };
     });
 
@@ -4789,6 +4834,7 @@ function setupTrainingInvoicePricingForm() {
             message("Training invoice price saved.", "success");
             await loadInvoicePricing();
             await loadTraining();
+            document.getElementById("invoiceTrainingList")?.scrollIntoView({behavior:"smooth",block:"start"});
         } catch (error) {
             message("Training invoice price could not be saved: " + error.message, "error");
         }
@@ -4850,6 +4896,7 @@ function setupInvoiceForm() {
             message("Invoice price saved.", "success");
             await loadInvoicePricing();
             await loadProducts();
+            document.getElementById("invoiceProductList")?.scrollIntoView({behavior:"smooth",block:"start"});
         } catch (error) {
             console.error(error);
             message("Invoice price could not be saved: " + error.message, "error");
@@ -6086,6 +6133,19 @@ window.aprilsShowSubmissionDetails = showSubmissionDetails;
    STARTUP
 ========================================================= */
 
+function setupAdminAutomaticCapitalisation(){
+    if(document.documentElement.dataset.adminCapitalisationBound)return;
+    document.documentElement.dataset.adminCapitalisationBound="1";
+    const skip=new Set(["email","url","password","tel","number","date","time","hidden"]);
+    document.addEventListener("input",event=>{
+        const field=event.target;
+        if(!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement))return;
+        if(skip.has(String(field.type||"").toLowerCase()))return;
+        if(/email|url|password|phone|whatsapp|website|link/i.test(String(field.name||"")+" "+String(field.id||"")))return;
+        field.value=String(field.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+    },true);
+}
+
 async function startAdmin() {
     db = await waitForSupabase();
 
@@ -6114,6 +6174,7 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
     setupUserAccess();
+    setupAdminAutomaticCapitalisation();
     if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 
     if (!db) {

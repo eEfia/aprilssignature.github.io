@@ -49,21 +49,31 @@
  async function loadInventory(){const list=document.getElementById("inventoryList");if(!list)return;try{const items=await getInventory();await renderInventoryCollectionOrder(items);await syncPublicShopInventory(items);list.innerHTML=items.length?`<table><thead><tr><th>Image</th><th>Collection / Batch</th><th>Garment</th><th>Price</th><th>Qty</th><th>Public</th><th>Actions</th></tr></thead><tbody>${items.map(x=>`<tr><td>${x.image?`<img class="inventory-thumb" src="${esc(x.image)}" alt="">`:`—`}</td><td>${esc(x.collection)}</td><td>${esc(x.name)}</td><td>GHS ${Number(x.price||0).toFixed(2)}</td><td><strong>${Number(x.quantity||0)}</strong>${Number(x.quantity||0)<=0?" — Out of Stock":""}</td><td>${x.active!==false?"Yes":"No"}</td><td><button class="secondary" data-edit-inventory="${esc(x.id)}">Edit</button> <button class="danger" data-delete-inventory="${esc(x.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No inventory items have been added yet.</div>`;list.querySelectorAll("[data-edit-inventory]").forEach(b=>b.onclick=()=>{const x=items.find(i=>String(i.id)===String(b.dataset.editInventory));if(x)inventoryFormFill(x)});list.querySelectorAll("[data-delete-inventory]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this inventory item?"))return;const d=db();const r=await d.from("settings").delete().eq("id",b.dataset.deleteInventory);if(r.error){alert(r.error.message);return}await loadInventory();await renderShopPreview()});}catch(e){list.innerHTML=`<div class="empty">Inventory could not be loaded: ${esc(e.message)}</div>`}}
  function inventoryFormFill(x){document.getElementById("inventoryId").value=x.id||"";document.getElementById("inventoryCollection").value=x.collection||"";document.getElementById("inventoryName").value=x.name||"";document.getElementById("inventoryPrice").value=x.price??"";document.getElementById("inventoryQuantity").value=x.quantity??0;document.getElementById("inventoryOrder").value=x.display_order??1;document.getElementById("inventoryDescription").value=x.description||"";document.getElementById("inventoryActive").checked=x.active!==false;document.getElementById("inventoryForm").scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("inventoryName")?.focus()}
  async function fileToDataUrl(file){if(!file)return "";if(file.size>3*1024*1024)throw new Error("Please choose an image smaller than 3 MB.");return await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result));r.onerror=rej;r.readAsDataURL(file)})}
+ async function getCheckoutInvoicePrice(d,name,fallback){
+    try {
+        const r=await d.from("settings").select("setting_value").like("setting_key","invoice_price_%");
+        const normal=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+        const target=normal(name);
+        for(const row of (r.data||[])){ try { const item=JSON.parse(row.setting_value||"{}"); if(item.active===false)continue; if(normal(item.name)===target || normal(item.name)==="training "+target) return Number(item.price||0); } catch(_){} }
+    } catch(_){}
+    return Number(fallback||0);
+}
  async function loadCheckoutOrders(){
     const list=document.getElementById("checkoutList");if(!list)return;const d=db();if(!d)return;
     try{
         const r=await d.from("quote_requests").select("*").order("created_at",{ascending:false});
         if(r.error)throw r.error;
         const orders=(r.data||[]).map(x=>{let j={};try{j=JSON.parse(x.journey||"{}")}catch(_){}return{...x,j}}).filter(x=>x.j.checkout);
-        list.innerHTML=orders.length?`<table><thead><tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody>${orders.map(x=>`<tr>
+        list.innerHTML=orders.length?`<table><thead><tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Delivery / Collection</th><th>Actions</th></tr></thead><tbody>${orders.map(x=>`<tr>
             <td>${esc(x.created_at||x.updated_at||"")}</td>
             <td>${esc(x.full_name)}<br>${esc(x.phone)}</td>
             <td>${esc((x.j.items||[]).map(i=>i.name+" × "+i.quantity).join(", "))}</td>
             <td>GHS ${Number(x.j.total||0).toFixed(2)}</td>
             <td>${esc(x.j.paymentStatus||"pending")}</td>
             <td><select class="admin-status-select" data-checkout-status="${esc(x.id)}">
-                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["deposit_paid","Deposit Paid"],["part_paid","Part Paid"],["fully_paid","Fully Paid"],["receipt_generated","Receipt Generated"],["in_production","In Production"],["ready","Ready for Collection / Delivery"],["completed","Completed"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
+                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["fully_paid","Fully Paid"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
             </select></td>
+            <td><div style="display:grid;gap:6px"><input type="date" data-checkout-delivery-date="${esc(x.id)}" value="${esc(x.j.deliveryDate||"")}"><input type="time" data-checkout-delivery-time="${esc(x.id)}" value="${esc(x.j.deliveryTime||"")}"><button class="secondary" data-save-checkout-delivery="${esc(x.id)}">Save Delivery</button></div></td>
             <td>
                 <button class="secondary" data-checkout-details="${esc(x.id)}">View Full Details</button>
                 <button class="primary" data-checkout-invoice="${esc(x.id)}">Generate Invoice</button>
@@ -83,6 +93,11 @@
             }catch(e){alert("Order status could not be updated: "+e.message)}
         });
 
+        list.querySelectorAll("[data-save-checkout-delivery]").forEach(b=>b.onclick=async()=>{
+            const x=orders.find(o=>String(o.id)===String(b.dataset.saveCheckoutDelivery));if(!x)return;
+            try { x.j.deliveryDate=list.querySelector(`[data-checkout-delivery-date="${CSS.escape(x.id)}"]`)?.value||""; x.j.deliveryTime=list.querySelector(`[data-checkout-delivery-time="${CSS.escape(x.id)}"]`)?.value||""; const u=await d.from("quote_requests").update({journey:JSON.stringify(x.j)}).eq("id",x.id);if(u.error)throw u.error;message("Checkout delivery details saved.","success"); } catch(e){alert("Delivery details could not be saved: "+e.message)}
+        });
+
         list.querySelectorAll("[data-checkout-details]").forEach(b=>b.onclick=()=>{
             const x=orders.find(o=>String(o.id)===String(b.dataset.checkoutDetails));if(!x)return;
             const details=`Customer: ${x.full_name||""}\nPhone: ${x.phone||""}\nWhatsApp: ${x.whatsapp||""}\nEmail: ${x.email||""}\nLocation: ${x.location||""}\nPayment: ${x.j.paymentStatus||"pending"}\nOrder Status: ${x.j.orderStatus||"under_review"}\nItems:\n${(x.j.items||[]).map(i=>`• ${i.name} × ${i.quantity} — GHS ${Number(i.total||0).toFixed(2)}`).join("\n")}`;
@@ -93,8 +108,9 @@
         list.querySelectorAll("[data-checkout-invoice]").forEach(b=>b.onclick=async()=>{
             const x=orders.find(o=>String(o.id)===String(b.dataset.checkoutInvoice));if(!x)return;
             if(!window.aprilsOpenInvoiceGenerator){alert("Invoice generator is not ready yet.");return;}
-            const manualLines=(x.j.items||[]).map(i=>({description:i.name,quantity:Number(i.quantity||1),unitPrice:Number(i.unitPrice||0),details:"Shop checkout"}));
-            await window.aprilsOpenInvoiceGenerator({full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Shop checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false});
+            const manualLines=[];
+            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:"Specific shop item"}); }
+            await window.aprilsOpenInvoiceGenerator({full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""});
         });
 
         list.querySelectorAll("[data-checkout-paid]").forEach(b=>b.onclick=async()=>{
@@ -117,9 +133,14 @@
 
                 // Keep checkout, invoice, payment and accounting records synchronized.
                 const invoiceKey="invoice_record_"+slug(invoiceNumber);
-                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:(x.j.items||[]).map(i=>({description:i.name,quantity:Number(i.quantity||1),unitPrice:Number(i.unitPrice||0),details:"Shop checkout"})),subtotal:Number(x.j.total||0),discount:0,total:Number(x.j.total||0),notes:"Shop checkout order",training:false,status:"fully_paid"};
+                const pricedLines=[];
+                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:"Specific shop item"}); }
+                const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
+                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""};
                 await save(invoiceKey,invoiceRecord);
-                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(x.j.total||0),date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
+                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
+                const receiptNumber="AS-RC-"+Date.now().toString().slice(-8);
+                await save("receipt_record_"+slug(receiptNumber),{receiptNumber,invoiceNumber,customer:x.full_name||"",phone:x.phone||"",email:x.email||"",amount:Number(invoiceRecord.total||0),method:x.j.paymentMethod||"Checkout payment",date:new Date().toLocaleDateString(),status:"Payment recorded",savedAt:new Date().toISOString(),lines:invoiceRecord.lines,total:Number(invoiceRecord.total||0)});
                 await loadCheckoutOrders();await loadInventory();
                 if(window.loadErrorLog){} 
                 alert("Payment recorded, stock deducted, invoice saved, and accounting synchronized.");
