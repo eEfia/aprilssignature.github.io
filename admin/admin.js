@@ -1827,7 +1827,24 @@ async function saveInvoicePayment(payment) {
     const key = invoicePaymentStorageKey(payment.invoiceNumber, Date.now());
     try {
         if (!db) throw new Error("offline");
-        return await safeSettingUpsert(key, JSON.stringify(payment));
+        const result = await safeSettingUpsert(key, JSON.stringify(payment));
+        // Keep the training workflow synchronized with payment entry.
+        // Once the saved training invoice is fully paid, the trainee is in class
+        // unless an admin has deliberately marked the registration stopped/completed.
+        try {
+            const invoice = await getInvoiceSavedRecord(payment.invoiceNumber);
+            if (invoice?.training && invoice?.sourceId) {
+                const payments = await getInvoicePayments(payment.invoiceNumber);
+                const paid = payments.reduce((sum,row)=>sum+Number(row.amount||0),0);
+                if (Number(invoice.total||0)>0 && paid >= Number(invoice.total||0)) {
+                    const current = await getAdminRecordStatus("training_status", invoice.sourceId);
+                    if (!["stopped","completed"].includes(current)) {
+                        await setAdminRecordStatus("training_status", invoice.sourceId, "in_class");
+                    }
+                }
+            }
+        } catch (_) {}
+        return result;
     } catch (error) {
         try {
             const items = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]");
@@ -2233,133 +2250,73 @@ async function openSavedReceiptRecord(row) {
 }
 
 async function loadSavedInvoiceReceiptRecords() {
-    const list = document.getElementById("savedInvoiceReceiptList");
-    if (!list) return;
-
-    try {
-        const rows = await getRows("settings");
-        const invoices = rows.filter(r => String(r.setting_key || "").startsWith("invoice_record_")).map(r => {
-            try { return {type:"Invoice", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
-        }).filter(Boolean);
-        try {
-            const offline = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]");
-            offline.forEach(r => invoices.push({type:"Invoice", id:"offline-" + (r.invoiceNumber || Math.random()), key:r.offlineKey || ("offline_invoice_" + contentSlug(r.invoiceNumber)), ...r, offline:true}));
-        } catch (_) {}
-        const receipts = rows.filter(r => String(r.setting_key || "").startsWith("receipt_record_")).map(r => {
-            try { return {type:"Receipt", id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
-        }).filter(Boolean);
-
-        const records = [...invoices, ...receipts].sort((a,b) => String(b.savedAt || b.date || "").localeCompare(String(a.savedAt || a.date || "")));
-        for (const r of records) { if (r.type === "Invoice") { try { r._paymentTotal = (await getInvoicePayments(r.invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0); } catch (_) { r._paymentTotal = 0; } } }
-
-        list.innerHTML = records.length ? `
-            <table>
-                <thead><tr><th>Type</th><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>
-                ${records.map(r => {
-                    const amount = r.type === "Receipt" ? Number(r.amount || 0) : Number(r.total || 0);
-                    const status = r.type === "Receipt" ? (r.status || "Payment recorded") : (r._paymentTotal >= Number(r.total||0) && Number(r.total||0)>0 ? "Paid in full" : r._paymentTotal > 0 ? "Part payment" : "Draft — payment not yet recorded");
-                    return `<tr>
-                        <td>${escapeHTML(r.type)}</td>
-                        <td>${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}</td>
-                        <td>${escapeHTML(r.date || "")}</td>
-                        <td>${escapeHTML(r.customer || r.full_name || "")}</td>
-                        <td>GHS ${amount.toFixed(2)}</td>
-                        <td>${escapeHTML(status)}</td>
-                        <td>
-                            <button type="button" class="secondary" data-open-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Open</button>
-                            <button type="button" class="secondary" data-edit-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Edit</button>
-                            <button type="button" class="secondary" data-share-saved-record="${escapeHTML(r.key)}" data-record-type="${escapeHTML(r.type)}">Share</button>
-                            <button type="button" class="danger" data-delete-saved-record="${escapeHTML(r.id)}" data-record-type="${escapeHTML(r.type)}" data-record-key="${escapeHTML(r.key)}" data-record-number="${escapeHTML(r.invoiceNumber || r.receiptNumber || "")}">Delete</button>
-                        </td>
-                    </tr>`;
-                }).join("")}
-                </tbody>
-            </table>` : `<div class="empty">No saved invoices or receipts yet.</div>`;
-
-        list.querySelectorAll("[data-open-saved-record]").forEach(button => {
-            button.onclick = async () => {
-                const row = records.find(r => r.key === button.dataset.openSavedRecord);
-                if (!row) return;
-                if (row.type === "Invoice") {
-                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
-                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
-                } else { await openSavedReceiptRecord(row); }
-            };
-        });
-        list.querySelectorAll("[data-edit-saved-record]").forEach(button => {
-            button.onclick = async () => {
-                const row = records.find(r => r.key === button.dataset.editSavedRecord);
-                if (!row) return;
-                if (row.type === "Invoice") {
-                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
-                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
-                } else { await openSavedReceiptRecord(row); }
-            };
-        });
-        list.querySelectorAll("[data-share-saved-record]").forEach(button => {
-            button.onclick = async () => {
-                const row = records.find(r => r.key === button.dataset.shareSavedRecord);
-                if (!row) return;
-                if (row.type === "Invoice") {
-                    const customerRow = {full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""};
-                    await openInvoiceGenerator(customerRow,{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+    const invoiceList=document.getElementById("savedInvoiceList");
+    const receiptList=document.getElementById("savedReceiptList");
+    if(!invoiceList && !receiptList)return;
+    try{
+        const rows=await getRows("settings");
+        const invoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return{type:"Invoice",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
+        try{
+            const offline=JSON.parse(localStorage.getItem("aprils_offline_invoices")||"[]");
+            offline.forEach(r=>invoices.push({type:"Invoice",id:"offline-"+(r.invoiceNumber||Math.random()),key:r.offlineKey||("offline_invoice_"+contentSlug(r.invoiceNumber)),...r,offline:true}));
+        }catch(_){}
+        const receipts=rows.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return{type:"Receipt",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
+        for(const r of invoices){try{r._paymentTotal=(await getInvoicePayments(r.invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0)}catch(_){r._paymentTotal=0}}
+        const renderTable=(records,type)=>{
+            if(!records.length)return `<div class="empty">No saved ${type.toLowerCase()}s yet.</div>`;
+            return `<table><thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{
+                const amount=type==="Receipt"?Number(r.amount||0):Number(r.total||0);
+                const status=type==="Receipt"?(r.status||"Payment recorded"):(r._paymentTotal>=Number(r.total||0)&&Number(r.total||0)>0?"Paid in full":r._paymentTotal>0?"Part payment":"Draft — payment not yet recorded");
+                return `<tr><td>${escapeHTML(r.invoiceNumber||r.receiptNumber||"")}</td><td>${escapeHTML(r.date||"")}</td><td>${escapeHTML(r.customer||r.full_name||"")}</td><td>GHS ${amount.toFixed(2)}</td><td>${escapeHTML(status)}</td><td><button type="button" class="secondary" data-open-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Open</button><button type="button" class="secondary" data-edit-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Edit</button><button type="button" class="secondary" data-share-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Share PDF</button><button type="button" class="danger" data-delete-saved-record="${escapeHTML(r.id)}" data-record-type="${type}" data-record-key="${escapeHTML(r.key)}" data-record-number="${escapeHTML(r.invoiceNumber||r.receiptNumber||"")}">Delete</button></td></tr>`;
+            }).join("")}</tbody></table>`;
+        };
+        if(invoiceList)invoiceList.innerHTML=renderTable(invoices,"Invoice");
+        if(receiptList)receiptList.innerHTML=renderTable(receipts,"Receipt");
+        const root=document;
+        [invoiceList,receiptList].filter(Boolean).forEach(list=>{
+            list.querySelectorAll("[data-open-saved-record],[data-edit-saved-record]").forEach(button=>button.onclick=async()=>{
+                const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset[button.dataset.openSavedRecord!==undefined?"openSavedRecord":"editSavedRecord"]);
+                if(!row)return;
+                if(type==="Invoice"){
+                    await openInvoiceGenerator({full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                }else await openSavedReceiptRecord(row);
+            });
+            list.querySelectorAll("[data-share-saved-record]").forEach(button=>button.onclick=async()=>{
+                const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset.shareSavedRecord);
+                if(!row)return;
+                if(type==="Invoice"){
+                    await openInvoiceGenerator({full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
                     await generateInvoicePdf(true);
-                } else {
+                }else{
                     await openSavedReceiptRecord(row);
                     await generateReceiptPdf(true);
                 }
-            };
+            });
+            list.querySelectorAll("[data-delete-saved-record]").forEach(button=>button.onclick=async()=>{
+                const type=button.dataset.recordType,number=button.dataset.recordNumber;
+                if(!confirm(`Delete this saved ${type.toLowerCase()}${number?` ${number}`:""}?`))return;
+                try{
+                    if(String(button.dataset.deleteSavedRecord).startsWith("offline-")){
+                        const offline=JSON.parse(localStorage.getItem("aprils_offline_invoices")||"[]").filter(r=>String(r.invoiceNumber)!==String(number));
+                        const offlinePayments=JSON.parse(localStorage.getItem("aprils_offline_payments")||"[]").filter(r=>String(r.invoiceNumber)!==String(number));
+                        localStorage.setItem("aprils_offline_invoices",JSON.stringify(offline));
+                        localStorage.setItem("aprils_offline_payments",JSON.stringify(offlinePayments));
+                    }else{
+                        const result=await db.from("settings").delete().eq("id",button.dataset.deleteSavedRecord);if(result.error)throw result.error;
+                        if(type==="Invoice"&&number){
+                            const paymentRows=await getRows("settings");
+                            const ids=paymentRows.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).filter(r=>{try{return String(JSON.parse(r.setting_value||"{}").invoiceNumber)===String(number)}catch(_){return false}}).map(r=>r.id);
+                            if(ids.length)await db.from("settings").delete().in("id",ids);
+                        }
+                    }
+                    message(`${type} deleted.`,"success");await loadSavedInvoiceReceiptRecords();await loadAccounting();
+                }catch(error){message(`${type} could not be deleted: ${error.message}`,"error")}
+            });
         });
-
-        list.querySelectorAll("[data-delete-saved-record]").forEach(button => {
-            button.onclick = async () => {
-                const type = button.dataset.recordType;
-                const number = button.dataset.recordNumber;
-                if (!confirm(`Delete this saved ${type.toLowerCase()}${number ? ` ${number}` : ""}?`)) return;
-                try {
-                    if (String(button.dataset.deleteSavedRecord || "").startsWith("offline-")) {
-                        const offline = JSON.parse(localStorage.getItem("aprils_offline_invoices") || "[]").filter(r => String(r.invoiceNumber) !== String(number));
-                        const offlinePayments = JSON.parse(localStorage.getItem("aprils_offline_payments") || "[]").filter(r => String(r.invoiceNumber) !== String(number));
-                        localStorage.setItem("aprils_offline_invoices", JSON.stringify(offline));
-                        localStorage.setItem("aprils_offline_payments", JSON.stringify(offlinePayments));
-                        await loadSavedInvoiceReceiptRecords();
-                        message("Offline invoice deleted.", "success");
-                        return;
-                    }
-                    const result = await db.from("settings").delete().eq("id", button.dataset.deleteSavedRecord);
-                    if (result.error) throw result.error;
-
-                    if (type === "Invoice" && number) {
-                        const paymentRows = await getRows("settings");
-                        const ids = paymentRows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
-                            .filter(r => {
-                                try { return String(JSON.parse(r.setting_value || "{}").invoiceNumber || "") === String(number); }
-                                catch (_) { return false; }
-                            }).map(r => r.id);
-                        if (ids.length) await db.from("settings").delete().in("id", ids);
-                    }
-
-                    if (type === "Receipt" && number) {
-                        const paymentRows = await getRows("settings");
-                        const ids = paymentRows.filter(r => String(r.setting_key || "").startsWith("invoice_payment_record_"))
-                            .filter(r => {
-                                try { return String(JSON.parse(r.setting_value || "{}").receiptNumber || "") === String(number); }
-                                catch (_) { return false; }
-                            }).map(r => r.id);
-                        if (ids.length) await db.from("settings").delete().in("id", ids);
-                    }
-
-                    message(`${type} deleted.`, "success");
-                    await loadSavedInvoiceReceiptRecords();
-                } catch (error) {
-                    message(`${type} could not be deleted: ${error.message}`, "error");
-                }
-            };
-        });
-    } catch (error) {
-        console.error("Saved invoice/receipt records could not load:", error);
-        list.innerHTML = `<div class="empty">Saved invoice and receipt records could not be loaded.</div>`;
+    }catch(error){
+        if(invoiceList)invoiceList.innerHTML=`<div class="empty">Saved invoices could not be loaded.</div>`;
+        if(receiptList)receiptList.innerHTML=`<div class="empty">Saved receipts could not be loaded.</div>`;
+        console.error(error);
     }
 }
 
@@ -2712,41 +2669,40 @@ async function generateInvoicePdf(share) {
     state.renderInvoice();
     const paper = document.getElementById("invoicePaper");
     if (!paper) return false;
-
     const html2pdf = await ensureHtml2Pdf();
     if (!html2pdf) {
+        if (share) { message("PDF sharing is unavailable because the PDF service could not be loaded. No PDF page was opened.", "error"); return false; }
         printGeneratedInvoice();
-        message("PDF library is unavailable, so the invoice has been opened in print view. Choose Save as PDF there.", "success");
         return false;
     }
-
     try {
         const options = {
             margin: 0,
             filename: (document.getElementById("generatedInvoiceNumber").value || "Aprils-Signature-Invoice") + ".pdf",
             image: {type:"jpeg",quality:0.98},
-            html2canvas: {scale:2, useCORS:true},
-            jsPDF: {unit:"in", format:"a4", orientation:"portrait"}
+            html2canvas: {scale:2,useCORS:true},
+            jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
         };
-        const worker = html2pdf().set(options).from(paper);
-        if (share && navigator.share && navigator.canShare) {
-            const blob = await pdfFromVisibleElement(paper, options);
+        const blob = await pdfFromVisibleElement(paper, options);
+        if (share) {
             const file = new File([blob], options.filename, {type:"application/pdf"});
-            if (navigator.canShare({files:[file]})) {
-                await navigator.share({title:options.filename, text:"Aprils Signature Invoice", files:[file]});
+            if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+                await navigator.share({title: options.filename, text:"Aprils Signature Invoice", files:[file]});
                 return true;
             }
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
-        const blob = await pdfFromVisibleElement(paper, options);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
         setTimeout(()=>URL.revokeObjectURL(url),1500);
-        if (share) message("PDF saved successfully.", "success");
+        message("Invoice PDF downloaded.", "success");
         return false;
     } catch (error) {
         console.error(error);
+        if (share) { message("The invoice could not be shared as a PDF. No PDF page was opened.", "error"); return false; }
         printGeneratedInvoice();
-        message("The invoice PDF could not be downloaded directly, so a print-safe invoice was opened. Choose Save as PDF there.", "success");
+        message("The invoice PDF could not be downloaded directly, so a print-safe invoice was opened.", "success");
         return false;
     }
 }
@@ -2761,11 +2717,33 @@ function getGeneratedInvoiceShareText() {
 }
 
 async function sharePdfToWhatsApp(paper, filename, phone, title) {
-    const html2pdf=await ensureHtml2Pdf(); if(!html2pdf||!paper){window.location.href=customerWhatsAppUrl(phone,title);return;}
-    const options={margin:0,filename,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}};
-    try{const blob=await pdfFromVisibleElement(paper,options);const file=new File([blob],filename,{type:"application/pdf"});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title,text:`${title} — Aprils Signature`,files:[file]});return;}}catch(error){console.warn("WhatsApp PDF sharing unavailable:",error)}
-    window.location.href=customerWhatsAppUrl(phone,`${title}. The PDF is ready to attach from your device.`);
+    const html2pdf = await ensureHtml2Pdf();
+    if (!html2pdf || !paper) { message("The PDF could not be prepared for sharing. No PDF page was opened.", "error"); return false; }
+    const options = {margin:0,filename,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}};
+    try {
+        const blob = await pdfFromVisibleElement(paper, options);
+        const file = new File([blob], filename, {type:"application/pdf"});
+        if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+            await navigator.share({title, text:`${title} — Aprils Signature`, files:[file]});
+            return true;
+        }
+        // A browser cannot attach a local PDF to a WhatsApp wa.me URL. Do not
+        // open a PDF/download page; open WhatsApp only as a last-resort text chat.
+        const number = normalizeWhatsAppNumber(phone);
+        if (number) {
+            window.location.href = `https://wa.me/${number}?text=${encodeURIComponent(`${title} — Please attach the generated PDF from your device.`)}`;
+            return false;
+        }
+        message("Your device/browser does not provide file sharing, so WhatsApp cannot receive the PDF automatically from this browser. No PDF page was opened.", "error");
+        return false;
+    } catch (error) {
+        if (error?.name === "AbortError") return false;
+        console.warn("WhatsApp PDF sharing unavailable:", error);
+        message("The PDF could not be shared. No PDF page was opened.", "error");
+        return false;
+    }
 }
+
 async function shareGeneratedInvoiceWhatsApp(){const phone=document.getElementById("generatedInvoicePhone")?.value||"";const state=window._aprilsCurrentInvoice;if(!state)return;state.renderInvoice();await sharePdfToWhatsApp(document.getElementById("invoicePaper"),`${document.getElementById("generatedInvoiceNumber")?.value||"Aprils-Signature-Invoice"}.pdf`,phone,`Aprils Signature Invoice ${document.getElementById("generatedInvoiceNumber")?.value||""}`);}
 function shareGeneratedInvoiceEmail() {
     const subject = encodeURIComponent("Aprils Signature Invoice " + (document.getElementById("generatedInvoiceNumber")?.value || ""));
@@ -3044,8 +3022,8 @@ async function generateReceiptPdf(share) {
     if (!paper) return false;
     const html2pdf = await ensureHtml2Pdf();
     if (!html2pdf) {
+        if (share) { message("PDF sharing is unavailable because the PDF service could not be loaded. No PDF page was opened.", "error"); return false; }
         printGeneratedReceipt();
-        message("PDF library is unavailable, so the receipt has been opened in print view. Choose Save as PDF there.", "success");
         return false;
     }
     try {
@@ -3056,34 +3034,28 @@ async function generateReceiptPdf(share) {
             html2canvas: {scale:2,useCORS:true},
             jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
         };
-        const worker = html2pdf().set(options).from(paper);
-        if (share && navigator.share && navigator.canShare) {
-            const blob = await pdfFromVisibleElement(paper, options);
+        const blob = await pdfFromVisibleElement(paper, options);
+        if (share) {
             const file = new File([blob], options.filename, {type:"application/pdf"});
-            if (navigator.canShare({files:[file]})) {
-                await navigator.share({title:options.filename,text:"Aprils Signature Payment Receipt",files:[file]});
+            if (navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))) {
+                await navigator.share({title: options.filename, text:"Aprils Signature Payment Receipt", files:[file]});
                 return true;
             }
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
-        const blob = await pdfFromVisibleElement(paper, options);
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
         setTimeout(()=>URL.revokeObjectURL(url),1500);
-        if (share) message("Receipt PDF saved successfully.", "success");
+        message("Receipt PDF downloaded.", "success");
         return false;
     } catch (error) {
         console.error(error);
+        if (share) { message("The receipt could not be shared as a PDF. No PDF page was opened.", "error"); return false; }
         printGeneratedReceipt();
-        message("The receipt PDF could not be downloaded directly, so a print-safe receipt was opened. Choose Save as PDF there.", "success");
+        message("The receipt PDF could not be downloaded directly, so a print-safe receipt was opened.", "success");
         return false;
     }
-}
-
-function getGeneratedReceiptShareText() {
-    const state = window._aprilsCurrentReceipt;
-    if (!state) return "";
-    state.renderReceipt();
-    return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nAmount Received: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
 }
 
 async function shareGeneratedReceiptWhatsApp(){const phone=document.getElementById("generatedReceiptPhone")?.value||"";const state=window._aprilsCurrentReceipt;if(!state)return;state.renderReceipt();await sharePdfToWhatsApp(document.getElementById("receiptPaper"),`${document.getElementById("generatedReceiptNumber")?.value||"Aprils-Signature-Receipt"}.pdf`,phone,`Aprils Signature Receipt ${document.getElementById("generatedReceiptNumber")?.value||""}`);}
@@ -3982,9 +3954,70 @@ async function loadQuotes() {
 ========================================================= */
 async function loadOrderTracking(){
  const list=document.getElementById("orderTrackingList");if(!list)return;
- try{const [qr,settings]=await Promise.all([db.from("quote_requests").select("*"),getRows("settings")]);if(qr.error)throw qr.error;const invs=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);const pays=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);const orders=(qr.data||[]).map(r=>{let j={};try{j=JSON.parse(r.journey||"{}")}catch(_){}return{...r,j}});const track=[];for(const row of orders){const checkout=!!row.j.checkout;const invoice=invs.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];const invoiceNumber=invoice?.invoiceNumber||row.j.invoiceNumber||"";const paid=pays.filter(x=>String(x.invoiceNumber||"")===String(invoiceNumber)).reduce((a,x)=>a+Number(x.amount||0),0);const total=Number(invoice?.total??row.j.total??0);const status=checkout?(row.j.orderStatus||"under_review"):await getAdminRecordStatus("quote_status",row.id);const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||""}:await getDeliveryTracking(row.id);track.push({row,checkout,invoice,invoiceNumber,paid,total,status,delivery});}track.sort((a,b)=>String(b.row.created_at||"").localeCompare(String(a.row.created_at||"")));list.innerHTML=track.length?`<div class="submission-card-grid">${track.map(x=>{const balance=Math.max(0,x.total-x.paid);const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);const timeline=[x.row.created_at?`Request: ${new Date(x.row.created_at).toLocaleString()}`:"",x.invoiceNumber&&x.invoice?.date?`Invoice: ${x.invoice.date}`:"",x.paid>0?`Payment: GHS ${x.paid.toFixed(2)}`:"",x.delivery.date?`Delivery / Collection: ${x.delivery.date}${x.delivery.time?" • "+x.delivery.time:""}`:""].filter(Boolean).join(" → ");return `<article class="submission-card"><div class="submission-card-top"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><span>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</span></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleString():"")}</time></div><div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([x.row.phone,x.row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Invoice</b>${escapeHTML(x.invoiceNumber||"—")}</span><span><b>Payment</b>GHS ${x.paid.toFixed(2)} / GHS ${x.total.toFixed(2)}</span><span class="wide"><b>Timeline</b>${escapeHTML(timeline||"—")}</span></div><div class="submission-status-strip"><span><b>Current Status</b>${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Delivery / Collection Date</b><input type="date" data-tracking-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></span><span><b>Time</b><input type="time" data-tracking-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></span></div><div class="submission-card-actions"><button type="button" class="primary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save Tracking</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button>${x.invoiceNumber?`<button type="button" class="secondary" data-open-tracking-invoice="${escapeHTML(x.invoiceNumber)}">Open Invoice</button>`:""}</div></article>`}).join("")}</div>`:`<div class="empty">No customer orders are available for tracking.</div>`;list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{const id=b.dataset.saveTracking,checkout=b.dataset.checkout==="1",select=list.querySelector(`.admin-status-select[data-${checkout?"checkout-tracking-status":"quote-status"}="${CSS.escape(id)}"]`);try{const date=list.querySelector(`[data-tracking-date="${CSS.escape(id)}"]`)?.value||"",time=list.querySelector(`[data-tracking-time="${CSS.escape(id)}"]`)?.value||"",status=select?.value||"under_review";if(checkout){const x=track.find(v=>String(v.row.id)===String(id));x.row.j.orderStatus=status;x.row.j.deliveryDate=date;x.row.j.deliveryTime=time;const u=await db.from("quote_requests").update({journey:JSON.stringify(x.row.j)}).eq("id",id);if(u.error)throw u.error;await safeSettingUpsert("checkout_status_"+id,status)}else{await setAdminRecordStatus("quote_status",id,status);await saveDeliveryTracking(id,{date,time})}message("Order tracking updated.","success");await loadOrderTracking()}catch(e){message("Order tracking could not be updated: "+e.message,"error")}});list.querySelectorAll("[data-view-tracking]").forEach(b=>b.onclick=()=>{const x=track.find(v=>String(v.row.id)===String(b.dataset.viewTracking));if(x)showSubmissionDetails("Customer Order Tracking Details",x.row,x.row.journey||x.row.request_details||x.row.details||x.row.message||"",[])});list.querySelectorAll("[data-open-tracking-invoice]").forEach(b=>b.onclick=async()=>{const i=invs.find(v=>String(v.invoiceNumber)===String(b.dataset.openTrackingInvoice));if(i)await openInvoiceGenerator({full_name:i.customer||"",phone:i.phone||"",whatsapp:i.phone||"",email:i.email||"",location:i.address||""},{manualLines:i.lines||[],notes:i.notes||"",training:!!i.training,checkout:i.sourceType==="checkout_orders",invoiceNumber:i.invoiceNumber,discountPercent:Number(i.discountPercent||0)})});}catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}}
-async function loadTrainees(){const list=document.getElementById("traineesList");if(!list)return;try{const rows=await getRows("training_registrations"),paid=[];for(const row of rows){const summary=await getInvoiceSummaryForSubmission(row,true);if(Number(summary.paid||0)>0)paid.push({row,summary,status:await getAdminRecordStatus("training_status",row.id)})}list.innerHTML=paid.length?`<div class="submission-card-grid">${paid.map(x=>`<article class="submission-card"><div class="submission-card-top"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><span>${escapeHTML(x.row.course||"Training / Programme / Class")}</span></div></div><div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Invoice</b>${escapeHTML(x.summary.invoice||"—")}</span><span><b>Paid</b>GHS ${Number(x.summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(x.summary.balance||0).toFixed(2)}</span><span class="wide"><b>Details</b>${escapeHTML(x.row.message||x.row.request_details||x.row.details||"—")}</span></div><div class="submission-status-strip"><span><b>Status</b>${statusSelectHTML("training_status",x.row.id,x.status)}</span><span><b>Receipt</b>${escapeHTML(x.summary.receipt||"—")}</span></div><div class="submission-card-actions"><button type="button" class="primary" data-save-trainee-status="${escapeHTML(x.row.id)}">Save Status</button><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Details</button></div></article>`).join("")}</div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;list.querySelectorAll("[data-save-trainee-status]").forEach(b=>b.onclick=async()=>{const id=b.dataset.saveTraineeStatus,select=list.querySelector(`.admin-status-select[data-training-status="${CSS.escape(id)}"]`);try{await setAdminRecordStatus("training_status",id,select?.value||"under_review");message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])})}catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}}
-
+ try{
+  const [qr,settings,trainingRows]=await Promise.all([db.from("quote_requests").select("*"),getRows("settings"),getRows("training_registrations")]);
+  if(qr.error)throw qr.error;
+  const invs=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const pays=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const rows=(qr.data||[]).map(r=>{let j={};try{j=JSON.parse(r.journey||"{}")}catch(_){}return{...r,j}});
+  const track=[];
+  for(const row of rows){
+   const checkout=!!row.j.checkout;
+   const invoice=invs.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((x,y)=>String(y.savedAt||"").localeCompare(String(x.savedAt||"")))[0];
+   const invoiceNumber=invoice?.invoiceNumber||row.j.invoiceNumber||"";
+   const paid=pays.filter(x=>String(x.invoiceNumber||"")===String(invoiceNumber)).reduce((sum,x)=>sum+Number(x.amount||0),0);
+   const total=Number(invoice?.total??row.j.total??0);
+   let status=checkout?(row.j.orderStatus||"under_review"):await getAdminRecordStatus("quote_status",row.id);
+   const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||""}:await getDeliveryTracking(row.id);
+   const confirmed=paid>0 || ["order_taken","in_production","ready","fully_paid","dispatched","received"].includes(status);
+   if(confirmed)track.push({row,checkout,invoice,invoiceNumber,paid,total,status,delivery});
+  }
+  track.sort((x,y)=>String(y.row.created_at||"").localeCompare(String(x.row.created_at||"")));
+  const columns=[
+   ["confirmed","Confirmed / Pending",x=>["under_review","invoice_generated","deposit_paid","part_paid","receipt_generated"].includes(x.status)],
+   ["production","In Production",x=>x.status==="in_production"||x.status==="order_taken"],
+   ["ready","Ready for Collection / Delivery",x=>x.status==="ready"||x.status==="fully_paid"],
+   ["dispatched","Dispatched",x=>x.status==="dispatched"],
+   ["received","Received by Customer",x=>x.status==="received"]
+  ];
+  const card=x=>{
+   const balance=Math.max(0,x.total-x.paid);
+   const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);
+   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label></div><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button></article>`;
+  };
+  list.innerHTML=track.length?`<div class="tracking-board">${columns.map(([key,title,test])=>{const items=track.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No confirmed orders</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No confirmed customer orders are available for tracking. Orders appear here after a payment has been recorded.</div>`;
+  list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{
+   const id=b.dataset.saveTracking,checkout=b.dataset.checkout==="1",select=b.closest(".tracking-order-card")?.querySelector(".admin-status-select");
+   try{
+    const status=select?.value||"under_review",cardRow=track.find(v=>String(v.row.id)===String(id));
+    const date=b.closest(".tracking-order-card")?.querySelector("[data-track-date]")?.value||"",time=b.closest(".tracking-order-card")?.querySelector("[data-track-time]")?.value||"";
+    if(checkout){cardRow.row.j.orderStatus=status;await db.from("quote_requests").update({journey:JSON.stringify(cardRow.row.j)}).eq("id",id);await safeSettingUpsert("checkout_status_"+id,status)}
+    else await setAdminRecordStatus("quote_status",id,status);
+    await saveDeliveryTracking(id,{date,time});message("Order tracking updated.","success");await loadOrderTracking();
+   }catch(e){message("Order tracking could not be updated: "+e.message,"error")}
+  });
+ }catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
+async function loadTrainees(){
+ const list=document.getElementById("traineesList");if(!list)return;
+ try{
+  const rows=await getRows("training_registrations"),paid=[];
+  for(const row of rows){
+   const summary=await getInvoiceSummaryForSubmission(row,true);
+   if(Number(summary.paid||0)>0){
+    let status=await getAdminRecordStatus("training_status",row.id);
+    const fullPaid=Number(summary.balance||0)<=0 && Number(summary.paid||0)>0;
+    if(fullPaid && status!=="completed" && status!=="stopped" && status!=="in_class"){
+      try{await setAdminRecordStatus("training_status",row.id,"in_class");status="in_class"}catch(_){}
+    }
+    paid.push({row,summary,status});
+   }
+  }
+  list.innerHTML=paid.length?`<div class="trainee-board"><div class="trainee-table-wrap"><table><thead><tr><th>Date</th><th>Trainee</th><th>Programme</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>${paid.map(x=>`<tr><td>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</td><td><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><br>${escapeHTML(x.row.phone||"")}</td><td>${escapeHTML(x.row.course||"Training / Programme / Class")}</td><td>GHS ${Number(x.summary.paid||0).toFixed(2)}</td><td>GHS ${Number(x.summary.balance||0).toFixed(2)}</td><td>${statusSelectHTML("training_status",x.row.id,x.status)}</td><td><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View</button></td></tr>`).join("")}</tbody></table></div></div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;
+  list.querySelectorAll("[data-save-status-prefix]").forEach(b=>b.onclick=async()=>{const select=b.closest(".status-control")?.querySelector(".admin-status-select");try{await setAdminRecordStatus("training_status",b.dataset.saveStatusId,select?.value||"under_review");message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});
+  list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])});
+ }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
 async function loadEnquiries() {
     const rows = await getRows("enquiries");
     const list = document.getElementById("enquiryList");
@@ -4761,7 +4794,12 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_network", first.network || "");
             await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
-            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
+            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html?accounts="+encodeURIComponent(JSON.stringify(accounts)),accounts}));
+            // Saving publishes the entered accounts; clear the entry form so the
+            // next payment detail starts blank instead of showing saved values.
+            const paymentWrap = document.getElementById("invoicePaymentRows");
+            if (paymentWrap) paymentWrap.innerHTML = paymentRowTemplate({});
+            renderInvoicePaymentRowsFromCurrentDom();
             message("Invoice payment details saved.", "success");
             await loadInvoicePaymentDetails();
         } catch (error) {
@@ -6194,3 +6232,15 @@ if (document.readyState === "loading") {
 } else {
     startAdmin();
 }
+
+/* APRILS FIRST-LETTER CAPITALIZATION */
+(function(){
+    const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
+    document.addEventListener("input",function(e){
+        const el=e.target;
+        if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;
+        if(skip.has(String(el.type||"").toLowerCase()))return;
+        if(/email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||"")))return;
+        el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+    },true);
+})();
