@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.AprilsSupaba || null;
+        return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
@@ -128,6 +128,14 @@ PUBLIC FORM FIXES
                 const data =
                     new FormData(form);
 
+                const splitSizeOrMeasurements = value => {
+                    const text = String(value || "").trim();
+                    if (!text) return { size: "", measurements: "" };
+                    return /^(size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+)/i.test(text)
+                        ? { size: text, measurements: "" }
+                        : { size: "", measurements: text };
+                };
+
 
                 const services =
                     Array.from(
@@ -176,7 +184,9 @@ PUBLIC FORM FIXES
                     ladiesWearProducts: {},
                     ladiesWearOther: String(data.get("ladiesWearOther") || "").trim(),
                     kidsWear: String(data.get("kidsWearDetails") || "").trim(),
+                    kidsWearAge: String(data.get("kidsWearAge") || "").trim(),
                     kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
+                    kidsWearMeasurements: String(data.get("kidsWearMeasurements") || "").trim(),
                     kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
                     kidsWearQuantity: String(data.get("kidsWearQuantity") || "0").trim(),
                     training: String(data.get("trainingDetails") || "").trim(),
@@ -184,7 +194,10 @@ PUBLIC FORM FIXES
                     embellishmentOther: String(data.get("embellishmentOther") || "").trim(),
                     embellishmentDetails: {},
                     address: {},
-                    serviceOther: String(data.get("serviceOther") || "").trim(),
+                    serviceOther: String(data.get("serviceOtherRequest") || "").trim(),
+                    serviceOtherSizeMeasurements: String(data.get("serviceOtherSizeMeasurements") || "").trim(),
+                    serviceOtherColour: String(data.get("serviceOtherColour") || "").trim(),
+                    serviceOtherQuantity: String(data.get("serviceOtherQuantity") || "1").trim(),
                     additionalDetails: String(data.get("additionalDetails") || "").trim(),
                     deliveryDate: String(data.get("deliveryDate") || "").trim(),
                     deliveryTime: String(data.get("deliveryTime") || "").trim(),
@@ -208,11 +221,12 @@ PUBLIC FORM FIXES
                     const active = input.type === "checkbox" ? input.checked : Number(String(data.get(input.name) || "").trim() || 0) > 0;
                     if (!active) return;
                     const box = input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
-                    const localSize = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
+                    const rawSizeMeasurements = String(box?.querySelector('[data-detail="sizeMeasurements"]')?.value || details.streetwearSizeMeasurements).trim();
+                    const detected = splitSizeOrMeasurements(rawSizeMeasurements);
                     const localColour = String(box?.querySelector('[data-detail="colour"]')?.value || details.streetwearColour).trim();
                     const localQuantity = String(box?.querySelector('[data-detail="quantity"]')?.value || (input.type === "checkbox" ? "1" : data.get(input.name) || "1")).trim();
                     const localDetails = String(box?.querySelector('[data-detail="details"]')?.value || "").trim();
-                    details.streetwear[input.name] = { product, quantity: localQuantity, size: localSize, measurements: "", colour: localColour, details: localDetails };
+                    details.streetwear[input.name] = { product, quantity: localQuantity, size: detected.size, measurements: detected.measurements, colour: localColour, details: localDetails };
                     if (product === "Others" && localDetails) details.streetwearOther = localDetails;
                 });
 
@@ -266,12 +280,13 @@ PUBLIC FORM FIXES
                     const item = input.closest(".catalogue-item");
                     const box = item?.querySelector(".catalogue-detail-box");
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
-                    const sizeMeasurements = get("sizeMeasurements") || details.ladiesWearSize;
+                    const itemSize = get("size") || details.ladiesWearSize;
+                    const itemMeasurements = get("measurements") || "";
                     const itemDetails = get("details");
                     details.ladiesWearProducts[input.value] = {
                         product: input.value,
-                        size: sizeMeasurements,
-                        measurements: "",
+                        size: itemSize,
+                        measurements: itemMeasurements,
                         colour: get("colour") || details.ladiesWearColour,
                         quantity: get("quantity") || details.ladiesWearQuantity || "1",
                         details: itemDetails
@@ -292,14 +307,15 @@ PUBLIC FORM FIXES
 
 
 
-                if (services.includes("Address")) {
-                    const getAddress = key => String(form.querySelector(`#addressSection [data-detail="${key}"]`)?.value || data.get("address" + key.charAt(0).toUpperCase()+key.slice(1)) || "").trim();
-                    details.address = {
-                        size: getAddress("sizeMeasurements"),
-                        measurements: "",
-                        colour: getAddress("colour"),
-                        quantity: getAddress("quantity") || "1",
-                        details: getAddress("details")
+                if (services.includes("Others")) {
+                    const rawOther = String(data.get("serviceOtherSizeMeasurements") || "").trim();
+                    const detectedOther = splitSizeOrMeasurements(rawOther);
+                    details.serviceOtherDetails = {
+                        size: detectedOther.size,
+                        measurements: detectedOther.measurements,
+                        colour: String(data.get("serviceOtherColour") || "").trim(),
+                        quantity: String(data.get("serviceOtherQuantity") || "1").trim(),
+                        details: String(data.get("serviceOtherRequest") || "").trim()
                     };
                 }
 
@@ -505,6 +521,14 @@ PUBLIC FORM FIXES
 
                 const data =
                     new FormData(form);
+
+                const splitSizeOrMeasurements = value => {
+                    const text = String(value || "").trim();
+                    if (!text) return { size: "", measurements: "" };
+                    return /^(size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+)/i.test(text)
+                        ? { size: text, measurements: "" }
+                        : { size: "", measurements: text };
+                };
 
 
                 const payload = {
