@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Order / Request a Quote | Aprils Signature</title>
-<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streear, ladies wear, kids wear and embellishment services." name="description"/>
+<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
 <link href="css/style.css" rel="stylesheet"/>
 <style>
         .quote-page {
@@ -371,7 +371,7 @@
 <section class="form-section">
 <h2>Service Selection</h2>
 <p>
-        Select one or more services. Practical Fashion Training registrations are completed on the Training page.
+        Select one or more services. Practical Fashion Training can be selected here, with registration completed on the Training page.
     </p>
 <div class="service-options">
 <label class="check-option"><input name="services[]" type="checkbox" value="Streetwear"/>Streetwear</label>
@@ -379,11 +379,11 @@
 <label class="check-option"><input name="services[]" type="checkbox" value="Kids Wear"/>Kids Wear</label>
 <label class="check-option"><input name="services[]" type="checkbox" value="Embellishment Services"/>Embellishment Services</label>
 <label class="check-option"><input name="services[]" type="checkbox" value="Others"/>Others</label>
-<label class="check-option"><input name="services[]" type="checkbox" value="Practical Fashion Training"/>Practical Fashion Training</label>
-<p id="trainingServiceLink" class="training-service-link" style="margin-top:10px;">
-            Practical Fashion Training registrations are completed on the Training page.
-            <a href="training.html">View Training Programmes &amp; Register</a>
-        </p>
+<label class="check-option training-service-option" id="trainingServiceLink">
+<input name="services[]" type="checkbox" value="Practical Fashion Training"/>
+<span>Practical Fashion Training</span>
+<a href="training.html">View Training Programmes &amp; Register</a>
+</label>
 </div>
 </section>
 <!-- OTHERS -->
@@ -419,8 +419,7 @@
 <h2>Kids Wear Details</h2>
 <div class="catalogue-detail-grid">
 <div class="form-group"><label for="kidsWearAge">Age</label><input id="kidsWearAge" name="kidsWearAge" placeholder="e.g. 12 years" type="text"/></div>
-<div class="form-group"><label for="kidsWearSize">Size (UK)</label><input id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12 (UK)" type="text"/></div>
-<div class="form-group"><label for="kidsWearMeasurements">Measurements</label><textarea id="kidsWearMeasurements" name="kidsWearMeasurements" placeholder="Enter measurements if required."></textarea></div>
+<div class="form-group"><label for="kidsWearSizeMeasurements">Size (UK) / Measurements</label><textarea id="kidsWearSizeMeasurements" name="kidsWearSizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
 </div>
 <div class="form-group">
 <label for="kidsWearColour">Colour (S)</label>
