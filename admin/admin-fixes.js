@@ -3,7 +3,7 @@
 /*
  APRILS SIGNATURE — compatibility fixes.
  The main dashboard logic now lives in admin.js.
- This file only keeps the Google Review link correction so older
+ This file only keeps the Google Review link correction solder
  deployments that still include Admin-fixes.js remain safe.
 */
 
