@@ -906,7 +906,7 @@ async function loadPublicStreetwearProducts(){
     const container=document.getElementById("streetwearProductsDynamic"); if(!container)return;
     const normal=n=>String(n||"").trim().toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\\s+/g," ").trim();
     const groups=[
-        ["Tops",["Jersey","T-Shirt","Hoodies","Polo Shirt","Sweatshirt","Varsity Jacket"]],
+        ["Tops",["Jersey","Jersey Sample","T-Shirt","T-Shirt Sample","Hoodies","Polo Shirt","Sweatshirt","Varsity Jacket"]],
         ["Tank Top Options",["Ladies Tank Top","Men’s Tank Top"]],
         ["Bottoms",["Super Thick Cotton Joggers","Everyday Wear Type of Joggers","Joggers Short","Sweatpants","Jorts","Cargo Pants","Cargo Skirts"]],
         ["Sets",["Hoodies and Joggers Set","T-shirt and Shorts Set","T-shirt and Sweatpants Set","Sweatshirt and Shorts Sets","Sweatshirts and Sweatpants Set"]]
@@ -991,7 +991,7 @@ async function loadPublicLadiesWearProducts() {
 
 async function setupEmbellishmentCatalogue(){
     const container=document.getElementById("embellishmentProductsDynamic"); if(!container)return;
-    const names=["Rhinestone Embellishment","Screen Printing / Fabric Painting","Glitter Works","3D / Rhinestone Patches","Hand / Laser Cuts","Others"];
+    const names=["Rhinestone Embellishment","Screen Printing","Fabric Painting","Glitter Works","Others"];
     const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])));
     container.innerHTML=names.map(name=>`<div class="catalogue-item"><label class="check-option"><input type="checkbox" name="embellishment[]" value="${esc(name)}" data-embellishment-product="true"> ${esc(name)}</label><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour</label><input data-detail="colour" placeholder="e.g. Gold"></div><div class="form-group"><label>Quantity</label><input type="number" min="1" value="1" data-detail="quantity"></div><div class="form-group" style="grid-column:1/-1"><label>Specify Your Request</label><textarea data-detail="details" placeholder="Specify what you want us to do."></textarea></div></div></div></div>`).join("");
     container.querySelectorAll('input[data-embellishment-product="true"]').forEach(cb=>cb.addEventListener("change",()=>{
@@ -1329,6 +1329,18 @@ async function loadPublicTraining() {
     if (!document.body.classList.contains("training-page")) return;
 
     const rows = await loadPublicRows("training_programs");
+    let publicPriceRows = [];
+    try {
+        const supabase = await waitForSupabase();
+        if (supabase) {
+            const r = await supabase.from("settings").select("setting_key,setting_value").like("setting_key","public_training_price_%");
+            if (!r.error) {
+                publicPriceRows = (r.data || []).map(x => {
+                    try { return JSON.parse(x.setting_value || "{}"); } catch (_) { return null; }
+                }).filter(Boolean);
+            }
+        }
+    } catch (_) {}
 
     const desired = [
         {
@@ -1372,9 +1384,13 @@ async function loadPublicTraining() {
 
     const cards = desired.map(item => {
         const match = rows.find(row => item.aliases.includes(normalized(row.title)));
+        const publicPrice = publicPriceRows.find(p =>
+            normalized(p.name) === normalized(match?.title || item.title)
+        );
         return {
             title: item.title,
             description: match?.description || item.fallback,
+            price: publicPrice?.price !== undefined ? Number(publicPrice.price) : null,
             active: match?.active !== false
         };
     }).filter(item => item.active);
@@ -1387,9 +1403,33 @@ async function loadPublicTraining() {
     grid.innerHTML = cards.map(row => `
         <article class="training-card">
             <h3>${escapeHTML(row.title)}</h3>
+            ${row.price !== null && row.price !== undefined && !Number.isNaN(row.price) ? `<p class="service-public-price"><strong>Price:</strong> GHS ${Number(row.price).toFixed(2)}</p>` : ""}
             <p>${escapeHTML(row.description)}</p>
         </article>
     `).join("");
+}
+
+async function loadPublicTrainingRegistrationOptions(){
+    const select=document.getElementById("courseInterested"); if(!select)return;
+    try{
+        const supabase=await waitForSupabase(); if(!supabase)return;
+        const [programs,prices]=await Promise.all([
+            supabase.from("training_programs").select("title,category,active,display_order"),
+            supabase.from("settings").select("setting_value").like("setting_key","public_training_price_%")
+        ]);
+        if(programs.error)return;
+        const priceRows=(prices.data||[]).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+        const rows=(programs.data||[]).filter(r=>r.active!==false&&r.title).sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)||String(a.title).localeCompare(String(b.title)));
+        if(!rows.length)return;
+        select.innerHTML='<option value="">Select a Course/Class</option>';
+        rows.forEach(r=>{
+            const opt=document.createElement("option");
+            const p=priceRows.find(x=>String(x.name||"").trim().toLowerCase()===String(r.title||"").trim().toLowerCase());
+            opt.value=r.title;
+            opt.textContent=p?.price!==undefined ? `${r.title} — GHS ${Number(p.price).toFixed(2)}` : r.title;
+            select.appendChild(opt);
+        });
+    }catch(e){console.warn("Training registration catalogue unavailable:",e)}
 }
 
 async function loadPublicTestimonials() {
@@ -1615,7 +1655,7 @@ async function loadPublicManagedContent() {
                 try { return { ...JSON.parse(row.setting_value || "{}"), id: row.id }; }
                 catch (_) { return null; }
             })
-            .filter(Boolean);
+            .filter(item => item && !/payment\.html/i.test(String(item.url || "")) && String(item.label || "").trim().toLowerCase() !== "payment details");
 
         const managedByUrl = new Map(managed.map(item => [String(item.url || "").trim().toLowerCase(), item]));
         const mergedCore = coreNavigation.map(core => {
@@ -1882,6 +1922,7 @@ function start() {
     setupAutomaticCapitalisation();
     loadPublicStreetwearProducts();
     loadPublicLadiesWearProducts();
+    loadPublicTrainingRegistrationOptions();
     setupEmbellishmentCatalogue();
     loadPublicFeaturedCollection();
 

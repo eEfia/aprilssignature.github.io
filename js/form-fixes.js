@@ -131,7 +131,7 @@ PUBLIC FORM FIXES
                 const splitSizeOrMeasurements = value => {
                     const text = String(value || "").trim();
                     if (!text) return { size: "", measurements: "" };
-                    return /^(size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+)/i.test(text)
+                    return /^(?:size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+|\d{1,2})$/i.test(text)
                         ? { size: text, measurements: "" }
                         : { size: "", measurements: text };
                 };
@@ -527,7 +527,7 @@ PUBLIC FORM FIXES
                 const splitSizeOrMeasurements = value => {
                     const text = String(value || "").trim();
                     if (!text) return { size: "", measurements: "" };
-                    return /^(size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+)/i.test(text)
+                    return /^(?:size\s*[:\-]?\s*\d+|uk\s*size\s*[:\-]?\s*\d+|\d{1,2})$/i.test(text)
                         ? { size: text, measurements: "" }
                         : { size: "", measurements: text };
                 };
