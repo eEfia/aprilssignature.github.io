@@ -1,6 +1,6 @@
 /* =========================================================
    APRILS SIGNATURE
-   MASTER WEBSITE STYLESHE
+   MASTER WEBSITE STYLESHEET
    ========================================================= */
 
 
@@ -3139,4 +3139,143 @@ table td {
 button:active, a.btn:active, a.button:active, .check-option:active {
     transform: translateY(1px);
     opacity: .78;
+}
+
+
+/* =========================================================
+   ORDER QUOTE CATALOGUE + ADMIN TRACKING REFINEMENTS
+========================================================= */
+.quote-form .training-service-option{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    background:var(--teal,#0f7775);
+    color:#fff;
+    border-radius:8px;
+    padding:12px 14px;
+}
+.quote-form .training-service-option a{color:#fff;text-decoration:underline;font-weight:700}
+.quote-form .training-service-option input{accent-color:#fff}
+.quote-form .joggers-subgroup-title{
+    background:#000;
+    color:#fff;
+    display:inline-block;
+    padding:7px 12px;
+    border-radius:5px;
+    margin:12px 0 8px;
+    font-weight:800;
+}
+.quote-form .jogger-product-row .form-group:first-child{
+    max-width:190px;
+}
+.quote-form .jogger-product-row .form-group:first-child > label{
+    display:inline-block;
+    width:auto;
+    background:#000;
+    color:#fff;
+    border-radius:5px;
+    padding:7px 10px;
+    margin-bottom:6px;
+}
+.quote-form .jogger-product-row .form-group:first-child input{
+    display:block;
+    width:74px;
+}
+.quote-form .catalogue-other-row .others-choice{
+    display:inline-block;
+    background:#000;
+    color:#fff;
+    border-radius:5px;
+    padding:8px 12px;
+    font-weight:800;
+}
+.saved-record-columns{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+.saved-record-columns>div{
+    min-width:0;
+}
+.saved-record-columns h4{
+    color:var(--teal,#0f7775);
+    margin:0 0 10px;
+}
+.tracking-board{
+    display:grid;
+    grid-template-columns:repeat(5,minmax(220px,1fr));
+    gap:14px;
+    align-items:start;
+    overflow-x:auto;
+    padding-bottom:8px;
+}
+.tracking-column{
+    min-width:220px;
+    background:#f7f7f7;
+    border:1px solid #ddd;
+    border-radius:10px;
+    overflow:hidden;
+}
+.tracking-column>header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px;
+    background:#fff;
+    border-bottom:1px solid #ddd;
+}
+.tracking-column>header h3{margin:0;font-size:15px}
+.tracking-column>header strong{
+    display:grid;place-items:center;
+    min-width:28px;height:28px;border-radius:50%;
+    background:var(--teal,#0f7775);color:#fff;
+}
+.tracking-column-body{
+    padding:10px;
+    min-height:140px;
+    display:grid;
+    gap:10px;
+}
+.tracking-order-card{
+    background:#fff;
+    border:1px solid #d8d8d8;
+    border-radius:8px;
+    padding:11px;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.tracking-card-head{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:8px;
+}
+.tracking-card-head strong{display:block}
+.tracking-card-head small{display:block;color:#666;margin-top:3px}
+.tracking-card-head time{font-size:11px;color:#777;white-space:nowrap}
+.tracking-card-data{
+    display:grid;
+    gap:7px;
+    font-size:12px;
+}
+.tracking-card-data span{display:block}
+.tracking-card-data b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#666;margin-bottom:2px}
+.tracking-card-status{margin:9px 0}
+.tracking-card-status .status-control{display:flex;flex-wrap:wrap;gap:6px}
+.tracking-card-status select{min-width:0;max-width:100%;flex:1}
+.tracking-card-due{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+    margin-bottom:8px;
+}
+.tracking-card-due label{font-size:10px;font-weight:700;color:#666}
+.tracking-card-due input{display:block;width:100%;box-sizing:border-box;margin-top:3px;font-size:11px}
+.tracking-order-card>button{width:100%}
+.tracking-empty{color:#888;font-size:12px;text-align:center;padding:20px 5px}
+@media(max-width:1050px){
+    .tracking-board{grid-template-columns:repeat(5,240px)}
+}
+@media(max-width:800px){
+    .saved-record-columns{grid-template-columns:1fr}
 }
