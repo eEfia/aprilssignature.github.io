@@ -71,9 +71,9 @@
             <td>GHS ${Number(x.j.total||0).toFixed(2)}</td>
             <td>${esc(x.j.paymentStatus||"pending")}</td>
             <td><select class="admin-status-select" data-checkout-status="${esc(x.id)}">
-                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["fully_paid","Fully Paid"],["order_taken","Order Taken"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
+                ${[["under_review","Pending"],["order_taken","Confirmed / Order Taken"],["in_production","In Production"],["completed","Completed"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
             </select></td>
-            <td><div style="display:grid;gap:6px"><input type="date" data-checkout-delivery-date="${esc(x.id)}" value="${esc(x.j.deliveryDate||"")}"><input type="time" data-checkout-delivery-time="${esc(x.id)}" value="${esc(x.j.deliveryTime||"")}"><button class="secondary" data-save-checkout-delivery="${esc(x.id)}">Save Delivery</button></div></td>
+            <td><div style="display:grid;gap:6px"><input type="date" data-checkout-delivery-date="${esc(x.id)}" value="${esc(x.j.deliveryDate||"")}"><input type="time" data-checkout-delivery-time="${esc(x.id)}" value="${esc(x.j.deliveryTime||"")}"><input type="text" data-checkout-delivery-location="${esc(x.id)}" value="${esc(x.j.deliveryLocation||"")}" placeholder="Delivery / collection location"><button class="secondary" data-save-checkout-delivery="${esc(x.id)}">Save Delivery</button></div></td>
             <td>
                 <button class="secondary" data-checkout-details="${esc(x.id)}">View Full Details</button>
                 <button class="primary" data-checkout-invoice="${esc(x.id)}">Generate Invoice</button>
@@ -95,7 +95,7 @@
 
         list.querySelectorAll("[data-save-checkout-delivery]").forEach(b=>b.onclick=async()=>{
             const x=orders.find(o=>String(o.id)===String(b.dataset.saveCheckoutDelivery));if(!x)return;
-            try { x.j.deliveryDate=list.querySelector(`[data-checkout-delivery-date="${CSS.escape(x.id)}"]`)?.value||""; x.j.deliveryTime=list.querySelector(`[data-checkout-delivery-time="${CSS.escape(x.id)}"]`)?.value||""; const u=await d.from("quote_requests").update({journey:JSON.stringify(x.j)}).eq("id",x.id);if(u.error)throw u.error;message("Checkout delivery details saved.","success"); } catch(e){alert("Delivery details could not be saved: "+e.message)}
+            try { x.j.deliveryDate=list.querySelector(`[data-checkout-delivery-date="${CSS.escape(x.id)}"]`)?.value||""; x.j.deliveryTime=list.querySelector(`[data-checkout-delivery-time="${CSS.escape(x.id)}"]`)?.value||""; x.j.deliveryLocation=list.querySelector(`[data-checkout-delivery-location="${CSS.escape(x.id)}"]`)?.value||""; const u=await d.from("quote_requests").update({journey:JSON.stringify(x.j)}).eq("id",x.id);if(u.error)throw u.error;message("Checkout delivery details saved.","success"); } catch(e){alert("Delivery details could not be saved: "+e.message)}
         });
 
         list.querySelectorAll("[data-checkout-details]").forEach(b=>b.onclick=()=>{
@@ -109,8 +109,8 @@
             const x=orders.find(o=>String(o.id)===String(b.dataset.checkoutInvoice));if(!x)return;
             if(!window.aprilsOpenInvoiceGenerator){alert("Invoice generator is not ready yet.");return;}
             const manualLines=[];
-            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:`Shop Item — ${i.name}`}); }
-            await window.aprilsOpenInvoiceGenerator({id:x.id,full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,checkout:true,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""});
+            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:`${i.name}`}); }
+            await window.aprilsOpenInvoiceGenerator({id:x.id,full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,checkout:true,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""});
         });
 
         list.querySelectorAll("[data-checkout-paid]").forEach(b=>b.onclick=async()=>{
@@ -126,7 +126,7 @@
                     const u=await d.from("settings").update({setting_value:JSON.stringify(v),updated_at:new Date().toISOString()}).eq("id",inv.data.id);
                     if(u.error)throw u.error;
                 }
-                x.j.paymentStatus="paid";x.j.orderStatus="fully_paid";
+                x.j.paymentStatus="paid";x.j.orderStatus="order_taken";
                 const invoiceNumber=x.j.invoiceNumber||("AS-CO-"+String(x.id).replace(/[^a-zA-Z0-9]/g,"").slice(-8).toUpperCase());
                 x.j.invoiceNumber=invoiceNumber;
                 const u=await d.from("quote_requests").update({journey:JSON.stringify(x.j)}).eq("id",x.id);if(u.error)throw u.error;
@@ -134,9 +134,9 @@
                 // Keep checkout, invoice, payment and accounting records synchronized.
                 const invoiceKey="invoice_record_"+slug(invoiceNumber);
                 const pricedLines=[];
-                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`Shop Item — ${i.name}`}); }
+                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`${i.name}`}); }
                 const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
-                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""};
+                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
                 await save(invoiceKey,invoiceRecord);
                 await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
                 const receiptNumber="AS-RC-"+Date.now().toString().slice(-8);

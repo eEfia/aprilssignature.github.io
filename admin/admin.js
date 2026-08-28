@@ -289,11 +289,13 @@ async function checkSession() {
     try {
         const result = await db.auth.getSession();
         if (result.data.session) {
+            window._aprilsAdminUser = result.data.session.user;
             login.style.display = "none";
             try { await seedInitialPublicContent(); } catch (_) {}
             try { await cleanupExactDuplicates(); } catch (_) {}
             await syncOfflineInvoiceRecords();
             await applyCurrentUserAccess(result.data.session.user);
+            window._aprilsAuditReady = true;
             await restoreAdminSection();
         } else {
             login.style.display = "flex";
@@ -423,9 +425,12 @@ async function loadSection(id) {
         if (id === "trainees") await loadTrainees();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
+        if (id === "usersInvoice") await loadSavedInvoiceReceiptRecords();
+        if (id === "collectionForms") await loadCollectionInvoiceOptions();
         if (id === "inventory" && window.loadInventory) await window.loadInventory();
         if (id === "checkout" && window.loadCheckoutOrders) await window.loadCheckoutOrders();
         if (id === "errors" && window.loadErrorLog) await window.loadErrorLog();
+        if (id === "auditLog") await loadAuditLog();
         if (id === "notifications") await loadNotifications();
         if (id === "shopAdmin") setupShopAdmin();
         if (id === "accounting") await loadAccounting();
@@ -1061,7 +1066,80 @@ async function safeSettingUpsert(key, value) {
         result = await db.from("settings").insert({setting_key:key, setting_value:value, updated_at:now});
         if (result.error) throw result.error;
     }
+    if (window._aprilsAuditReady && !String(key || "").startsWith("audit_event_")) {
+        try {
+            const actor = await getCurrentStaffIdentity();
+            const eventId = makeAprilsUniqueId("AUD");
+            await db.from("settings").insert({
+                setting_key: "audit_event_" + contentSlug(eventId),
+                setting_value: JSON.stringify({
+                    eventId,
+                    entityType: "settings",
+                    entityId: String(key || ""),
+                    action: "saved",
+                    actorId: actor.staffId,
+                    actorEmail: actor.email,
+                    at: now
+                }),
+                updated_at: now
+            });
+        } catch (_) {}
+    }
     return result;
+}
+
+function makeAprilsUniqueId(prefix = "ENT") {
+    const stamp = Date.now().toString(36).toUpperCase();
+    const random = (crypto?.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2)).slice(0, 8).toUpperCase();
+    return `${prefix}-${stamp}-${random}`;
+}
+
+async function getCurrentStaffIdentity() {
+    try {
+        const sessionResult = await db?.auth?.getSession();
+        const user = sessionResult?.data?.session?.user;
+        if (!user?.id) return { staffId: "CUSTOMER", email: "", name: "Customer" };
+        const key = "staff_identity_" + user.id;
+        const existing = await db.from("settings").select("id,setting_value").eq("setting_key", key).maybeSingle();
+        if (!existing.error && existing.data?.setting_value) {
+            try {
+                const parsed = JSON.parse(existing.data.setting_value);
+                if (parsed.staffId) return {...parsed, email: parsed.email || user.email || ""};
+            } catch (_) {}
+        }
+        const identity = {
+            staffId: makeAprilsUniqueId("STF"),
+            email: String(user.email || "").trim().toLowerCase(),
+            name: String(user.user_metadata?.full_name || user.email || "Staff").trim(),
+            createdAt: new Date().toISOString()
+        };
+        await db.from("settings").upsert({
+            setting_key: key,
+            setting_value: JSON.stringify(identity),
+            updated_at: new Date().toISOString()
+        }, {onConflict:"setting_key"});
+        return identity;
+    } catch (_) {
+        return { staffId: "STAFF-UNAVAILABLE", email: "", name: "Staff" };
+    }
+}
+
+async function auditSystemEvent(entityType, entityId, action, details = {}) {
+    try {
+        if (!db) return;
+        const actor = await getCurrentStaffIdentity();
+        const eventId = makeAprilsUniqueId("AUD");
+        await safeSettingUpsert("audit_event_" + contentSlug(eventId), JSON.stringify({
+            eventId,
+            entityType,
+            entityId: String(entityId || ""),
+            action,
+            actorId: actor.staffId,
+            actorEmail: actor.email,
+            details,
+            at: new Date().toISOString()
+        }));
+    } catch (_) {}
 }
 
 async function seedDefaultProducts() {
@@ -1564,8 +1642,8 @@ function setupHomepageMediaForm() {
 function setupDirectCustomerLinks() {
     const links = {
         website: new URL("../index.html", window.location.href).href,
-        order: new URL("../quotes.html#quoteForm", window.location.href).href,
-        training: new URL("../training.html#training-registration-form", window.location.href).href,
+        order: new URL("../quotes.html", window.location.href).href,
+        training: new URL("../training.html", window.location.href).href,
         gallery: new URL("../gallery.html", window.location.href).href,
         contact: new URL("../contact.html", window.location.href).href,
         policies: new URL("../policies.html", window.location.href).href,
@@ -1606,7 +1684,8 @@ function setupDirectCustomerLinks() {
         button.onclick = async () => {
             let url = links[button.dataset.copyDirectLink];
             if (!url) return;
-            if (button.dataset.copyDirectLink === "payment") {
+            const key = button.dataset.copyDirectLink;
+            if (key === "payment") {
                 try {
                     const saved = await getSettingValue("invoice_payment_accounts");
                     const accounts = JSON.parse(saved || "[]");
@@ -1614,12 +1693,15 @@ function setupDirectCustomerLinks() {
                         const paymentUrl = new URL(url);
                         paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
                         url = paymentUrl.href;
+                    } else {
+                        message("Save the payment details first.", "error");
+                        return;
                     }
-                } catch (_) {}
+                } catch (_) { message("The saved payment details could not be read.", "error"); return; }
             }
             try {
                 await navigator.clipboard.writeText(url);
-                message("Payment link copied with the current payment details.", "success");
+                message(key === "payment" ? "Payment link copied with the current payment details." : "Link copied.", "success");
             } catch (_) {
                 window.prompt("Copy this direct link:", url);
             }
@@ -1836,10 +1918,11 @@ async function saveInvoicePayment(payment) {
             if (invoice?.training && invoice?.sourceId) {
                 const payments = await getInvoicePayments(payment.invoiceNumber);
                 const paid = payments.reduce((sum,row)=>sum+Number(row.amount||0),0);
-                if (Number(invoice.total||0)>0 && paid >= Number(invoice.total||0)) {
+                const total = Number(invoice.total||0);
+                if (total > 0) {
                     const current = await getAdminRecordStatus("training_status", invoice.sourceId);
-                    if (!["stopped","completed"].includes(current)) {
-                        await setAdminRecordStatus("training_status", invoice.sourceId, "in_class");
+                    if (!["stopped","completed","in_class"].includes(current)) {
+                        await setAdminRecordStatus("training_status", invoice.sourceId, paid >= total ? "fully_paid" : "part_paid");
                     }
                 }
             }
@@ -2023,7 +2106,7 @@ async function loadNotifications() {
                 if (!e) return;
                 const number = normalizeWhatsAppNumber(waInput?.value || "");
                 if (!number) { message("Save the website WhatsApp number first.","error"); return; }
-                window.open(`https://wa.me/${number}?text=${encodeURIComponent(notificationMessage(e))}`, "_blank", "noopener,noreferrer");
+                window.location.href = `https://wa.me/${number}?text=${encodeURIComponent(notificationMessage(e))}`;
             };
         });
         list.querySelectorAll("[data-notify-email]").forEach(button => {
@@ -2252,16 +2335,21 @@ async function openSavedReceiptRecord(row) {
 async function loadSavedInvoiceReceiptRecords() {
     const invoiceList=document.getElementById("savedInvoiceList");
     const receiptList=document.getElementById("savedReceiptList");
-    if(!invoiceList && !receiptList)return;
+    const userInvoiceList=document.getElementById("userInvoiceSavedList");
+    if(!invoiceList && !receiptList && !userInvoiceList)return;
     try{
         const rows=await getRows("settings");
-        const invoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return{type:"Invoice",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
+        const allInvoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return{type:"Invoice",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
+        const invoices=[...allInvoices];
+        const userInvoices=allInvoices.filter(r=>!!r.userInvoice);
         try{
             const offline=JSON.parse(localStorage.getItem("aprils_offline_invoices")||"[]");
             offline.forEach(r=>invoices.push({type:"Invoice",id:"offline-"+(r.invoiceNumber||Math.random()),key:r.offlineKey||("offline_invoice_"+contentSlug(r.invoiceNumber)),...r,offline:true}));
         }catch(_){}
         const receipts=rows.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return{type:"Receipt",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
         for(const r of invoices){try{r._paymentTotal=(await getInvoicePayments(r.invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0)}catch(_){r._paymentTotal=0}}
+        const renderUserInvoiceTable=(records)=>`<table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const paid=Number(r._paymentTotal||0),total=Number(r.total||0);const status=paid>=total&&total>0?"Paid in full":paid>0?"Part payment":"Payment pending";return `<tr><td>${escapeHTML(r.invoiceNumber||"")}</td><td>${escapeHTML(r.date||"")}</td><td>${escapeHTML(r.customer||"")}</td><td>GHS ${total.toFixed(2)}</td><td>${escapeHTML(status)}</td><td><button type="button" class="secondary" data-user-view="${escapeHTML(r.key)}">View</button><button type="button" class="secondary" data-user-edit="${escapeHTML(r.key)}">Edit / Correct</button><button type="button" class="secondary" data-user-share="${escapeHTML(r.key)}">Share PDF</button></td></tr>`;}).join("")}</tbody></table>`;
+
         const renderTable=(records,type)=>{
             if(!records.length)return `<div class="empty">No saved ${type.toLowerCase()}s yet.</div>`;
             return `<table><thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{
@@ -2272,25 +2360,39 @@ async function loadSavedInvoiceReceiptRecords() {
         };
         if(invoiceList)invoiceList.innerHTML=renderTable(invoices,"Invoice");
         if(receiptList)receiptList.innerHTML=renderTable(receipts,"Receipt");
+        if(userInvoiceList)userInvoiceList.innerHTML=userInvoices.length ? renderUserInvoiceTable(userInvoices) : `<div class="empty">No user invoices have been saved yet.</div>`;
         const root=document;
-        [invoiceList,receiptList].filter(Boolean).forEach(list=>{
+        [invoiceList,receiptList,userInvoiceList].filter(Boolean).forEach(list=>{
             list.querySelectorAll("[data-open-saved-record],[data-edit-saved-record]").forEach(button=>button.onclick=async()=>{
                 const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset[button.dataset.openSavedRecord!==undefined?"openSavedRecord":"editSavedRecord"]);
                 if(!row)return;
                 if(type==="Invoice"){
-                    await openInvoiceGenerator({full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
                 }else await openSavedReceiptRecord(row);
             });
             list.querySelectorAll("[data-share-saved-record]").forEach(button=>button.onclick=async()=>{
                 const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset.shareSavedRecord);
                 if(!row)return;
                 if(type==="Invoice"){
-                    await openInvoiceGenerator({full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
                     await generateInvoicePdf(true);
                 }else{
                     await openSavedReceiptRecord(row);
                     await generateReceiptPdf(true);
                 }
+            });
+            list.querySelectorAll("[data-user-view]").forEach(button=>button.onclick=async()=>{
+                const row=userInvoices.find(r=>r.key===button.dataset.userView); if(!row)return;
+                await openSavedUserInvoiceReadOnly(row);
+            });
+            list.querySelectorAll("[data-user-edit]").forEach(button=>button.onclick=async()=>{
+                const row=userInvoices.find(r=>r.key===button.dataset.userEdit); if(!row)return;
+                await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:true,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
+            });
+            list.querySelectorAll("[data-user-share]").forEach(button=>button.onclick=async()=>{
+                const row=userInvoices.find(r=>r.key===button.dataset.userShare); if(!row)return;
+await openSavedUserInvoiceReadOnly(row);
+                await generateInvoicePdf(true);
             });
             list.querySelectorAll("[data-delete-saved-record]").forEach(button=>button.onclick=async()=>{
                 const type=button.dataset.recordType,number=button.dataset.recordNumber;
@@ -2558,7 +2660,7 @@ async function openInvoiceGenerator(row, details) {
     backdrop.style.display = "block";
     modal.classList.add("open");
 
-    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice };
+    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice, entryId: details?.entryId || makeAprilsUniqueId("INV"), originalRecord: details?.existingRecord || null };
     setTimeout(autoSaveInvoice, 150);
 }
 
@@ -2578,7 +2680,17 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
     const discountPercent = Math.max(0, Math.min(100, Number(document.getElementById("generatedInvoiceDiscountPercent")?.value || 0)));
     const discount = subtotal * discountPercent / 100;
     const total = Math.max(0, subtotal - discount);
+    const actor = await getCurrentStaffIdentity();
+    const previous = state.originalRecord || null;
+    const isUpdate = !!previous;
+    const now = new Date().toISOString();
     const record = {
+        entryId: state.entryId || previous?.entryId || makeAprilsUniqueId("INV"),
+        enteredBy: previous?.enteredBy || actor.staffId,
+        createdBy: previous?.createdBy || previous?.enteredBy || actor.staffId,
+        createdAt: previous?.createdAt || previous?.savedAt || now,
+        updatedBy: actor.staffId,
+        updatedAt: now,
         invoiceNumber,
         date: document.getElementById("generatedInvoiceDate")?.value || "",
         dueDate: document.getElementById("generatedInvoiceDueDate")?.value || "",
@@ -2591,12 +2703,15 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
         notes: document.getElementById("generatedInvoiceNotes")?.value || "",
         lines, discount, discountPercent, total,
         sourceId: row?.id || "",
-        sourceType: details?.checkout ? "checkout_orders" : (state.isTrainingInvoice ? "training_registrations" : "quote_requests"),
+        sourceType: details?.checkout ? "checkout_orders" : (state.isTrainingInvoice ? "training_registrations" : (details?.userInvoice ? "user_invoices" : "quote_requests")),
+        userInvoice: !!details?.userInvoice,
         checkout: !!details?.checkout,
-        savedAt: new Date().toISOString(),
-        saveType: automatic ? "automatic" : "manual"
+        savedAt: now,
+        saveType: automatic ? "automatic" : "manual",
+        revision: Number(previous?.revision || 0) + (isUpdate ? 1 : 0)
     };
     await saveInvoiceRecord(invoiceNumber, record);
+    await auditSystemEvent(record.sourceType || "invoice", record.entryId, isUpdate ? "invoice_updated" : "invoice_created", {invoiceNumber, customer:record.customer, userInvoice:record.userInvoice, revision:record.revision || 0});
     if (details?.checkout && row?.id) {
         try {
             const checkoutRow = await db.from("quote_requests").select("journey").eq("id", row.id).maybeSingle();
@@ -2729,12 +2844,16 @@ async function sharePdfToWhatsApp(paper, filename, phone, title) {
         }
         // A browser cannot attach a local PDF to a WhatsApp wa.me URL. Do not
         // open a PDF/download page; open WhatsApp only as a last-resort text chat.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url),1500);
         const number = normalizeWhatsAppNumber(phone);
         if (number) {
-            window.location.href = `https://wa.me/${number}?text=${encodeURIComponent(`${title} — Please attach the generated PDF from your device.`)}`;
+            window.open(`https://wa.me/${number}?text=${encodeURIComponent(`${title} — The PDF has been generated and downloaded. Please attach the downloaded PDF before sending.`)}`, "_blank", "noopener,noreferrer");
+            message("The original PDF was generated and downloaded. WhatsApp was opened for the customer chat.", "success");
             return false;
         }
-        message("Your device/browser does not provide file sharing, so WhatsApp cannot receive the PDF automatically from this browser. No PDF page was opened.", "error");
+        message("The original PDF was generated and downloaded. Your browser does not provide a file-sharing menu.", "success");
         return false;
     } catch (error) {
         if (error?.name === "AbortError") return false;
@@ -2800,8 +2919,12 @@ async function saveReceiptRecordDraft() {
     if (!receiptNumber) return;
     const invoiceNumber = document.getElementById("generatedReceiptInvoiceNumber")?.value || "";
     const amount = Number(document.getElementById("generatedReceiptAmount")?.value || 0);
+    const actor = await getCurrentStaffIdentity();
     const record = {
         receiptNumber, invoiceNumber,
+        enteredBy: actor.staffId,
+        createdBy: actor.staffId,
+        createdAt: new Date().toISOString(),
         customer: document.getElementById("generatedReceiptCustomer")?.value || "",
         phone: document.getElementById("generatedReceiptPhone")?.value || "",
         email: document.getElementById("generatedReceiptEmail")?.value || "",
@@ -2972,10 +3095,17 @@ function openReceiptGenerator() {
             if (invoiceState) {
                 invoiceState.savedPayments = latest;
                 try {
-                    const record = invoiceState.row || {};
+                    let record = invoiceState.row || {};
+                    const currentInvoiceNumber = document.getElementById("generatedReceiptInvoiceNumber")?.value || "";
+                    if (!record.id && currentInvoiceNumber) {
+                        try {
+                            const savedRecord = await getInvoiceSavedRecord(currentInvoiceNumber);
+                            if (savedRecord) record = {...savedRecord, id: savedRecord.sourceId || ""};
+                        } catch (_) {}
+                    }
                     if (record.id) {
                         const total = Number(totals.total || 0);
-                        const payments = await getInvoicePayments(document.getElementById("generatedReceiptInvoiceNumber")?.value || "");
+                        const payments = await getInvoicePayments(currentInvoiceNumber);
                         const paidTotal = payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
                         const depositDue = Number(totals.paidDue || 0);
                         const paymentStage = paidTotal >= total && total > 0
@@ -2985,13 +3115,16 @@ function openReceiptGenerator() {
                                 : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
                         if (invoiceState.isTrainingInvoice && paidTotal >= total && total > 0) {
-                            await setAdminRecordStatus("training_status", record.id, "in_class");
+                            await setAdminRecordStatus("training_status", record.id, "fully_paid");
                         } else if (invoiceState.isTrainingInvoice && paidTotal > 0) {
-                            await setAdminRecordStatus("training_status", record.id, "receipt_generated");
+                            await setAdminRecordStatus("training_status", record.id, "part_paid");
                         }
-                        if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
-                            await setAdminRecordStatus("quote_status", record.id, "receipt_generated");
+                        if (!invoiceState.isTrainingInvoice && paidTotal >= depositDue && depositDue > 0) {
+                            await setAdminRecordStatus("quote_status", record.id, "order_taken");
+                        } else if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
+                            await setAdminRecordStatus("quote_status", record.id, "under_review");
                         }
+                        await auditSystemEvent(invoiceState.isTrainingInvoice ? "training_registration" : "quote_request", record.id, "payment_saved", {invoiceNumber: currentInvoiceNumber, amount, paidTotal, paymentStage});
                     }
                 } catch (_) {}
             }
@@ -3256,6 +3389,7 @@ function setupTrainingForm() {
                 : await db.from("training_programs").insert(payload);
 
             if (result.error) throw result.error;
+            await auditSystemEvent("training_program", id || (result.data?.[0]?.id || "new"), id ? "updated" : "created", {title:payload.title,category:payload.category});
             const trainingInvoiceKey = invoiceStorageKey("Training - " + payload.title);
             if (oldTrainingTitle && oldTrainingTitle !== payload.title) { await db.from("settings").delete().eq("setting_key", invoiceStorageKey("Training - " + oldTrainingTitle)); await db.from("settings").delete().eq("setting_key", "public_training_price_" + contentSlug(oldTrainingTitle)); }
             const trainingPublicKey = "public_training_price_" + contentSlug(payload.title);
@@ -3602,7 +3736,7 @@ function closeSubmissionDetails(){
 
 
 const ORDER_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["deposit_paid", "Deposit Paid"],["part_paid", "Part Paid"],["receipt_generated", "Receipt Generated"],["order_taken", "Order Taken"],["in_production", "In Production"],["ready", "Ready for Collection / Delivery"],["fully_paid", "Fully Paid"],["dispatched", "Dispatched"],["received", "Received by Customer"]
+    ["under_review", "Pending"],["order_taken", "Confirmed / Order Taken"],["in_production", "In Production"],["completed", "Completed"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
 ];
 
 const TRAINING_STATUS_OPTIONS = [
@@ -3630,7 +3764,7 @@ async function setAdminRecordStatus(prefix, id, status) {
 }
 
 function statusSelectHTML(prefix, id, value) {
-    const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"fully_paid",work_in_progress:"in_production",delivered:"received"};
+    const legacy = {request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"order_taken",work_in_progress:"in_production",delivered:"received",fully_paid:"order_taken"};
     value = legacy[value] || value || "under_review";
     return `<div class="status-control"><select class="admin-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">
         ${statusOptionsForPrefix(prefix).map(([key,label]) => `<option value="${key}" ${key === value ? "selected" : ""}>${label}</option>`).join("")}
@@ -3674,22 +3808,34 @@ async function loadRegistrations() {
     const list = document.getElementById("registrationList");
     if (!list) return;
 
-    const statuses = new Map();
-    const paymentStatuses = new Map();
-    for (const row of rows) {
-        statuses.set(String(row.id), await getAdminRecordStatus("training_status", row.id));
-        const p = await getSettingValue("payment_status_training_" + row.id);
-        paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
-    }
-
+    const allSettings = await getRows("settings");
+    const statuses = new Map(), paymentStatuses = new Map();
+    const invoices = allSettings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const payments = allSettings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const receipts = allSettings.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const paymentsByInvoice=new Map();payments.forEach(p=>{const k=String(p.invoiceNumber||"");if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push(p);});
+    allSettings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>statuses.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"")));
+    allSettings.filter(r=>String(r.setting_key||"").startsWith("payment_status_training_")).forEach(r=>paymentStatuses.set(String(r.setting_key).replace("payment_status_training_",""),String(r.setting_value||"")));
     const summaries = new Map();
-    for (const row of rows) summaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, true));
+    for (const row of rows) {
+        const candidates=invoices.filter(inv=>String(inv.sourceId||"")===String(row.id)||String(inv.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase());
+        const inv=candidates.sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
+        const invoiceNumber=String(inv?.invoiceNumber||"");
+        const paid=(paymentsByInvoice.get(invoiceNumber)||[]).reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const total=Number(inv?.total||0);
+        const receipt=receipts.find(rc=>String(rc.invoiceNumber||"")===invoiceNumber);
+        summaries.set(String(row.id),{invoice:invoiceNumber||"—",receipt:receipt?.receiptNumber||"—",amount:total,paid,balance:Math.max(0,total-paid)});
+    }
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         const summary=summaries.get(String(row.id))||{};
+        let effectiveStatus=statuses.get(String(row.id))||"under_review";
+        if(!["in_class","stopped","completed"].includes(effectiveStatus) && Number(summary.paid||0)>0){
+            effectiveStatus=Number(summary.balance||0)<=0&&Number(summary.amount||0)>0?"fully_paid":"part_paid";
+        }
         return `<article class="submission-card">
             <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(row.phone||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Details</b>${escapeHTML(row.message||row.request_details||row.details||"—")}</span></div>
-            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, statuses.get(String(row.id)))}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button></div>
         </article>`;
     }).join("")}</div>` : `<div class="empty">No training registrations received.</div>`;
@@ -3832,7 +3978,10 @@ async function getDeliveryTracking(id) {
     try { const row=await getSettingValue("delivery_tracking_"+id); return row?.setting_value ? JSON.parse(row.setting_value) : {}; } catch (_) { return {}; }
 }
 async function saveDeliveryTracking(id, value) {
-    await safeSettingUpsert("delivery_tracking_"+id, JSON.stringify(value||{}));
+    const actor = await getCurrentStaffIdentity();
+    const payload = {...(value||{}), entryId: value?.entryId || makeAprilsUniqueId("DLV"), updatedBy: actor.staffId, updatedAt: new Date().toISOString()};
+    await safeSettingUpsert("delivery_tracking_"+id, JSON.stringify(payload));
+    await auditSystemEvent("delivery_tracking", id, "saved", payload);
 }
 
 async function loadQuotes() {
@@ -3849,27 +3998,38 @@ async function loadQuotes() {
     const list = document.getElementById("quoteList");
     if (!list) return;
 
-    const statuses = new Map();
-    const paymentStatuses = new Map();
-    for (const row of rows) {
-        statuses.set(String(row.id), await getAdminRecordStatus("quote_status", row.id));
-        const p = await getSettingValue("payment_status_quote_" + row.id);
-        paymentStatuses.set(String(row.id), p?.setting_value || "unpaid");
-    }
-
+    const allSettings = await getRows("settings");
+    const statuses = new Map(), paymentStatuses = new Map(), deliveryTracking = new Map();
+    const invoices = allSettings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const payments = allSettings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    allSettings.filter(r=>String(r.setting_key||"").startsWith("quote_status_")).forEach(r=>statuses.set(String(r.setting_key).replace("quote_status_",""),String(r.setting_value||"")));
+    allSettings.filter(r=>String(r.setting_key||"").startsWith("payment_status_quote_")).forEach(r=>paymentStatuses.set(String(r.setting_key).replace("payment_status_quote_",""),String(r.setting_value||"")));
+    allSettings.filter(r=>String(r.setting_key||"").startsWith("delivery_tracking_")).forEach(r=>{try{deliveryTracking.set(String(r.setting_key).replace("delivery_tracking_",""),JSON.parse(r.setting_value||"{}"))}catch(_){}});
+    const paymentsByInvoice = new Map();
+    payments.forEach(p=>{const k=String(p.invoiceNumber||"");if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push(p);});
     const quoteSummaries = new Map();
-    const deliveryTracking = new Map();
-    for (const row of rows) { quoteSummaries.set(String(row.id), await getInvoiceSummaryForSubmission(row, false)); deliveryTracking.set(String(row.id), await getDeliveryTracking(row.id)); }
+    for (const row of rows) {
+        const candidates=invoices.filter(inv=>String(inv.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase() || String(inv.phone||"").trim()===String(row.phone||"").trim());
+        const inv=candidates.sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
+        const invPays=paymentsByInvoice.get(String(inv?.invoiceNumber||""))||[];
+        const paid=invPays.reduce((sum,p)=>sum+Number(p.amount||0),0);
+        const total=Number(inv?.total||0);
+        quoteSummaries.set(String(row.id),{invoice:inv?.invoiceNumber||"—",receipt:allSettings.map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).find(x=>x&&String(x.invoiceNumber||"")===String(inv?.invoiceNumber||"")&&x.receiptNumber)?.receiptNumber||"—",amount:total,paid,balance:Math.max(0,total-paid)});
+    }
     list.innerHTML = rows.length ? `<div class="submission-card-grid">${rows.map(row => {
         let details = row.journey || row.request_details || row.details || row.message || "";
         const summary=quoteSummaries.get(String(row.id))||{};
+        let effectiveStatus=statuses.get(String(row.id))||"under_review";
+        if(Number(summary.paid||0)>0 && ["under_review","invoice_generated","receipt_generated","deposit_paid","part_paid"].includes(effectiveStatus)){
+            effectiveStatus=Number(summary.amount||0)>0 && Number(summary.paid||0)>=Number(summary.amount||0) ? "order_taken" : (Number(summary.amount||0)>0 && Number(summary.paid||0)>=Number(summary.amount||0)*0.75 ? "order_taken" : "under_review");
+        }
         const preview = summarizeQuoteDetails(row);
         const duplicateNote = row._duplicateCount > 1 ? ` <small class="duplicate-note">${row._duplicateCount} identical records grouped as one request</small>` : "";
         return `<article class="submission-card">
             <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([row.phone,row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Quantity</b>${escapeHTML(summarizeQuoteQuantities(row))}</span><span class="wide"><b>Details</b>${escapeHTML(preview||"—")}</span></div>
-            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, statuses.get(String(row.id)))}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
-            <div class="delivery-tracking" style="margin:12px 0;padding:12px;border:1px solid #aaa;border-radius:6px;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;"><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Date</label><input type="date" data-delivery-date="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.date || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Time</label><input type="time" data-delivery-time="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.time || "")}"></div><button type="button" class="secondary" data-save-delivery="${escapeHTML(row.id)}">Save Delivery Details</button></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span><span><b>Delivery / Collection</b>${escapeHTML(deliveryTracking.get(String(row.id))?.date||"—")}${deliveryTracking.get(String(row.id))?.time?" • "+escapeHTML(deliveryTracking.get(String(row.id)).time):""}${deliveryTracking.get(String(row.id))?.location?" • "+escapeHTML(deliveryTracking.get(String(row.id)).location):""}</span></div>
+            <div class="delivery-tracking" style="margin:12px 0;padding:12px;border:1px solid #aaa;border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;"><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Date</label><input type="date" data-delivery-date="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.date || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Time</label><input type="time" data-delivery-time="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.time || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery Location</label><input type="text" data-delivery-location="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.location || "")}" placeholder="Enter delivery / collection location"></div><button type="button" class="secondary" data-save-delivery="${escapeHTML(row.id)}">Save Delivery Details</button></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button></div>
         </article>`;
     }).join("")}</div>` : `<div class="empty">No quote requests received.</div>`;
@@ -3891,7 +4051,7 @@ async function loadQuotes() {
         button.onclick = async () => {
             const id=button.dataset.saveDelivery;
             try {
-                await saveDeliveryTracking(id,{date:list.querySelector(`[data-delivery-date="${CSS.escape(id)}"]`)?.value||"",time:list.querySelector(`[data-delivery-time="${CSS.escape(id)}"]`)?.value||""});
+                await saveDeliveryTracking(id,{date:list.querySelector(`[data-delivery-date="${CSS.escape(id)}"]`)?.value||"",time:list.querySelector(`[data-delivery-time="${CSS.escape(id)}"]`)?.value||"",location:list.querySelector(`[data-delivery-location="${CSS.escape(id)}"]`)?.value||""});
                 message("Delivery / collection details saved.","success");
             } catch(error) { message("Delivery details could not be saved: "+error.message,"error"); }
         };
@@ -3960,61 +4120,83 @@ async function loadOrderTracking(){
   const invs=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
   const pays=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
   const rows=(qr.data||[]).map(r=>{let j={};try{j=JSON.parse(r.journey||"{}")}catch(_){}return{...r,j}});
-  const track=[];
+  const track=[],paymentsByInvoice=new Map(),deliveryById=new Map(),statusById=new Map();
+  pays.forEach(p=>{const k=String(p.invoiceNumber||"");if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push(p);});
+  settings.filter(r=>String(r.setting_key||"").startsWith("delivery_tracking_")).forEach(r=>{try{deliveryById.set(String(r.setting_key).replace("delivery_tracking_",""),JSON.parse(r.setting_value||"{}"))}catch(_){}});
+  settings.filter(r=>String(r.setting_key||"").startsWith("quote_status_")).forEach(r=>statusById.set(String(r.setting_key).replace("quote_status_",""),String(r.setting_value||"")));
   for(const row of rows){
    const checkout=!!row.j.checkout;
    const invoice=invs.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((x,y)=>String(y.savedAt||"").localeCompare(String(x.savedAt||"")))[0];
    const invoiceNumber=invoice?.invoiceNumber||row.j.invoiceNumber||"";
-   const paid=pays.filter(x=>String(x.invoiceNumber||"")===String(invoiceNumber)).reduce((sum,x)=>sum+Number(x.amount||0),0);
+   const paid=(paymentsByInvoice.get(String(invoiceNumber))||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);
    const total=Number(invoice?.total??row.j.total??0);
-   let status=checkout?(row.j.orderStatus||"under_review"):await getAdminRecordStatus("quote_status",row.id);
-   const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||""}:await getDeliveryTracking(row.id);
-   const confirmed=paid>0 || ["order_taken","in_production","ready","fully_paid","dispatched","received"].includes(status);
+   let status=checkout?(row.j.orderStatus||"under_review"):(statusById.get(String(row.id))||"under_review");
+   const legacyTracking={fully_paid:"order_taken",receipt_generated:"order_taken",deposit_paid:"under_review",invoice_generated:"under_review"};
+   status=legacyTracking[status]||status;
+   const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||"",location:row.j.deliveryLocation||""}:(deliveryById.get(String(row.id))||{});
+   const confirmed=paid>0 || ["order_taken","in_production","completed","ready","dispatched","received"].includes(status);
    if(confirmed)track.push({row,checkout,invoice,invoiceNumber,paid,total,status,delivery});
   }
   track.sort((x,y)=>String(y.row.created_at||"").localeCompare(String(x.row.created_at||"")));
   const columns=[
-   ["confirmed","Confirmed / Pending",x=>["under_review","invoice_generated","deposit_paid","part_paid","receipt_generated"].includes(x.status)],
-   ["production","In Production",x=>x.status==="in_production"||x.status==="order_taken"],
-   ["ready","Ready for Collection / Delivery",x=>x.status==="ready"||x.status==="fully_paid"],
+   ["pending","Pending",x=>x.status==="under_review"||x.status==="invoice_generated"||x.status==="deposit_paid"||x.status==="part_paid"||x.status==="receipt_generated"],
+   ["confirmed","Confirmed / Order Taken",x=>x.status==="order_taken"],
+   ["production","In Production",x=>x.status==="in_production"],
+   ["completed","Completed",x=>x.status==="completed"],
+   ["ready","Ready for Collection / Delivery",x=>x.status==="ready"],
    ["dispatched","Dispatched",x=>x.status==="dispatched"],
    ["received","Received by Customer",x=>x.status==="received"]
   ];
   const card=x=>{
    const balance=Math.max(0,x.total-x.paid);
    const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);
-   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label></div><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button></article>`;
+   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span><span><b>Location</b>${escapeHTML(x.delivery.location||"Not set")}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label><label>Location<input type="text" data-track-location="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.location||"")}" placeholder="Delivery / collection location"></label></div><div class="submission-card-actions"><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button></div></article>`;
   };
   list.innerHTML=track.length?`<div class="tracking-board">${columns.map(([key,title,test])=>{const items=track.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No confirmed orders</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No confirmed customer orders are available for tracking. Orders appear here after a payment has been recorded.</div>`;
   list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{
    const id=b.dataset.saveTracking,checkout=b.dataset.checkout==="1",select=b.closest(".tracking-order-card")?.querySelector(".admin-status-select");
    try{
     const status=select?.value||"under_review",cardRow=track.find(v=>String(v.row.id)===String(id));
-    const date=b.closest(".tracking-order-card")?.querySelector("[data-track-date]")?.value||"",time=b.closest(".tracking-order-card")?.querySelector("[data-track-time]")?.value||"";
+    const date=b.closest(".tracking-order-card")?.querySelector("[data-track-date]")?.value||"",time=b.closest(".tracking-order-card")?.querySelector("[data-track-time]")?.value||"",location=b.closest(".tracking-order-card")?.querySelector("[data-track-location]")?.value||"";
     if(checkout){cardRow.row.j.orderStatus=status;await db.from("quote_requests").update({journey:JSON.stringify(cardRow.row.j)}).eq("id",id);await safeSettingUpsert("checkout_status_"+id,status)}
     else await setAdminRecordStatus("quote_status",id,status);
-    await saveDeliveryTracking(id,{date,time});message("Order tracking updated.","success");await loadOrderTracking();
+    await saveDeliveryTracking(id,{date,time,location});await auditSystemEvent(checkout?"checkout_order":"quote_request",id,"tracking_updated",{status,date,time,location});message("Order tracking updated.","success");await loadOrderTracking();
    }catch(e){message("Order tracking could not be updated: "+e.message,"error")}
   });
+  list.querySelectorAll("[data-view-tracking]").forEach(b=>{
+   const x=track.find(v=>String(v.row.id)===String(b.dataset.viewTracking)); if(!x)return;
+   const details=`Customer: ${x.row.full_name||""}\nPhone: ${x.row.phone||""}\nWhatsApp: ${x.row.whatsapp||""}\nEmail: ${x.row.email||""}\nOriginal Location: ${x.row.location||""}\nItems: ${x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row)}\nInvoice: ${x.invoiceNumber||""}\nTotal: GHS ${Number(x.total||0).toFixed(2)}\nPaid: GHS ${Number(x.paid||0).toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.total||0)-Number(x.paid||0)).toFixed(2)}\nStatus: ${humanStatus(x.status)}\nDelivery / Collection Date: ${x.delivery.date||""}\nTime: ${x.delivery.time||""}\nLocation: ${x.delivery.location||""}`;
+   showSubmissionDetails("Order Tracking Details",x.row,details,[]);
+  });
  }catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
+function traineeStatusSelectHTML(id,value){
+ const options=[["part_paid","Part Paid"],["fully_paid","Fully Paid"],["in_class","In Class"],["stopped","Stopped"],["completed","Completed"]];
+ return `<div class="status-control"><select class="admin-status-select" data-status-prefix="training_status" data-status-id="${escapeHTML(id)}">${options.map(([k,l])=>`<option value="${k}" ${k===value?"selected":""}>${l}</option>`).join("")}</select><button type="button" class="secondary save-status-button" data-save-status-prefix="training_status" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
 }
 async function loadTrainees(){
  const list=document.getElementById("traineesList");if(!list)return;
  try{
-  const rows=await getRows("training_registrations"),paid=[];
+  const rows=await getRows("training_registrations"),settings=await getRows("settings");
+  const invoices=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const statusMap=new Map();
+  settings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>statusMap.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"")));
+  const paid=[];
   for(const row of rows){
-   const summary=await getInvoiceSummaryForSubmission(row,true);
-   if(Number(summary.paid||0)>0){
-    let status=await getAdminRecordStatus("training_status",row.id);
-    const fullPaid=Number(summary.balance||0)<=0 && Number(summary.paid||0)>0;
-    if(fullPaid && status!=="completed" && status!=="stopped" && status!=="in_class"){
-      try{await setAdminRecordStatus("training_status",row.id,"in_class");status="in_class"}catch(_){}
-    }
-    paid.push({row,summary,status});
-   }
+   const inv=invoices.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
+   const invoiceNumber=inv?.invoiceNumber||"";
+   const paidAmount=payments.filter(p=>String(p.invoiceNumber||"")===String(invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0);
+   if(paidAmount<=0)continue;
+   const total=Number(inv?.total||0),balance=Math.max(0,total-paidAmount);
+   let status=statusMap.get(String(row.id))||"";
+   if(!["in_class","stopped","completed"].includes(status)) status=balance<=0&&total>0?"fully_paid":"part_paid";
+   paid.push({row,invoice:inv,paid:paidAmount,total,balance,status});
   }
-  list.innerHTML=paid.length?`<div class="trainee-board"><div class="trainee-table-wrap"><table><thead><tr><th>Date</th><th>Trainee</th><th>Programme</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead><tbody>${paid.map(x=>`<tr><td>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</td><td><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><br>${escapeHTML(x.row.phone||"")}</td><td>${escapeHTML(x.row.course||"Training / Programme / Class")}</td><td>GHS ${Number(x.summary.paid||0).toFixed(2)}</td><td>GHS ${Number(x.summary.balance||0).toFixed(2)}</td><td>${statusSelectHTML("training_status",x.row.id,x.status)}</td><td><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View</button></td></tr>`).join("")}</tbody></table></div></div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;
-  list.querySelectorAll("[data-save-status-prefix]").forEach(b=>b.onclick=async()=>{const select=b.closest(".status-control")?.querySelector(".admin-status-select");try{await setAdminRecordStatus("training_status",b.dataset.saveStatusId,select?.value||"under_review");message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});
+  const columns=[["part_paid","Part Paid",x=>x.status==="part_paid"],["fully_paid","Fully Paid",x=>x.status==="fully_paid"],["in_class","In Class",x=>x.status==="in_class"],["stopped","Stopped",x=>x.status==="stopped"],["completed","Completed",x=>x.status==="completed"]];
+  const card=x=>`<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><small>${escapeHTML(x.row.course||"Training")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${x.balance.toFixed(2)}</span><span><b>Invoice</b>${escapeHTML(x.invoice?.invoiceNumber||"—")}</span></div><div class="tracking-card-status">${traineeStatusSelectHTML(x.row.id,x.status)}</div><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Full Details</button></article>`;
+  list.innerHTML=paid.length?`<div class="tracking-board trainee-board">${columns.map(([key,title,test])=>{const items=paid.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No trainees</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;
+  list.querySelectorAll("[data-save-status-prefix]").forEach(b=>b.onclick=async()=>{const select=b.closest(".status-control")?.querySelector(".admin-status-select");try{await setAdminRecordStatus("training_status",b.dataset.saveStatusId,select?.value||"part_paid");await auditSystemEvent("training_registration",b.dataset.saveStatusId,"status_updated",{status:select?.value||"part_paid"});message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});
   list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])});
  }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
@@ -6119,6 +6301,121 @@ function setupManualInvoiceForm() {
 }
 
 
+async function openSavedUserInvoiceReadOnly(row){
+    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:true,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0)});
+    const modal=document.getElementById("invoiceGeneratorModal");
+    if(!modal)return;
+    modal.querySelector(".invoice-generator-editor")?.remove();
+    modal.querySelector("#saveGeneratedInvoice")?.remove();
+    modal.querySelector("#generateReceiptFromInvoice")?.remove();
+}
+
+/* =========================================================
+   USERS INVOICE — walk-in / direct customers
+========================================================= */
+function setupUsersInvoiceForm(){
+    const form=document.getElementById("usersInvoiceForm");
+    const wrap=document.getElementById("usersInvoiceLines");
+    if(!form||!wrap||form.dataset.bound)return;
+    form.dataset.bound="1";
+    const add=()=>{const n=wrap.querySelectorAll(".manual-invoice-line").length+1;wrap.insertAdjacentHTML("beforeend",`<div class="manual-invoice-line"><input class="manual-line-description" placeholder="Item / Service" required><input class="manual-line-details" placeholder="Details"><input class="manual-line-qty" type="number" min="1" value="1"><input class="manual-line-price" type="number" min="0" step="0.01" placeholder="Price" required><button type="button" class="danger manual-line-remove">Remove</button></div>`);};
+    wrap.addEventListener("blur",async e=>{
+        if(!e.target.classList.contains("manual-line-description"))return;
+        const line=e.target.closest(".manual-invoice-line"),price=line?.querySelector(".manual-line-price");if(!line||!price||price.value)return;
+        try{const map=await getInvoicePriceMap();const found=invoicePriceFor(map,e.target.value.trim());if(found>0)price.value=found.toFixed(2);}catch(_){}
+    },true);
+    add();
+    document.getElementById("usersInvoiceAddLine")?.addEventListener("click",add);
+    wrap.addEventListener("click",e=>{if(e.target.closest(".manual-line-remove")){e.target.closest(".manual-invoice-line")?.remove();if(!wrap.children.length)add();}});
+    document.getElementById("usersInvoiceReset")?.addEventListener("click",()=>{form.reset();wrap.innerHTML="";add();});
+    form.addEventListener("submit",async e=>{
+        e.preventDefault();
+        const lines=[...wrap.querySelectorAll(".manual-invoice-line")].map(r=>({description:r.querySelector(".manual-line-description")?.value.trim()||"",details:r.querySelector(".manual-line-details")?.value.trim()||"",quantity:Number(r.querySelector(".manual-line-qty")?.value||1),unitPrice:Number(r.querySelector(".manual-line-price")?.value||0)})).filter(x=>x.description);
+        if(!lines.length){message("Add at least one invoice item.","error");return;}
+        const row={full_name:document.getElementById("usersInvoiceCustomer").value.trim(),phone:document.getElementById("usersInvoicePhone").value.trim(),whatsapp:document.getElementById("usersInvoicePhone").value.trim(),email:document.getElementById("usersInvoiceEmail").value.trim(),location:document.getElementById("usersInvoiceAddress").value.trim()};
+        if(!row.full_name){message("Enter the customer's name.","error");return;}
+        await openInvoiceGenerator(row,{manualLines:lines,notes:document.getElementById("usersInvoiceNotes").value.trim(),userInvoice:true});
+        form.reset();wrap.innerHTML="";add();
+    });
+}
+
+async function loadCollectionInvoiceOptions(){
+    const select=document.getElementById("collectionInvoiceSelect");if(!select)return;
+    try{
+        const rows=await getRows("settings");
+        const invoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")));
+        select.innerHTML=`<option value="">Select saved invoice</option>`+invoices.map(i=>`<option value="${escapeHTML(i.invoiceNumber||"")}">${escapeHTML(i.invoiceNumber||"")} — ${escapeHTML(i.customer||"Customer")}</option>`).join("");
+        window._aprilsCollectionInvoices=invoices;
+    }catch(e){select.innerHTML='<option value="">Saved invoices could not be loaded</option>';}
+}
+
+function renderCollectionPreview(){
+    const select=document.getElementById("collectionInvoiceSelect"),box=document.getElementById("collectionPreview");if(!select||!box)return;
+    const row=(window._aprilsCollectionInvoices||[]).find(i=>String(i.invoiceNumber)===String(select.value));
+    if(!row){box.innerHTML="";return;}
+    const lines=row.lines||[];const total=Number(row.total||0);
+    box.innerHTML=`<div class="collection-preview-card"><h3>Collection / Delivery Form Preview</h3><p><strong>Customer:</strong> ${escapeHTML(row.customer||"")}</p><p><strong>Invoice:</strong> ${escapeHTML(row.invoiceNumber||"")}</p><table><thead><tr><th>Item</th><th>Quantity</th></tr></thead><tbody>${lines.map(l=>`<tr><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><p><strong>Total Invoice Amount:</strong> GHS ${total.toFixed(2)}</p><p><strong>Payment:</strong> GHS <span id="collectionPreviewPaid">0.00</span></p><p><strong>Balance:</strong> GHS <span id="collectionPreviewBalance">${total.toFixed(2)}</span></p></div>`;
+    getInvoicePayments(row.invoiceNumber).then(payments=>{const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);const p=document.getElementById("collectionPreviewPaid"),b=document.getElementById("collectionPreviewBalance");if(p)p.textContent=paid.toFixed(2);if(b)b.textContent=Math.max(0,total-paid).toFixed(2);});
+}
+
+function setupCollectionForm(){
+    const form=document.getElementById("collectionForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
+    form.dataset.bound="1";
+    document.getElementById("collectionInvoiceSelect")?.addEventListener("change",renderCollectionPreview);
+    document.getElementById("collectionGenerate")?.addEventListener("click",()=>generateCollectionForm(false));
+    document.getElementById("collectionShare")?.addEventListener("click",()=>generateCollectionForm(true));
+    document.getElementById("collectionWhatsApp")?.addEventListener("click",()=>generateCollectionForm(true,"whatsapp"));
+    loadCollectionInvoiceOptions();
+}
+async function generateCollectionForm(share,mode){
+    const invoice=(window._aprilsCollectionInvoices||[]).find(i=>String(i.invoiceNumber)===String(document.getElementById("collectionInvoiceSelect")?.value||""));
+    if(!invoice){message("Select a saved invoice first.","error");return;}
+    const date=document.getElementById("collectionDate")?.value||"",time=document.getElementById("collectionTime")?.value||"",location=document.getElementById("collectionLocation")?.value.trim()||"";
+    if(!date||!time||!location){message("Enter the collection / delivery date, time and location.","error");return;}
+    const payments=await getInvoicePayments(invoice.invoiceNumber);const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);const balance=Math.max(0,Number(invoice.total||0)-paid);
+    const entryId=makeAprilsUniqueId("COL");const actor=await getCurrentStaffIdentity();
+    const root=document.createElement("div");root.className="collection-form-paper";root.innerHTML=`<div class="collection-brand"><img src="${escapeHTML(new URL("../icons/Aprils Signature logo.jpeg",window.location.href).href)}" alt="Aprils Signature logo"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${escapeHTML(invoice.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${escapeHTML(invoice.customer||"")}</p><p><strong>Phone:</strong> ${escapeHTML(invoice.phone||"")}</p></div><table><thead><tr><th>Item</th><th>Quantity</th></tr></thead><tbody>${(invoice.lines||[]).map(l=>`<tr><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Invoice Amount:</strong> GHS ${Number(invoice.total||0).toFixed(2)}</p><p><strong>Payment:</strong> GHS ${paid.toFixed(2)}</p><p><strong>Balance to be Paid:</strong> GHS ${balance.toFixed(2)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${escapeHTML(date)}</p><p><strong>Time:</strong> ${escapeHTML(time)}</p><p><strong>Location:</strong> ${escapeHTML(location)}</p></div><p class="collection-note">Please bring this form when collecting your item.</p><p class="collection-id">Form ID: ${escapeHTML(entryId)}</p></div>`;
+    document.body.appendChild(root);
+    try{
+        const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF service unavailable");
+        const blob=await pdfFromVisibleElement(root,{margin:0,filename:`Aprils-Signature-Collection-${invoice.invoiceNumber}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}});
+        const file=new File([blob],`Aprils-Signature-Collection-${invoice.invoiceNumber}.pdf`,{type:"application/pdf"});
+        if(share&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature collection / delivery form",files:[file]});return;}
+        const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+        if(mode==="whatsapp"){const number=normalizeWhatsAppNumber(invoice.phone||"");window.open(number?`https://wa.me/${number}?text=${encodeURIComponent("Aprils Signature Collection / Delivery Form — please attach the downloaded PDF.")}`:"https://wa.me/","_blank","noopener,noreferrer");}
+        message("Collection / delivery PDF generated.","success");
+        await auditSystemEvent("collection_delivery_form",entryId,"generated",{invoiceNumber:invoice.invoiceNumber,customer:invoice.customer,date,time,location,enteredBy:actor.staffId});
+    }catch(e){console.error(e);message("The collection / delivery PDF could not be generated: "+e.message,"error");}finally{root.remove();}
+}
+
+/* =========================================================
+   STAFF ACTIVITY / AUDIT LOG
+========================================================= */
+async function loadAuditLog(){
+    const list=document.getElementById("auditLogList");
+    if(!list)return;
+    try{
+        const rows=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("audit_event_"));
+        const events=rows.map(r=>{try{return {...JSON.parse(r.setting_value||"{}"),_id:r.id}}catch(_){return null}}).filter(Boolean).sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+        const staffIds=[...new Set(events.map(e=>String(e.actorId||"")).filter(Boolean))];
+        const staffSelect=document.getElementById("auditStaffFilter");
+        if(staffSelect){const current=staffSelect.value;staffSelect.innerHTML='<option value="">All staff</option>'+staffIds.map(id=>`<option value="${escapeHTML(id)}">${escapeHTML(id)}</option>`).join("");staffSelect.value=staffIds.includes(current)?current:"";}
+        const selected=String(staffSelect?.value||"");
+        const action=String(document.getElementById("auditActionFilter")?.value||"").trim().toLowerCase();
+        const term=String(document.getElementById("auditSearch")?.value||"").trim().toLowerCase();
+        const filtered=events.filter(e=>{const hay=JSON.stringify(e).toLowerCase();return(!selected||String(e.actorId||"")===selected)&&(!action||String(e.action||"").toLowerCase().includes(action))&&(!term||hay.includes(term));});
+        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(e.action||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
+    }catch(e){list.innerHTML=`<div class="empty">Staff activity could not be loaded: ${escapeHTML(e.message||"")}</div>`;}
+}
+function setupAuditLog(){
+    const list=document.getElementById("auditLogList");if(!list||list.dataset.bound)return;list.dataset.bound="1";
+    document.getElementById("auditRefresh")?.addEventListener("click",loadAuditLog);
+    document.getElementById("auditStaffFilter")?.addEventListener("change",loadAuditLog);
+    document.getElementById("auditActionFilter")?.addEventListener("input",loadAuditLog);
+    document.getElementById("auditSearch")?.addEventListener("input",loadAuditLog);
+    loadAuditLog();
+}
+
 /* =========================================================
    ADMIN USER ACCESS
    Uses a small settings-based permission registry. Auth accounts
@@ -6127,16 +6424,16 @@ function setupManualInvoiceForm() {
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
     ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
-    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderTracking","Order Tracking"],["trainees","Trainees"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
-    ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["accounting","Sales & Accounting"],
+    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderTracking","Order Tracking"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
+    ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
 ];
 function accessKey(email){return "admin_user_access_" + contentSlug(email);}
 function accessDefaultSections(role){
     if(role==="owner"||role==="manager") return ADMIN_ACCESS_SECTIONS.map(x=>x[0]);
-    if(role==="sales") return ["dashboard","orders","orderTracking","invoice","manualInvoice","accounting","checkout"];
-    if(role==="training") return ["dashboard","registrations","orders","orderTracking","trainees","manualInvoice","invoice"];
+    if(role==="sales") return ["dashboard","orders","orderTracking","invoice","usersInvoice","collectionForms","manualInvoice","accounting","checkout"];
+    if(role==="training") return ["dashboard","registrations","orders","orderTracking","trainees","usersInvoice","collectionForms","manualInvoice","invoice"];
     if(role==="inventory") return ["dashboard","shopAdmin","inventory","checkout","accounting"];
     return ["dashboard","gallery","homepage","services","content","policies","testimonials","faq"];
 }
@@ -6146,14 +6443,20 @@ async function loadUserAccess(){
     try{
         const rows=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("admin_user_access_"));
         const users=rows.map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),id:r.id,key:r.setting_key}}catch(_){return null}}).filter(Boolean);
-        list.innerHTML=users.length?`<table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody>${users.map(u=>`<tr><td>${escapeHTML(u.email)}</td><td>${escapeHTML(u.name||"")}</td><td>${escapeHTML(u.role||"")}</td><td>${u.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-user-access="${escapeHTML(u.id)}">Edit</button> <button type="button" class="danger" data-delete-user-access="${escapeHTML(u.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff access profiles have been added yet.</div>`;
+        for(const u of users){
+            if(!u.staffId){
+                u.staffId=makeAprilsUniqueId("STF");
+                try{await db.from("settings").update({setting_value:JSON.stringify(u),updated_at:new Date().toISOString()}).eq("id",u.id)}catch(_){}
+            }
+        }
+        list.innerHTML=users.length?`<table><thead><tr><th>Staff ID</th><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody>${users.map(u=>`<tr><td>${escapeHTML(u.staffId||"—")}</td><td>${escapeHTML(u.email)}</td><td>${escapeHTML(u.name||"")}</td><td>${escapeHTML(u.role||"")}</td><td>${u.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-user-access="${escapeHTML(u.id)}">Edit</button> <button type="button" class="danger" data-delete-user-access="${escapeHTML(u.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff access profiles have been added yet.</div>`;
         list.querySelectorAll("[data-edit-user-access]").forEach(b=>b.onclick=()=>{const u=users.find(x=>String(x.id)===String(b.dataset.editUserAccess));if(!u)return;document.getElementById("userAccessId").value=u.id;document.getElementById("userAccessEmail").value=u.email||"";document.getElementById("userAccessName").value=u.name||"";document.getElementById("userAccessRole").value=u.role||"owner";document.getElementById("userAccessActive").checked=u.active!==false;checks.querySelectorAll("input").forEach(c=>c.checked=(u.sections||[]).includes(c.value));focusAdminForm("userAccessForm","userAccessEmail")});
         list.querySelectorAll("[data-delete-user-access]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this staff access profile?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteUserAccess);if(r.error){message("User access could not be deleted: "+r.error.message,"error");return}await loadUserAccess();});
     }catch(e){list.innerHTML=`<div class="empty">User access could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
 function setupUserAccess(){
     const form=document.getElementById("userAccessForm"); if(!form||form.dataset.bound)return; form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{e.preventDefault();const email=document.getElementById("userAccessEmail").value.trim().toLowerCase();if(!email){message("Enter a staff email address.","error");return}const role=document.getElementById("userAccessRole").value;const sections=[...document.querySelectorAll("#userAccessChecks input:checked")].map(x=>x.value);const payload={email,name:document.getElementById("userAccessName").value.trim(),role,sections:sections.length?sections:accessDefaultSections(role),active:document.getElementById("userAccessActive").checked,updatedAt:new Date().toISOString()};try{await safeSettingUpsert(accessKey(email),JSON.stringify(payload));message("Staff access saved. The user must also have an account in Supabase Authentication.","success");form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true;await loadUserAccess()}catch(err){message("User access could not be saved: "+err.message,"error")}});
+    form.addEventListener("submit",async e=>{e.preventDefault();const email=document.getElementById("userAccessEmail").value.trim().toLowerCase();if(!email){message("Enter a staff email address.","error");return}const role=document.getElementById("userAccessRole").value;const sections=[...document.querySelectorAll("#userAccessChecks input:checked")].map(x=>x.value);const identity=await getCurrentStaffIdentity();const editId=document.getElementById("userAccessId").value.trim();let existingProfile={};if(editId){try{const r=await db.from("settings").select("setting_value").eq("id",editId).maybeSingle();if(!r.error&&r.data?.setting_value)existingProfile=JSON.parse(r.data.setting_value||"{}")}catch(_){}}const payload={email,name:document.getElementById("userAccessName").value.trim(),role,sections:sections.length?sections:accessDefaultSections(role),active:document.getElementById("userAccessActive").checked,staffId:existingProfile.staffId||makeAprilsUniqueId("STF"),updatedAt:new Date().toISOString(),createdBy:existingProfile.createdBy||identity.staffId};try{if(editId){const r=await db.from("settings").update({setting_key:accessKey(email),setting_value:JSON.stringify(payload),updated_at:new Date().toISOString()}).eq("id",editId);if(r.error)throw r.error}else await safeSettingUpsert(accessKey(email),JSON.stringify(payload));await auditSystemEvent("admin_user_access",payload.staffId,editId?"updated":"created",{email,role});message("Staff access saved. The user must also have an account in Supabase Authentication.","success");form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true;await loadUserAccess()}catch(err){message("User access could not be saved: "+err.message,"error")}});
     document.getElementById("userAccessCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true});
 }
 
@@ -6198,6 +6501,8 @@ async function startAdmin() {
     setupTrainingInvoicePricingForm();
     setupInvoicePaymentForm();
     setupManualInvoiceForm();
+    setupUsersInvoiceForm();
+    setupCollectionForm();
     setupDiscountForm();
     setupAccountingForm();
     setupWebsiteLinksForm();
@@ -6207,6 +6512,7 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
     setupUserAccess();
+    setupAuditLog();
     document.getElementById("orderTrackingRefresh")?.addEventListener("click", () => loadOrderTracking());
     document.getElementById("traineesRefresh")?.addEventListener("click", () => loadTrainees());
     setupAdminAutomaticCapitalisation();

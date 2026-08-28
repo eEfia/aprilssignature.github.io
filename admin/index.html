@@ -618,6 +618,8 @@ data-section="invoice"
 >
 Invoice Pricing
 </button>
+<button data-section="usersInvoice">Users Invoice</button>
+<button data-section="collectionForms">Delivery/Pickup Form</button>
 <button
 data-section="manualInvoice"
 >
@@ -628,6 +630,7 @@ Invoice &amp; Receipts
 <button data-section="inventory">Inventory / Stock</button>
 <button data-section="checkout">Checkout Orders</button>
 <button data-section="errors">System Error Log</button>
+<button data-section="auditLog">Staff Activity / Audit Log</button>
 <button data-section="notifications">Notifications</button>
 <button type="button" onclick="window.location.href='offline.html'">Offline Access</button>
 
@@ -1578,6 +1581,57 @@ INVOICE PRICING
 </section>
 
 <!-- =====================================================
+USERS INVOICE
+===================================================== -->
+<section id="usersInvoice" class="section">
+<h2>Users Invoice</h2>
+<p class="intro">Generate invoices and receipts for customers who did not apply through the website. Saved user invoices are view-only here, with Share PDF available. Edit and Delete are intentionally not available in this section.</p>
+<div class="form-card">
+<form id="usersInvoiceForm">
+<div class="form-grid">
+<div class="form-group"><label for="usersInvoiceCustomer">Customer Name</label><input id="usersInvoiceCustomer" required></div>
+<div class="form-group"><label for="usersInvoicePhone">Phone / WhatsApp</label><input id="usersInvoicePhone"></div>
+<div class="form-group"><label for="usersInvoiceEmail">Email</label><input id="usersInvoiceEmail" type="email"></div>
+<div class="form-group"><label for="usersInvoiceAddress">Location / Address</label><input id="usersInvoiceAddress"></div>
+</div>
+<div class="form-group"><label for="usersInvoiceNotes">Invoice Notes</label><textarea id="usersInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
+<h3 style="color:#008c95;margin:12px 0;">Invoice Items</h3>
+<div id="usersInvoiceLines"></div>
+<div class="admin-actions"><button type="button" class="secondary" id="usersInvoiceAddLine">+ Add Item</button><button type="submit" class="primary">Generate Invoice</button><button type="button" class="secondary" id="usersInvoiceReset">Clear</button></div>
+</form>
+</div>
+<div class="form-card" style="margin-top:20px;">
+<h3 style="color:#008c95;margin-bottom:10px;">Saved User Invoices</h3>
+<p class="intro">Saved user invoices are part of the same central invoice records. View, edit/correct and Share PDF are available here. Every creation or correction is recorded in the staff activity log.</p>
+<div id="userInvoiceSavedList" class="table-wrap"></div>
+</div>
+</section>
+
+<!-- =====================================================
+DELIVERY/PICKUP FORM
+===================================================== -->
+<section id="collectionForms" class="section">
+<h2>Delivery/Pickup Form</h2>
+<p class="intro">Generate a customer proof form from a saved invoice. The customer name, item summary, quantities, invoice total, payments and balance are pulled automatically. Enter the collection / delivery date, time and location manually; the location is never taken from the customer's original request.</p>
+<div class="form-card">
+<form id="collectionForm" onsubmit="return false;">
+<div class="form-grid">
+<div class="form-group"><label for="collectionInvoiceSelect">Saved Invoice</label><select id="collectionInvoiceSelect"><option value="">Select saved invoice</option></select></div>
+<div class="form-group"><label for="collectionDate">Collection / Delivery Date</label><input id="collectionDate" type="date"></div>
+<div class="form-group"><label for="collectionTime">Collection / Delivery Time</label><input id="collectionTime" type="time"></div>
+<div class="form-group"><label for="collectionLocation">Collection / Delivery Location</label><input id="collectionLocation" placeholder="Enter the location for this collection / delivery"></div>
+</div>
+<div id="collectionPreview"></div>
+<div class="admin-actions">
+<button type="button" class="primary" id="collectionGenerate">Generate PDF</button>
+<button type="button" class="secondary" id="collectionShare">Share PDF</button>
+<button type="button" class="secondary" id="collectionWhatsApp">WhatsApp</button>
+</div>
+</form>
+</div>
+</section>
+
+<!-- =====================================================
 MANUAL INVOICE / RECEIPT
 ===================================================== -->
 <section id="manualInvoice" class="section">
@@ -1606,7 +1660,7 @@ MANUAL INVOICE / RECEIPT
 <div class="notice"><strong>Payment tracking:</strong> production quotes use the standard 75% initial payment. Training registrations require full payment, so training invoices do not show a 75% payment due or a balance. After payment is received, use <strong>Generate Receipt</strong> and save the payment. The invoice status will then show the payment state.
 <div class="form-card" style="margin-top:20px;">
 <h3 style="color:#008c95;margin-bottom:10px;">Saved Invoices &amp; Receipts</h3>
-<p class="intro">All invoices and payment receipts generated in the admin system are listed here. You can reopen, download/print, or delete unwanted records.</p>
+<p class="intro">Invoices and payment receipts generated in the main admin invoice workflow are listed here. User invoices are listed separately under Users Invoice.</p>
 <div class="saved-record-columns"><div><h4>Saved Invoices</h4><div id="savedInvoiceList" class="table-wrap"></div></div><div><h4>Saved Receipts</h4><div id="savedReceiptList" class="table-wrap"></div></div></div>
 </div>
 
@@ -1866,6 +1920,23 @@ DISCOUNT CODES
 </section>
 
 <!-- =====================================================
+STAFF ACTIVITY / AUDIT LOG
+===================================================== -->
+<section id="auditLog" class="section">
+<h2>Staff Activity / Audit Log</h2>
+<p class="intro">Track who created, changed or recorded activity in the system. Staff IDs are permanent for each staff account. Use the filters below to trace work by staff member, action or record.</p>
+<div class="form-card">
+<div class="form-grid">
+<div class="form-group"><label for="auditStaffFilter">Staff</label><select id="auditStaffFilter"><option value="">All staff</option></select></div>
+<div class="form-group"><label for="auditActionFilter">Action</label><input id="auditActionFilter" placeholder="e.g. invoice_saved, updated, payment_saved"></div>
+<div class="form-group"><label for="auditSearch">Search</label><input id="auditSearch" placeholder="Invoice number, customer, record ID..."></div>
+</div>
+<div class="admin-actions"><button type="button" class="secondary" id="auditRefresh">Refresh Activity</button></div>
+<div id="auditLogList" class="table-wrap"></div>
+</div>
+</section>
+
+<!-- =====================================================
 WEBSITE SETTINGS
 ===================================================== -->
 
@@ -1935,9 +2006,9 @@ You can also remove the current public logo without deleting the original projec
 <script src="../js/supabase-client.js?v=20260827-corrections"></script>
 <script src="../js/notification-dispatch.js?v=20260827-corrections"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260827-corrections" defer></script>
-<script src="Admin-fixes.js?v=20260827-corrections" defer></script>
-<script src="commerce-admin.js?v=20260827-corrections" defer></script>
+<script src="admin.js?v=20260828-final" defer></script>
+<script src="Admin-fixes.js?v=20260828-final" defer></script>
+<script src="commerce-admin.js?v=20260828-final" defer></script>
 
 
 <style>
