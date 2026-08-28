@@ -479,7 +479,7 @@ flex-direction:column;
 #discountList table{min-width:0;}#discountList th,#discountList td{overflow-wrap:anywhere;}
 </style>
 
-<style>.submission-modal-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.submission-modal-actions button{margin:0}</style></head>
+<style>.submission-modal-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.submission-modal-actions button{margin:0}</style><style>.joggers-subgroup-title{display:inline-block;background:#111;color:#d6a542;padding:8px 12px;border-radius:4px;margin:8px 0 12px}.catalogue-other-row{display:block}</style></head>
 
 
 <body>
@@ -609,6 +609,9 @@ data-section="orders"
 >
 Order / Quote Requests
 </button>
+
+<button data-section="orderTracking">Order Tracking</button>
+<button data-section="trainees">Trainees</button>
 
 <button
 data-section="invoice"
@@ -1467,6 +1470,15 @@ Show this content on the website
 
 <div id="contentList" class="table-wrap"></div>
 </section>
+
+<!-- =====================================================
+ORDER TRACKING
+===================================================== -->
+<section id="orderTracking" class="section"><h2>Order Tracking</h2><p class="intro">Track all customer orders, current status, delivery details and timelines. Delivery details are controlled here by Aprils Signature and are not collected on the public order page.</p><div class="toolbar"><button type="button" class="secondary" id="orderTrackingRefresh">Refresh</button></div><div id="orderTrackingList" class="table-wrap"></div></section>
+<!-- =====================================================
+TRAINEES
+===================================================== -->
+<section id="trainees" class="section"><h2>Trainees</h2><p class="intro">Track customers who have made a training payment, including programme, payment position, receipt and class status.</p><div class="toolbar"><button type="button" class="secondary" id="traineesRefresh">Refresh</button></div><div id="traineesList" class="table-wrap"></div></section>
 
 <!-- =====================================================
 INVOICE PRICING

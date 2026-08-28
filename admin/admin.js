@@ -419,6 +419,8 @@ async function loadSection(id) {
         if (id === "training") await loadTraining();
         if (id === "registrations") await loadRegistrations();
         if (id === "orders") await loadQuotes();
+        if (id === "orderTracking") await loadOrderTracking();
+        if (id === "trainees") await loadTrainees();
         if (id === "invoice") await loadInvoicePricing();
         if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
         if (id === "inventory" && window.loadInventory) await window.loadInventory();
@@ -1005,10 +1007,11 @@ async function getTrainingCategories() {
 ========================================================= */
 
 const DEFAULT_PRODUCTS = [
-    ["Streetwear","Jersey",1,"Tops"],["Streetwear","Jersey Sample",1.5,"Tops"],["Streetwear","T-shirt",2,"Tops"],["Streetwear","T-Shirt Sample",2.5,"Tops"],["Streetwear","Polo shirt",3,"Tops"],["Streetwear","Hoodies",4,"Tops"],["Streetwear","Sweatshirt",5,"Tops"],["Streetwear","Ladies tank top",6,"Tank Top Options"],["Streetwear","Men's tank top",7,"Tank Top Options"],["Streetwear","Varsity Jacket",8,"Tops"],
-    ["Streetwear","Super thick cotton joggers",9,"Joggers"],["Streetwear","Everyday wear type of joggers",10,"Joggers"],["Streetwear","Joggers shorts",11,"Bottoms"],["Streetwear","Sweatpants",12,"Bottoms"],["Streetwear","Cargo pants",13,"Bottoms"],["Streetwear","Cargo skirts",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],
-    ["Streetwear","T-shirt and shorts",16,"Sets"],["Streetwear","T-shirt and sweatpants",17,"Sets"],["Streetwear","Sweatshirt and shorts",18,"Sets"],["Streetwear","Sweatshirt and sweatpants",19,"Sets"],
-    ["Streetwear","Others",20,"Others"]
+    ["Streetwear","Jersey",1,"Tops"],["Streetwear","Jersey Sample",2,"Tops"],["Streetwear","T-Shirt",3,"Tops"],["Streetwear","T-Shirt Sample",4,"Tops"],["Streetwear","Hoodies",5,"Tops"],["Streetwear","Polo Shirt",6,"Tops"],["Streetwear","Sweatshirt",7,"Tops"],["Streetwear","Varsity Jacket",8,"Tops"],
+    ["Streetwear","Ladies Tank Top",9,"Tank Top Options"],["Streetwear","Men’s Tank Top",10,"Tank Top Options"],
+    ["Streetwear","Super Thick Cotton Joggers",11,"Joggers"],["Streetwear","Everyday Wear Type of Joggers",12,"Joggers"],["Streetwear","Joggers Short",13,"Bottoms"],["Streetwear","Sweatpants",14,"Bottoms"],["Streetwear","Jorts",15,"Bottoms"],["Streetwear","Cargo Pants",16,"Bottoms"],["Streetwear","Cargo Skirts",17,"Bottoms"],
+    ["Streetwear","Hoodies and Joggers Set",18,"Sets"],["Streetwear","T-shirt and Shorts Set",19,"Sets"],["Streetwear","T-shirt and Sweatpants Set",20,"Sets"],["Streetwear","Sweatshirt and Shorts Sets",21,"Sets"],["Streetwear","Sweatshirts and Sweatpants Set",22,"Sets"],
+    ["Streetwear","Others",23,"Others"]
 ];
 
 const DEFAULT_LADIES_PRODUCTS = [
@@ -1019,7 +1022,7 @@ const DEFAULT_LADIES_PRODUCTS = [
     ["Ladies Wear","Standard kaba and slit/skirt",19,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (with corset)",20,"Kaba and Slit/Skirt"],["Ladies Wear","Kaba & slit/skirt (kente)",21,"Kaba and Slit/Skirt"],["Ladies Wear","Others",22,"Others"]
 ];
 const DEFAULT_EMBELLISHMENT_PRODUCTS = [
-    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing / Fabric Painting",2,"Embellishment"],["Embellishment Services","Glitter Works",3,"Embellishment"],["Embellishment Services","3D / Rhinestone Patches",4,"Embellishment"],["Embellishment Services","Hand / Laser Cuts",5,"Embellishment"],["Embellishment Services","Others",6,"Embellishment"]
+    ["Embellishment Services","Rhinestone Embellishment",1,"Embellishment"],["Embellishment Services","Screen Printing",2,"Embellishment"],["Embellishment Services","Fabric Painting",3,"Embellishment"],["Embellishment Services","Glitter Works",4,"Embellishment"],["Embellishment Services","Others",5,"Embellishment"]
 ];
 
 const STREETWEAR_CANONICAL_NAMES = DEFAULT_PRODUCTS.map(item => item[1]);
@@ -1097,13 +1100,13 @@ async function ensureStreetwearCatalogue() {
         if (result.error) return;
         const rows = result.data || [];
         const legacyRenames = new Map([
-            ["everyday wear type", "Everyday wear type of joggers"],
-            ["joggers — everyday wear type", "Everyday wear type of joggers"],
-            ["joggers everyday wear type", "Everyday wear type of joggers"],
-            ["joggers — super thick cotton joggers", "Super thick cotton joggers"],
-            ["jerseys", "Jersey"], ["t-shirts", "T-shirt"], ["polo shirts", "Polo shirt"],
-            ["sweatshirts", "Sweatshirt"], ["ladies tank tops", "Ladies tank top"], ["men's tank tops", "Men's tank top"],
-            ["varsity jackets", "Varsity Jacket"], ["jogger shorts", "Joggers shorts"],
+            ["everyday wear type", "Everyday Wear Type of Joggers"],
+            ["joggers — everyday wear type", "Everyday Wear Type of Joggers"],
+            ["joggers everyday wear type", "Everyday Wear Type of Joggers"],
+            ["joggers — super thick cotton joggers", "Super Thick Cotton Joggers"],
+            ["jerseys", "Jersey"], ["t-shirts", "T-Shirt"], ["polo shirts", "Polo Shirt"],
+            ["sweatshirts", "Sweatshirt"], ["ladies tank tops", "Ladies Tank Top"], ["men's tank tops", "Men's tank top"],
+            ["varsity jackets", "Varsity Jacket"], ["jogger shorts", "Joggers Short"],
             ["t shirts and shorts", "T-shirt and shorts"], ["t shirt sweatpants set", "T-shirt and sweatpants"],
             ["sweatshirts and shorts", "Sweatshirt and shorts"], ["sweatshirts and sweatpants", "Sweatshirt and sweatpants"]
         ]);
@@ -1137,13 +1140,14 @@ async function ensureStreetwearCatalogue() {
         // new catalogue entries, not a recreation of any product the admin may
         // have deliberately deleted from the older catalogue.
         const requestedNewProducts = [
-            ["Streetwear","Hoodies and joggers",20,"Sets"],
-            ["Streetwear","Hoodies and sweatpants",21,"Sets"],
+            ["Streetwear","Hoodies and Joggers Set",18,"Sets"],
+            ["Streetwear","T-shirt and Shorts Set",19,"Sets"],
+            ["Streetwear","T-shirt and Sweatpants Set",20,"Sets"],
+            ["Streetwear","Sweatshirt and Shorts Sets",21,"Sets"],
+            ["Streetwear","Sweatshirts and Sweatpants Set",22,"Sets"],
             ["Ladies Wear","Customised / Embellished Bubu",6,"Dresses and Gowns"],
             ["Ladies Wear","Customised / Embellished Kaftan",8,"Dresses and Gowns"],
             ["Ladies Wear","Customised / Embellished Bubu Kaftan",10,"Dresses and Gowns"],
-            ["Embellishment Services","3D / Rhinestone Patches",4,"Embellishment"],
-            ["Embellishment Services","Hand / Laser Cuts",5,"Embellishment"]
         ];
         for (const [category,name,order,subcategory] of requestedNewProducts) {
             const key = productKeyFromName(name);
@@ -1157,9 +1161,7 @@ async function ensureStreetwearCatalogue() {
             }
         }
 
-        const obsoleteStreetwear = new Set([
-            "everyday wear type of joggers", "joggers shorts", "sweatpants", "cargo pants", "cargo skirts", "jorts"
-        ]);
+        const obsoleteStreetwear = new Set(["hoodies and sweatpants", "hoodies & sweatpants set", "hoodies sweatpants set"]);
         for (const row of rows) {
             let item={}; try{item=JSON.parse(row.setting_value||"{}")}catch(_){continue;}
             if (String(item.category||"").trim().toLowerCase()==="streetwear" && obsoleteStreetwear.has(String(item.name||"").trim().toLowerCase())) {
@@ -1602,11 +1604,22 @@ function setupDirectCustomerLinks() {
 
     document.querySelectorAll("[data-copy-direct-link]").forEach(button => {
         button.onclick = async () => {
-            const url = links[button.dataset.copyDirectLink];
+            let url = links[button.dataset.copyDirectLink];
             if (!url) return;
+            if (button.dataset.copyDirectLink === "payment") {
+                try {
+                    const saved = await getSettingValue("invoice_payment_accounts");
+                    const accounts = JSON.parse(saved || "[]");
+                    if (Array.isArray(accounts) && accounts.length) {
+                        const paymentUrl = new URL(url);
+                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
+                        url = paymentUrl.href;
+                    }
+                } catch (_) {}
+            }
             try {
                 await navigator.clipboard.writeText(url);
-                message("Link copied. You can send it to the customer.", "success");
+                message("Payment link copied with the current payment details.", "success");
             } catch (_) {
                 window.prompt("Copy this direct link:", url);
             }
@@ -1615,9 +1628,21 @@ function setupDirectCustomerLinks() {
 
     document.querySelectorAll("[data-share-direct-link]").forEach(button => {
         button.onclick = async () => {
-            const url = links[button.dataset.shareDirectLink];
+            let url = links[button.dataset.shareDirectLink];
             if (!url) return;
-            const title = labels[button.dataset.shareDirectLink] || "Aprils Signature";
+            const key = button.dataset.shareDirectLink;
+            const title = labels[key] || "Aprils Signature";
+            if (key === "payment") {
+                try {
+                    const saved = await getSettingValue("invoice_payment_accounts");
+                    const accounts = JSON.parse(saved || "[]");
+                    if (Array.isArray(accounts) && accounts.length) {
+                        const paymentUrl = new URL(url);
+                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
+                        url = paymentUrl.href;
+                    }
+                } catch (_) {}
+            }
             if (navigator.share) {
                 try {
                     await navigator.share({title, text: "Aprils Signature — " + title, url});
@@ -1744,9 +1769,9 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
         }
     });
 
-    if (details?.address && (details.address.quantity || details.address.details || details.address.size || details.address.colour)) {
-        const a=details.address;
-        lines.push({description:"Address",quantity:Math.max(1,Number(a.quantity||1)),unitPrice:invoicePriceFor(priceMap,"Address"),details:[a.size || a.measurements,a.colour,a.details].filter(Boolean).join(" • ")});
+    if (details?.serviceOtherDetails && (details.serviceOtherDetails.quantity || details.serviceOtherDetails.details || details.serviceOtherDetails.size || details.serviceOtherDetails.measurements || details.serviceOtherDetails.colour)) {
+        const a=details.serviceOtherDetails;
+        lines.push({description:"Others",quantity:Math.max(1,Number(a.quantity||1)),unitPrice:invoicePriceFor(priceMap,"Others"),details:[a.size || a.measurements,a.colour,a.details].filter(Boolean).join(" • ")});
     }
 
     if (Array.isArray(details?.embellishment)) {
@@ -2609,11 +2634,18 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
         notes: document.getElementById("generatedInvoiceNotes")?.value || "",
         lines, discount, discountPercent, total,
         sourceId: row?.id || "",
-        sourceType: state.isTrainingInvoice ? "training_registrations" : "quote_requests",
+        sourceType: details?.checkout ? "checkout_orders" : (state.isTrainingInvoice ? "training_registrations" : "quote_requests"),
+        checkout: !!details?.checkout,
         savedAt: new Date().toISOString(),
         saveType: automatic ? "automatic" : "manual"
     };
     await saveInvoiceRecord(invoiceNumber, record);
+    if (details?.checkout && row?.id) {
+        try {
+            const checkoutRow = await db.from("quote_requests").select("journey").eq("id", row.id).maybeSingle();
+            if (!checkoutRow.error) { let journey={}; try{journey=JSON.parse(checkoutRow.data?.journey||"{}")}catch(_){} journey.invoiceNumber=invoiceNumber; journey.orderStatus=journey.orderStatus||"invoice_generated"; await db.from("quote_requests").update({journey:JSON.stringify(journey)}).eq("id",row.id); await safeSettingUpsert("checkout_status_"+row.id,journey.orderStatus); }
+        } catch (_) {}
+    }
     if (!automatic && state.discountOffer?.redemptionId) {
         try { await db.from("discount_redemptions").update({status:"used"}).eq("id", state.discountOffer.redemptionId); } catch (_) {}
     }
@@ -2728,16 +2760,13 @@ function getGeneratedInvoiceShareText() {
     return `Aprils Signature Invoice ${number}\nCustomer: ${customer}\nPlease see the attached invoice PDF for the full details.`;
 }
 
-async function shareGeneratedInvoiceWhatsApp() {
-    const customer = document.getElementById("generatedInvoicePhone")?.value || "";
-    const text = getGeneratedInvoiceShareText();
-
-    // WhatsApp cannot receive a browser-local PDF as an attachment through a
-    // normal wa.me link. Prepare the PDF locally, then take the user directly
-    // to the customer's WhatsApp chat rather than opening a PDF preview page.
-    try { await generateInvoicePdf(false); } catch (_) {}
-    window.location.href = customerWhatsAppUrl(customer, text);
+async function sharePdfToWhatsApp(paper, filename, phone, title) {
+    const html2pdf=await ensureHtml2Pdf(); if(!html2pdf||!paper){window.location.href=customerWhatsAppUrl(phone,title);return;}
+    const options={margin:0,filename,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}};
+    try{const blob=await pdfFromVisibleElement(paper,options);const file=new File([blob],filename,{type:"application/pdf"});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title,text:`${title} — Aprils Signature`,files:[file]});return;}}catch(error){console.warn("WhatsApp PDF sharing unavailable:",error)}
+    window.location.href=customerWhatsAppUrl(phone,`${title}. The PDF is ready to attach from your device.`);
 }
+async function shareGeneratedInvoiceWhatsApp(){const phone=document.getElementById("generatedInvoicePhone")?.value||"";const state=window._aprilsCurrentInvoice;if(!state)return;state.renderInvoice();await sharePdfToWhatsApp(document.getElementById("invoicePaper"),`${document.getElementById("generatedInvoiceNumber")?.value||"Aprils-Signature-Invoice"}.pdf`,phone,`Aprils Signature Invoice ${document.getElementById("generatedInvoiceNumber")?.value||""}`);}
 function shareGeneratedInvoiceEmail() {
     const subject = encodeURIComponent("Aprils Signature Invoice " + (document.getElementById("generatedInvoiceNumber")?.value || ""));
     const body = encodeURIComponent(getGeneratedInvoiceShareText());
@@ -2913,12 +2942,7 @@ function openReceiptGenerator() {
         `;
     }
 
-    let receiptAutoSaveTimer = null;
-    const autoSaveReceiptDraft = () => {
-        clearTimeout(receiptAutoSaveTimer);
-        receiptAutoSaveTimer = setTimeout(() => saveReceiptRecordDraft().catch(error => console.warn("Automatic receipt save skipped:", error)), 700);
-    };
-    ["input","change"].forEach(evt => modal.addEventListener(evt, () => { renderReceipt(); autoSaveReceiptDraft(); }));
+    ["input","change"].forEach(evt => modal.addEventListener(evt, () => { renderReceipt(); }));
     renderReceipt();
     modal.querySelector("#receiptDownloadPdf").onclick = () => generateReceiptPdf(false);
     modal.querySelector("#receiptSharePdf").onclick = () => generateReceiptPdf(true);
@@ -2953,6 +2977,10 @@ function openReceiptGenerator() {
                     phone: document.getElementById("generatedReceiptPhone")?.value || "",
                     email: document.getElementById("generatedReceiptEmail")?.value || "",
                     amount,
+                    lines: totals.lines || [],
+                    total: Number(totals.total || 0),
+                    discount: Number(totals.discount || 0),
+                    balance: Math.max(0, Number(totals.total || 0) - amount),
                     method: document.getElementById("generatedReceiptMethod")?.value || "",
                     reference: document.getElementById("generatedReceiptReference")?.value || "",
                     date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10),
@@ -2979,10 +3007,12 @@ function openReceiptGenerator() {
                                 : (paidTotal >= depositDue && depositDue > 0 ? "deposit_paid" : (paidTotal > 0 ? "part_paid" : "unpaid")));
                         await safeSettingUpsert((invoiceState.isTrainingInvoice ? "payment_status_training_" : "payment_status_quote_") + record.id, paymentStage);
                         if (invoiceState.isTrainingInvoice && paidTotal >= total && total > 0) {
-                            await setAdminRecordStatus("training_status", record.id, "started_class");
+                            await setAdminRecordStatus("training_status", record.id, "in_class");
+                        } else if (invoiceState.isTrainingInvoice && paidTotal > 0) {
+                            await setAdminRecordStatus("training_status", record.id, "receipt_generated");
                         }
                         if (!invoiceState.isTrainingInvoice && paidTotal > 0) {
-                            await setAdminRecordStatus("quote_status", record.id, paidTotal >= total && total > 0 ? "fully_paid" : "in_production");
+                            await setAdminRecordStatus("quote_status", record.id, "receipt_generated");
                         }
                     }
                 } catch (_) {}
@@ -2997,7 +3027,7 @@ function openReceiptGenerator() {
     backdrop.style.display = "block";
     modal.classList.add("open");
     window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals };
-    setTimeout(autoSaveReceiptDraft, 150);
+    
 }
 
 function closeReceiptGenerator() {
@@ -3056,41 +3086,7 @@ function getGeneratedReceiptShareText() {
     return `Aprils Signature Payment Receipt ${document.getElementById("generatedReceiptNumber")?.value || ""}\nCustomer: ${document.getElementById("generatedReceiptCustomer")?.value || ""}\nAmount Received: GHS ${Number(document.getElementById("generatedReceiptAmount")?.value || 0).toFixed(2)}\nInvoice: ${document.getElementById("generatedReceiptInvoiceNumber")?.value || ""}\nPlease see the attached receipt PDF for the full details.`;
 }
 
-async function shareGeneratedReceiptWhatsApp() {
-    const state = window._aprilsCurrentReceipt;
-    const customer = document.getElementById("generatedReceiptPhone")?.value || "";
-    const text = getGeneratedReceiptShareText();
-    try {
-        const html2pdf = await ensureHtml2Pdf();
-        if (state && html2pdf && navigator.share && navigator.canShare) {
-            state.renderReceipt();
-            const paper = document.getElementById("receiptPaper");
-            const number = document.getElementById("generatedReceiptNumber")?.value || "Aprils-Signature-Receipt";
-            const options = {
-                margin: 0,
-                filename: number + ".pdf",
-                image: {type:"jpeg",quality:0.98},
-                html2canvas: {scale:2,useCORS:true},
-                jsPDF: {unit:"in",format:"a4",orientation:"portrait"}
-            };
-            const blob = await pdfFromVisibleElement(paper, options);
-            const file = new File([blob], options.filename, {type:"application/pdf"});
-            if (navigator.canShare({files:[file]})) {
-                await navigator.share({
-                    title: "Aprils Signature Payment Receipt",
-                    text,
-                    files: [file]
-                });
-                return;
-            }
-        }
-    } catch (error) {
-        console.warn("Direct receipt PDF sharing was unavailable:", error);
-    }
-    try { await generateReceiptPdf(false); } catch (_) {}
-    window.open(customerWhatsAppUrl(customer, text), "_blank", "noopener,noreferrer");
-    message("Receipt PDF prepared. The customer's WhatsApp chat has been opened; attach the downloaded PDF there.", "success");
-}
+async function shareGeneratedReceiptWhatsApp(){const phone=document.getElementById("generatedReceiptPhone")?.value||"";const state=window._aprilsCurrentReceipt;if(!state)return;state.renderReceipt();await sharePdfToWhatsApp(document.getElementById("receiptPaper"),`${document.getElementById("generatedReceiptNumber")?.value||"Aprils-Signature-Receipt"}.pdf`,phone,`Aprils Signature Receipt ${document.getElementById("generatedReceiptNumber")?.value||""}`);}
 
 function shareGeneratedReceiptEmail() {
     const subject = encodeURIComponent("Aprils Signature Payment Receipt " + (document.getElementById("generatedReceiptNumber")?.value || ""));
@@ -3347,7 +3343,7 @@ function humanizeProductName(name) {
         cargoPants: "Cargo Pants",
         cargoSkirts: "Cargo Skirts",
         joggerShorts: "Jogger Shorts",
-        hoodiesJoggersSet: "Hoodies & Joggers Set",
+        hoodiesJoggersSet: "Hoodies and Joggers Set",
         tshirtsShortsSet: "T-shirts & Shorts Set",
         sweatshirtsShortsSet: "Sweatshirts & Shorts Set"
     };
@@ -3373,11 +3369,6 @@ function buildQuoteDetailRows(row, details) {
         : String(row.service || "").split(",").map(v => v.trim()).filter(Boolean);
 
     add("Selected Services", selected.join(", "));
-
-    if (selected.includes("Streetwear")) {
-        add("Streetwear Size (UK) / Measurements", details.streetwearSizeMeasurements);
-        add("Streetwear Colour (S)", details.streetwearColour);
-    }
 
     if (selected.includes("Streetwear") && details.streetwear && typeof details.streetwear === "object") {
         Object.entries(details.streetwear).forEach(([key, item]) => {
@@ -3407,7 +3398,9 @@ function buildQuoteDetailRows(row, details) {
     }
 
     if (selected.includes("Kids Wear")) {
-        add("Kids Wear Size (UK) / Age", details.kidsWearSize);
+        add("Kids Wear Age", details.kidsWearAge);
+        add("Kids Wear Size (UK)", details.kidsWearSize);
+        add("Kids Wear Measurements", details.kidsWearMeasurements);
         add("Kids Wear Colour", details.kidsWearColour);
         add("Kids Wear Quantity", details.kidsWearQuantity);
         add("Kids Wear Details / Style Request", details.kidsWear);
@@ -3428,6 +3421,7 @@ function buildQuoteDetailRows(row, details) {
 
     if (details.training) add("Training Request", details.training);
     add("Other Service Request", details.serviceOther);
+    if (details.serviceOtherDetails) { const other=details.serviceOtherDetails; add("Others — Size (UK)",other.size); add("Others — Measurements",other.measurements); add("Others — Colour",other.colour); add("Others — Quantity",other.quantity); add("Others — Specify Your Request",other.details); }
     add("Additional Request Details", details.additionalDetails);
 
     const attachmentNames = []
@@ -3636,29 +3630,20 @@ function closeSubmissionDetails(){
 
 
 const ORDER_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],
-    ["invoice_generated", "Invoice Generated"],
-    ["deposit_paid", "Deposit Paid"],
-    ["part_paid", "Part Paid"],
-    ["receipt_generated", "Receipt Generated"],
-    ["in_production", "In Production"],
-    ["ready", "Ready for Collection / Delivery"],
-    ["fully_paid", "Fully Paid"],
-    ["dispatched", "Dispatched"],
-    ["received", "Received by Customer"]
+    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["deposit_paid", "Deposit Paid"],["part_paid", "Part Paid"],["receipt_generated", "Receipt Generated"],["order_taken", "Order Taken"],["in_production", "In Production"],["ready", "Ready for Collection / Delivery"],["fully_paid", "Fully Paid"],["dispatched", "Dispatched"],["received", "Received by Customer"]
 ];
 
 const TRAINING_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],
-    ["invoice_generated", "Invoice Generated"],
-    ["part_paid", "Part Paid"],
-    ["fully_paid", "Fully Paid"],
-    ["started_class", "Started Class"],
-    ["completed", "Completed"]
+    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["part_paid", "Part Paid"],["receipt_generated", "Receipt Generated"],["fully_paid", "Fully Paid"],["in_class", "In Class"],["stopped", "Stopped"],["completed", "Completed"]
+];
+const CHECKOUT_STATUS_OPTIONS = [
+    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["fully_paid", "Fully Paid"],["order_taken", "Order Taken"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
 ];
 
 function statusOptionsForPrefix(prefix) {
-    return String(prefix || "").startsWith("training_status_") ? TRAINING_STATUS_OPTIONS : ORDER_STATUS_OPTIONS;
+    if (String(prefix || "").startsWith("training_status")) return TRAINING_STATUS_OPTIONS;
+    if (String(prefix || "").startsWith("checkout_tracking_status")) return CHECKOUT_STATUS_OPTIONS;
+    return ORDER_STATUS_OPTIONS;
 }
 
 async function getAdminRecordStatus(prefix, id) {
@@ -3689,7 +3674,7 @@ function writeOfflineCache(key, rows) {
 }
 
 function humanStatus(value) {
-    const found = (String(value || "").startsWith("started_class") ? TRAINING_STATUS_OPTIONS : ORDER_STATUS_OPTIONS).find(([key]) => key === value);
+    const found = (String(value || "").startsWith("in_class") || String(value || "").startsWith("stopped") || String(value || "").startsWith("completed") ? TRAINING_STATUS_OPTIONS : ORDER_STATUS_OPTIONS).find(([key]) => key === value);
     return found ? found[1] : String(value || "Under Review").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
 }
 
@@ -3990,6 +3975,15 @@ async function loadQuotes() {
     });
 }
 
+
+
+/* =========================================================
+   ORDER TRACKING & TRAINEES
+========================================================= */
+async function loadOrderTracking(){
+ const list=document.getElementById("orderTrackingList");if(!list)return;
+ try{const [qr,settings]=await Promise.all([db.from("quote_requests").select("*"),getRows("settings")]);if(qr.error)throw qr.error;const invs=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);const pays=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);const orders=(qr.data||[]).map(r=>{let j={};try{j=JSON.parse(r.journey||"{}")}catch(_){}return{...r,j}});const track=[];for(const row of orders){const checkout=!!row.j.checkout;const invoice=invs.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];const invoiceNumber=invoice?.invoiceNumber||row.j.invoiceNumber||"";const paid=pays.filter(x=>String(x.invoiceNumber||"")===String(invoiceNumber)).reduce((a,x)=>a+Number(x.amount||0),0);const total=Number(invoice?.total??row.j.total??0);const status=checkout?(row.j.orderStatus||"under_review"):await getAdminRecordStatus("quote_status",row.id);const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||""}:await getDeliveryTracking(row.id);track.push({row,checkout,invoice,invoiceNumber,paid,total,status,delivery});}track.sort((a,b)=>String(b.row.created_at||"").localeCompare(String(a.row.created_at||"")));list.innerHTML=track.length?`<div class="submission-card-grid">${track.map(x=>{const balance=Math.max(0,x.total-x.paid);const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);const timeline=[x.row.created_at?`Request: ${new Date(x.row.created_at).toLocaleString()}`:"",x.invoiceNumber&&x.invoice?.date?`Invoice: ${x.invoice.date}`:"",x.paid>0?`Payment: GHS ${x.paid.toFixed(2)}`:"",x.delivery.date?`Delivery / Collection: ${x.delivery.date}${x.delivery.time?" • "+x.delivery.time:""}`:""].filter(Boolean).join(" → ");return `<article class="submission-card"><div class="submission-card-top"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><span>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</span></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleString():"")}</time></div><div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([x.row.phone,x.row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Invoice</b>${escapeHTML(x.invoiceNumber||"—")}</span><span><b>Payment</b>GHS ${x.paid.toFixed(2)} / GHS ${x.total.toFixed(2)}</span><span class="wide"><b>Timeline</b>${escapeHTML(timeline||"—")}</span></div><div class="submission-status-strip"><span><b>Current Status</b>${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Delivery / Collection Date</b><input type="date" data-tracking-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></span><span><b>Time</b><input type="time" data-tracking-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></span></div><div class="submission-card-actions"><button type="button" class="primary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save Tracking</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button>${x.invoiceNumber?`<button type="button" class="secondary" data-open-tracking-invoice="${escapeHTML(x.invoiceNumber)}">Open Invoice</button>`:""}</div></article>`}).join("")}</div>`:`<div class="empty">No customer orders are available for tracking.</div>`;list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{const id=b.dataset.saveTracking,checkout=b.dataset.checkout==="1",select=list.querySelector(`.admin-status-select[data-${checkout?"checkout-tracking-status":"quote-status"}="${CSS.escape(id)}"]`);try{const date=list.querySelector(`[data-tracking-date="${CSS.escape(id)}"]`)?.value||"",time=list.querySelector(`[data-tracking-time="${CSS.escape(id)}"]`)?.value||"",status=select?.value||"under_review";if(checkout){const x=track.find(v=>String(v.row.id)===String(id));x.row.j.orderStatus=status;x.row.j.deliveryDate=date;x.row.j.deliveryTime=time;const u=await db.from("quote_requests").update({journey:JSON.stringify(x.row.j)}).eq("id",id);if(u.error)throw u.error;await safeSettingUpsert("checkout_status_"+id,status)}else{await setAdminRecordStatus("quote_status",id,status);await saveDeliveryTracking(id,{date,time})}message("Order tracking updated.","success");await loadOrderTracking()}catch(e){message("Order tracking could not be updated: "+e.message,"error")}});list.querySelectorAll("[data-view-tracking]").forEach(b=>b.onclick=()=>{const x=track.find(v=>String(v.row.id)===String(b.dataset.viewTracking));if(x)showSubmissionDetails("Customer Order Tracking Details",x.row,x.row.journey||x.row.request_details||x.row.details||x.row.message||"",[])});list.querySelectorAll("[data-open-tracking-invoice]").forEach(b=>b.onclick=async()=>{const i=invs.find(v=>String(v.invoiceNumber)===String(b.dataset.openTrackingInvoice));if(i)await openInvoiceGenerator({full_name:i.customer||"",phone:i.phone||"",whatsapp:i.phone||"",email:i.email||"",location:i.address||""},{manualLines:i.lines||[],notes:i.notes||"",training:!!i.training,checkout:i.sourceType==="checkout_orders",invoiceNumber:i.invoiceNumber,discountPercent:Number(i.discountPercent||0)})});}catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}}
+async function loadTrainees(){const list=document.getElementById("traineesList");if(!list)return;try{const rows=await getRows("training_registrations"),paid=[];for(const row of rows){const summary=await getInvoiceSummaryForSubmission(row,true);if(Number(summary.paid||0)>0)paid.push({row,summary,status:await getAdminRecordStatus("training_status",row.id)})}list.innerHTML=paid.length?`<div class="submission-card-grid">${paid.map(x=>`<article class="submission-card"><div class="submission-card-top"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><span>${escapeHTML(x.row.course||"Training / Programme / Class")}</span></div></div><div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Invoice</b>${escapeHTML(x.summary.invoice||"—")}</span><span><b>Paid</b>GHS ${Number(x.summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(x.summary.balance||0).toFixed(2)}</span><span class="wide"><b>Details</b>${escapeHTML(x.row.message||x.row.request_details||x.row.details||"—")}</span></div><div class="submission-status-strip"><span><b>Status</b>${statusSelectHTML("training_status",x.row.id,x.status)}</span><span><b>Receipt</b>${escapeHTML(x.summary.receipt||"—")}</span></div><div class="submission-card-actions"><button type="button" class="primary" data-save-trainee-status="${escapeHTML(x.row.id)}">Save Status</button><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Details</button></div></article>`).join("")}</div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;list.querySelectorAll("[data-save-trainee-status]").forEach(b=>b.onclick=async()=>{const id=b.dataset.saveTraineeStatus,select=list.querySelector(`.admin-status-select[data-training-status="${CSS.escape(id)}"]`);try{await setAdminRecordStatus("training_status",id,select?.value||"under_review");message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])})}catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}}
 
 async function loadEnquiries() {
     const rows = await getRows("enquiries");
@@ -5523,7 +5517,7 @@ async function loadSettings() {
             && !key.startsWith("hidden_content_")
             && !key.startsWith("social_")
             && !key.startsWith("quote_status_")
-            && !key.startsWith("training_status_")
+            && !key.startsWith("training_status")
             && !key.startsWith("homepage_featured_")
             && !key.startsWith("site_logo_library_")
             && !key.startsWith("accounting_expense_")
@@ -5840,7 +5834,8 @@ async function seedInitialPublicContent() {
         ["site_link_training", { label: "Training", url: "training.html", order: 6, location: "header", active: true }],
         ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 7, location: "header", active: true }],
         ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 8, location: "header", active: true }],
-        ["site_link_contact", { label: "Contact", url: "contact.html", order: 9, location: "header", active: true }]
+        ["site_link_contact", { label: "Contact", url: "contact.html", order: 9, location: "header", active: true }],
+        ["site_link_google_review", { label: "Send Us a Google Review", url: "https://g.page/r/CcD7hxB7NK7pEAE/review", order: 1, location: "footer", active: true }]
     ];
     try {
         const existing = await db.from("settings").select("setting_key").like("setting_key", "site_link_%");
@@ -6094,7 +6089,7 @@ function setupManualInvoiceForm() {
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
     ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
-    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
+    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderTracking","Order Tracking"],["trainees","Trainees"],["invoice","Invoice Pricing"],["manualInvoice","Invoices & Receipts"],
     ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
@@ -6102,8 +6097,8 @@ const ADMIN_ACCESS_SECTIONS = [
 function accessKey(email){return "admin_user_access_" + contentSlug(email);}
 function accessDefaultSections(role){
     if(role==="owner"||role==="manager") return ADMIN_ACCESS_SECTIONS.map(x=>x[0]);
-    if(role==="sales") return ["dashboard","orders","invoice","manualInvoice","accounting","checkout"];
-    if(role==="training") return ["dashboard","registrations","orders","manualInvoice","invoice","training"];
+    if(role==="sales") return ["dashboard","orders","orderTracking","invoice","manualInvoice","accounting","checkout"];
+    if(role==="training") return ["dashboard","registrations","orders","orderTracking","trainees","manualInvoice","invoice"];
     if(role==="inventory") return ["dashboard","shopAdmin","inventory","checkout","accounting"];
     return ["dashboard","gallery","homepage","services","content","policies","testimonials","faq"];
 }
@@ -6174,6 +6169,8 @@ async function startAdmin() {
     setupSettingsForm();
     setupLogoForm();
     setupUserAccess();
+    document.getElementById("orderTrackingRefresh")?.addEventListener("click", () => loadOrderTracking());
+    document.getElementById("traineesRefresh")?.addEventListener("click", () => loadTrainees());
     setupAdminAutomaticCapitalisation();
     if (window.setupCommerceAdmin) window.setupCommerceAdmin();
 

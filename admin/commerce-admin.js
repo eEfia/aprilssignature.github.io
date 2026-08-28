@@ -71,7 +71,7 @@
             <td>GHS ${Number(x.j.total||0).toFixed(2)}</td>
             <td>${esc(x.j.paymentStatus||"pending")}</td>
             <td><select class="admin-status-select" data-checkout-status="${esc(x.id)}">
-                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["fully_paid","Fully Paid"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
+                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["fully_paid","Fully Paid"],["order_taken","Order Taken"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
             </select></td>
             <td><div style="display:grid;gap:6px"><input type="date" data-checkout-delivery-date="${esc(x.id)}" value="${esc(x.j.deliveryDate||"")}"><input type="time" data-checkout-delivery-time="${esc(x.id)}" value="${esc(x.j.deliveryTime||"")}"><button class="secondary" data-save-checkout-delivery="${esc(x.id)}">Save Delivery</button></div></td>
             <td>
@@ -109,8 +109,8 @@
             const x=orders.find(o=>String(o.id)===String(b.dataset.checkoutInvoice));if(!x)return;
             if(!window.aprilsOpenInvoiceGenerator){alert("Invoice generator is not ready yet.");return;}
             const manualLines=[];
-            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:"Specific shop item"}); }
-            await window.aprilsOpenInvoiceGenerator({full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""});
+            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:`Shop Item — ${i.name}`}); }
+            await window.aprilsOpenInvoiceGenerator({id:x.id,full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,checkout:true,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""});
         });
 
         list.querySelectorAll("[data-checkout-paid]").forEach(b=>b.onclick=async()=>{
@@ -134,7 +134,7 @@
                 // Keep checkout, invoice, payment and accounting records synchronized.
                 const invoiceKey="invoice_record_"+slug(invoiceNumber);
                 const pricedLines=[];
-                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:"Specific shop item"}); }
+                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`Shop Item — ${i.name}`}); }
                 const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
                 const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||""};
                 await save(invoiceKey,invoiceRecord);
