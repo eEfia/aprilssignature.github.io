@@ -185,8 +185,8 @@ PUBLIC FORM FIXES
                     ladiesWearOther: String(data.get("ladiesWearOther") || "").trim(),
                     kidsWear: String(data.get("kidsWearDetails") || "").trim(),
                     kidsWearAge: String(data.get("kidsWearAge") || "").trim(),
-                    kidsWearSize: String(data.get("kidsWearSize") || "").trim(),
-                    kidsWearMeasurements: String(data.get("kidsWearMeasurements") || "").trim(),
+                    kidsWearSize: "",
+                    kidsWearMeasurements: String(data.get("kidsWearSizeMeasurements") || "").trim(),
                     kidsWearColour: String(data.get("kidsWearColour") || "").trim(),
                     kidsWearQuantity: String(data.get("kidsWearQuantity") || "0").trim(),
                     training: String(data.get("trainingDetails") || "").trim(),
@@ -280,8 +280,10 @@ PUBLIC FORM FIXES
                     const item = input.closest(".catalogue-item");
                     const box = item?.querySelector(".catalogue-detail-box");
                     const get = key => String(box?.querySelector(`[data-detail="${key}"]`)?.value || "").trim();
-                    const itemSize = get("size") || details.ladiesWearSize;
-                    const itemMeasurements = get("measurements") || "";
+                    const rawSizeMeasurements = get("sizeMeasurements");
+                    const parsedSizeMeasurements = splitSizeOrMeasurements(rawSizeMeasurements);
+                    const itemSize = parsedSizeMeasurements.size || details.ladiesWearSize;
+                    const itemMeasurements = parsedSizeMeasurements.measurements || "";
                     const itemDetails = get("details");
                     details.ladiesWearProducts[input.value] = {
                         product: input.value,
@@ -716,4 +718,16 @@ PUBLIC FORM FIXES
 
     }
 
+})();
+
+/* APRILS FIRST-LETTER CAPITALIZATION */
+(function(){
+    const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
+    document.addEventListener("input",function(e){
+        const el=e.target;
+        if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;
+        if(skip.has(String(el.type||"").toLowerCase()))return;
+        if(/email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||"")))return;
+        el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+    },true);
 })();
