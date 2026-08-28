@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Order / Request a Quote | Aprils Signature</title>
-<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-der fhion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
+<meta content="Request a quote or submit an order request to Aprils Signature for custom and made-to-order fashion, streetwear, ladies wear, kids wear and embellishment services." name="description"/>
 <link href="css/style.css" rel="stylesheet"/>
 <style>
         .quote-page {
@@ -378,23 +378,23 @@
 <label class="check-option"><input name="services[]" type="checkbox" value="Ladies Wear"/>Ladies Wear</label>
 <label class="check-option"><input name="services[]" type="checkbox" value="Kids Wear"/>Kids Wear</label>
 <label class="check-option"><input name="services[]" type="checkbox" value="Embellishment Services"/>Embellishment Services</label>
-<label class="check-option"><input name="services[]" type="checkbox" value="Address"/>Address</label>
+<label class="check-option"><input name="services[]" type="checkbox" value="Others"/>Others</label>
 <label class="check-option"><input name="services[]" type="checkbox" value="Practical Fashion Training"/>Practical Fashion Training</label>
-<p class="training-service-link" style="margin-top:10px;">
+<p id="trainingServiceLink" class="training-service-link" style="margin-top:10px;">
             Practical Fashion Training registrations are completed on the Training page.
             <a href="training.html">View Training Programmes &amp; Register</a>
         </p>
 </div>
 </section>
-<!-- ADDRESS / DELIVERY DETAILS -->
-<section class="form-section hidden-section" id="addressSection">
-<h2>Address Details</h2>
-<p>Provide the details needed for your order address.</p>
+<!-- OTHERS -->
+<section class="form-section hidden-section" id="serviceOtherSection">
+<h2>Other Service Details</h2>
+<p>Provide the details needed for your request.</p>
 <div class="catalogue-detail-grid">
-<div class="form-group"><label for="addressSizeMeasurements">Size (UK) / Measurements</label><textarea id="addressSizeMeasurements" name="addressSizeMeasurements" data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
-<div class="form-group"><label for="addressColour">Colour</label><input id="addressColour" name="addressColour" data-detail="colour" placeholder="e.g. Black, Gold" type="text"/></div>
-<div class="form-group"><label for="addressQuantity">Quantity</label><input id="addressQuantity" name="addressQuantity" data-detail="quantity" min="1" value="1" type="number"/></div>
-<div class="form-group" style="grid-column:1/-1"><label for="addressRequest">Specify Your Request</label><textarea id="addressRequest" name="addressRequest" data-detail="details" placeholder="Specify your address request."></textarea></div>
+<div class="form-group"><label for="serviceOtherSizeMeasurements">Size (UK) / Measurements</label><textarea id="serviceOtherSizeMeasurements" name="serviceOtherSizeMeasurements" data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div>
+<div class="form-group"><label for="serviceOtherColour">Colour</label><input id="serviceOtherColour" name="serviceOtherColour" data-detail="colour" placeholder="e.g. Black, Gold" type="text"/></div>
+<div class="form-group"><label for="serviceOtherQuantity">Quantity</label><input id="serviceOtherQuantity" name="serviceOtherQuantity" data-detail="quantity" min="1" value="1" type="number"/></div>
+<div class="form-group" style="grid-column:1/-1"><label for="serviceOtherRequest">Specify Your Request</label><textarea id="serviceOtherRequest" name="serviceOtherRequest" data-detail="details" placeholder="Specify what you need."></textarea></div>
 </div>
 </section>
 <!-- STREETWEAR -->
@@ -417,9 +417,10 @@
 <!-- KIDS WEAR -->
 <section class="form-section hidden-section" id="kidsWearSection">
 <h2>Kids Wear Details</h2>
-<div class="form-group">
-<label for="kidsWearSize">Age / Size (UK) / Measurements</label>
-<textarea id="kidsWearSize" name="kidsWearSize" placeholder="Example: Age 12, Size 12 (UK), or provide measurements."></textarea>
+<div class="catalogue-detail-grid">
+<div class="form-group"><label for="kidsWearAge">Age</label><input id="kidsWearAge" name="kidsWearAge" placeholder="e.g. 12 years" type="text"/></div>
+<div class="form-group"><label for="kidsWearSize">Size (UK)</label><input id="kidsWearSize" name="kidsWearSize" placeholder="e.g. Size 12 (UK)" type="text"/></div>
+<div class="form-group"><label for="kidsWearMeasurements">Measurements</label><textarea id="kidsWearMeasurements" name="kidsWearMeasurements" placeholder="Enter measurements if required."></textarea></div>
 </div>
 <div class="form-group">
 <label for="kidsWearColour">Colour (S)</label>
@@ -439,16 +440,6 @@
 <h2>Embellishment Services Selection</h2>
 <p class="field-help">Select one or more embellishment services. The detail box opens only for the service you select.</p>
 <div id="embellishmentProductsDynamic"><div class="empty">Loading embellishment services…</div></div>
-</section>
-<!-- ADDITIONAL DETAILS -->
-<section class="form-section">
-<h2>
-        Delivery Details
-    </h2>
-<div class="form-grid">
-<div class="form-group"><label for="deliveryDate">Preferred Delivery / Collection Date</label><input id="deliveryDate" name="deliveryDate" type="date"/></div>
-<div class="form-group"><label for="deliveryTime">Preferred Delivery / Collection Time</label><input id="deliveryTime" name="deliveryTime" type="time"/></div>
-</div>
 </section>
 <section class="form-section">
 <h2>
@@ -599,10 +590,10 @@ All rights reserved.
 <img alt="WhatsApp" src="icons/Whatsapp.jpg"/>
 </a>
 <!-- SUPABASE -->
-<script src="js/supabase-config.js?v=20260827-corrections"></script>
-<script src="js/supabase-client.js?v=20260827-corrections"></script>
+<script src="js/supabase-config.js?v=20260828-final"></script>
+<script src="js/supabase-client.js?v=20260828-final"></script>
 <!-- EXISTING WEBSITE JAVASCRIPT -->
-<script defer="" src="js/form-fixes.js?v=20260827-corrections"></script> <script defer="" src="js/script.js?v=20260827-corrections"></script>
-<script src="js/notification-dispatch.js?v=20260827-corrections"></script>
+<script defer="" src="js/form-fixes.js?v=20260828-final"></script> <script defer="" src="js/script.js?v=20260828-final"></script>
+<script src="js/notification-dispatch.js?v=20260828-final"></script>
 <script src="js/pwa-register.js"></script></body>
 </html>
