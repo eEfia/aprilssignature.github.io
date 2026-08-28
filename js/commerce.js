@@ -1,7 +1,7 @@
 "use strict";
 (function(){
     const getSupabase=()=>window.aprilsSupabase||window.AprilsSupabase||null;
-    async function wait(){ if(getSupabase()) return getSupabase(); return new Promise(r=>{let n=0;const t=setInterval(()=>{const d=getSupabase();if(d||++n>100){clearInterval(t);r(d)}},100)}) }
+    async function wait(){ if(getSupabase()) return getSupabase(); retu new Promise(r=>{let n=0;const t=setInterval(()=>{const d=getSupabase();if(d||++n>100){clearInterval(t);r(d)}},100)}) }
     const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
     const slug=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,80);
     async function getInventory(){const db=await wait();if(!db)return[];const r=await db.from("settings").select("id,setting_key,setting_value").like("setting_key","inventory_item_%");if(r.error)return[];const items=(r.data||[]).map(x=>{try{return{...JSON.parse(x.setting_value||"{}"),id:x.id,setting_key:x.setting_key}}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false);let collectionOrder=new Map();try{const o=await db.from("settings").select("setting_key,setting_value").like("setting_key","inventory_collection_order_%");if(!o.error)(o.data||[]).forEach(x=>collectionOrder.set(String(x.setting_key).replace(/^inventory_collection_order_/,""),Number(x.setting_value||9999)));}catch(_){}return items.sort((a,b)=>(collectionOrder.get(slug(a.collection||""))||9999)-(collectionOrder.get(slug(b.collection||""))||9999)||Number(a.display_order||9999)-Number(b.display_order||9999));}
