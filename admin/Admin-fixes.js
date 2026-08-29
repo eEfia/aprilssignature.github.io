@@ -2,7 +2,7 @@
 /*
   APRILS SIGNATURE — final compatibility / interaction fixes.
   Keeps the dashboard logic in admin.js and adds visible button feedback
-  without changing the existing admin tabs or their actions.
+  without changing the existing admin tabs or the actions.
 */
 (function () {
     const REVIEW_URL = "https://g.page/r/CcD7hxB7NK7pEAE/review";
