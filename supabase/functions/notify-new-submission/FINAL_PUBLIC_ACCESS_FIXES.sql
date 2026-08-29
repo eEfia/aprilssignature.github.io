@@ -1,6 +1,6 @@
 -- APRILS SIGNATURE — FINAL PUBLIC ACCESS FIXES
 -- Run in Supabase SQL Editor once.
--- These policies expose only records intended for the public webse.
+-- These policies expose only records intended for the lic webse.
 -- Customer submissions and admin settings remain pte.
 
 DO $$
