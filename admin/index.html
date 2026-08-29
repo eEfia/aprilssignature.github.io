@@ -610,10 +610,8 @@ data-section="orders"
 Order / Quote Requests
 </button>
 
-<button data-section="orderStatusUpdates">Order Status / Payment Updates</button>
 <button data-section="orderTracking">Order Tracking</button>
 <button data-section="trainees">Trainees</button>
-<button data-section="refunds">Refunds</button>
 
 <button
 data-section="invoice"
@@ -1477,29 +1475,6 @@ Show this content on the website
 </section>
 
 <!-- =====================================================
-ORDER STATUS / PAYMENT UPDATES
-===================================================== -->
-<section id="orderStatusUpdates" class="section">
-<h2>Order Status / Payment Updates</h2>
-<p class="intro">Manually update an order or training registration when the automatic workflow cannot determine the current stage. Payment status is calculated from saved payments and refunds and remains linked to the selected record.</p>
-<div class="form-card">
-<div class="form-grid">
-<div class="form-group"><label for="statusUpdateSearch">Search Customer / Invoice / Record</label><input id="statusUpdateSearch" type="search" placeholder="Type a customer name, invoice number or record ID"></div>
-<div class="form-group"><label for="statusUpdateRecord">Customer / Record</label><select id="statusUpdateRecord"><option value="">Select a record</option></select></div>
-<div class="form-group"><label for="statusUpdateOrderStatus">Order / Training Status</label><select id="statusUpdateOrderStatus"></select></div>
-<div class="form-group"><label>Payment Status</label><input id="statusUpdatePaymentStatus" readonly placeholder="Calculated automatically"></div>
-<div class="form-group"><label>Invoice</label><input id="statusUpdateInvoice" readonly></div>
-<div class="form-group"><label>Total</label><input id="statusUpdateTotal" readonly></div>
-<div class="form-group"><label>Paid</label><input id="statusUpdatePaid" readonly></div>
-<div class="form-group"><label>Balance</label><input id="statusUpdateBalance" readonly></div>
-</div>
-<div class="admin-actions"><button type="button" class="primary" id="saveStatusUpdate">Save Status Update</button><button type="button" class="secondary" id="refreshStatusUpdateRecords">Refresh Records</button></div>
-<div id="statusUpdateMessage" class="status" style="display:none;margin-top:10px;"></div>
-</div>
-<div id="statusUpdateHistory" class="table-wrap" style="margin-top:18px;"></div>
-</section>
-
-<!-- =====================================================
 ORDER TRACKING
 ===================================================== -->
 <section id="orderTracking" class="section"><h2>Order Tracking</h2><p class="intro">Live fulfilment view for confirmed customer orders. Orders appear here once payment has been recorded, with collection/delivery dates and a clear fulfilment pipeline.</p><div class="toolbar"><button type="button" class="secondary" id="orderTrackingRefresh">Refresh</button></div><div id="orderTrackingList" class="table-wrap"></div></section>
@@ -1618,7 +1593,6 @@ USERS INVOICE
 <div class="form-group"><label for="usersInvoicePhone">Phone / WhatsApp</label><input id="usersInvoicePhone"></div>
 <div class="form-group"><label for="usersInvoiceEmail">Email</label><input id="usersInvoiceEmail" type="email"></div>
 <div class="form-group"><label for="usersInvoiceAddress">Location / Address</label><input id="usersInvoiceAddress"></div>
-<div class="form-group full-width"><label for="usersInvoiceImages">Attach Images</label><input id="usersInvoiceImages" type="file" accept="image/*" multiple><small>Optional images that will be saved with the invoice and included when the invoice is viewed or shared.</small></div>
 </div>
 <div class="form-group"><label for="usersInvoiceNotes">Invoice Notes</label><textarea id="usersInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
 <h3 style="color:#008c95;margin:12px 0;">Invoice Items</h3>
@@ -1628,7 +1602,7 @@ USERS INVOICE
 </div>
 <div class="form-card" style="margin-top:20px;">
 <h3 style="color:#008c95;margin-bottom:10px;">Saved User Invoices</h3>
-<p class="intro">Users Invoice provides access to all saved invoices and payment receipts from the system, including walk-in customers and website customers. Open, edit/correct, share PDF and payment features are available; delete is intentionally excluded here.</p>
+<p class="intro">Saved user invoices are part of the same central invoice records. View, edit/correct and Share PDF are available here. Every creation or correction is recorded in the staff activity log.</p>
 <div id="userInvoiceSavedList" class="table-wrap"></div>
 </div>
 </section>
@@ -1774,30 +1748,6 @@ NOTIFICATIONS
 </section>
 
 <!-- =====================================================
-REFUNDS
-===================================================== -->
-<section id="refunds" class="section">
-<h2>Refunds</h2>
-<p class="intro">Record a customer refund against an invoice. The cancellation fee / incurred expenses field is optional. Saved refunds are included in Sales &amp; Accounting so the returned amount reduces net sales and cash received.</p>
-<div class="form-card">
-<form id="refundForm">
-<div class="form-grid">
-<div class="form-group"><label for="refundInvoice">Invoice / Record</label><select id="refundInvoice" required><option value="">Select invoice</option></select></div>
-<div class="form-group"><label for="refundDate">Refund Date</label><input id="refundDate" type="date" required></div>
-<div class="form-group"><label for="refundAmount">Payment Amount Being Refunded (GHS)</label><input id="refundAmount" type="number" min="0" step="0.01" required></div>
-<div class="form-group"><label for="refundFeePercent">Cancellation Fee / Incurred Expenses (%)</label><input id="refundFeePercent" type="number" min="0" max="100" step="0.01" placeholder="Optional"></div>
-<div class="form-group"><label for="refundFeeAmount">Cancellation Fee / Incurred Expenses (GHS)</label><input id="refundFeeAmount" type="number" min="0" step="0.01" placeholder="Optional"></div><div class="form-group"><label for="refundNetAmount">Refund to Customer (GHS)</label><input id="refundNetAmount" type="number" readonly></div>
-<div class="form-group full-width"><label>Note</label><div class="notice">As a custom and made-to-order brand, this is a penalty fee subtracted from customer's payment to cover the administrative time spent processing the order and/or time used for sourcing for fabrics and/or expenses already incurred on the order before cancellation.</div></div>
-<div class="form-group full-width"><label for="refundReason">Reason / Notes</label><textarea id="refundReason" placeholder="Reason for refund or cancellation"></textarea></div>
-</div>
-<div class="admin-actions"><button type="submit" class="primary">Save Refund</button><button type="button" class="secondary" id="refundReset">Clear</button></div>
-<div id="refundMessage" class="status" style="display:none;margin-top:10px;"></div>
-</form>
-</div>
-<div class="form-card" style="margin-top:18px;"><h3 style="color:#008c95;margin-bottom:10px;">Saved Refunds</h3><div id="refundList" class="table-wrap"></div></div>
-</section>
-
-<!-- =====================================================
 SALES & ACCOUNTING
 ===================================================== -->
 <section id="accounting" class="section">
@@ -1810,7 +1760,6 @@ SALES & ACCOUNTING
     <div class="card"><h3>Outstanding</h3><div class="number" id="accountingOutstanding">GHS 0.00</div><p>Customer balances</p></div>
     <div class="card"><h3>Discounts</h3><div class="number" id="accountingDiscounts">GHS 0.00</div><p>Discounts given</p></div>
     <div class="card"><h3>Expenses</h3><div class="number" id="accountingExpenses">GHS 0.00</div><p>Business expenses recorded</p></div>
-    <div class="card"><h3>Refunds</h3><div class="number" id="accountingRefunds">GHS 0.00</div><p>Customer refunds returned</p></div>
     <div class="card"><h3>Net Cash</h3><div class="number" id="accountingNetCash">GHS 0.00</div><p>Received minus expenses</p></div>
     <div class="card"><h3>Current Stock Value</h3><div class="number" id="accountingStockValue">GHS 0.00</div><p>Current inventory at saved prices</p></div>
 </div>
@@ -1982,7 +1931,7 @@ STAFF ACTIVITY / AUDIT LOG
 <div class="form-group"><label for="auditActionFilter">Action</label><input id="auditActionFilter" placeholder="e.g. invoice_saved, updated, payment_saved"></div>
 <div class="form-group"><label for="auditSearch">Search</label><input id="auditSearch" placeholder="Invoice number, customer, record ID..."></div>
 </div>
-<div class="admin-actions"><button type="button" class="secondary" id="auditRefresh">Refresh Activity</button><button type="button" class="danger" id="auditClear">Clear Activity</button></div>
+<div class="admin-actions"><button type="button" class="secondary" id="auditRefresh">Refresh Activity</button></div>
 <div id="auditLogList" class="table-wrap"></div>
 </div>
 </section>
@@ -2057,9 +2006,10 @@ You can also remove the current public logo without deleting the original projec
 <script src="../js/supabase-client.js?v=20260827-corrections"></script>
 <script src="../js/notification-dispatch.js?v=20260827-corrections"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260829-final" defer></script>
-<script src="Admin-fixes.js?v=20260829-final" defer></script>
-<script src="commerce-admin.js?v=20260829-final" defer></script>
+<script src="admin.js?v=20260828-final" defer></script>
+<script src="Admin-fixes.js?v=20260828-final" defer></script>
+<script src="commerce-admin.js?v=20260828-final" defer></script>
+<script src="final-fixes.js?v=20260829-final"></script>
 
 
 <style>
@@ -2200,42 +2150,4 @@ button.button-working{opacity:.78;cursor:wait;transform:translateY(1px);box-shad
 #invoicePaymentRows { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 #invoicePaymentRows .invoice-payment-row { margin-bottom:0 !important; }
 @media(max-width:800px){ #invoicePaymentRows { grid-template-columns:1fr; } }
-</style>
-
-<style>
-
-/* FINAL CORRECTION PASS */
-.status-tab-bar{display:flex;gap:6px;overflow-x:auto;padding:6px 2px 12px;margin-bottom:14px;border-bottom:2px solid #999}
-.status-tab{flex:0 0 auto;border:1px solid #777;background:#fff;color:#222;padding:10px 14px;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap}
-.status-tab.active,.status-tab:hover{background:#008c95;color:#fff;border-color:#075957}
-.admin-table-search{display:flex;gap:8px;align-items:end;margin:12px 0}
-.admin-table-search label{display:block;font-weight:700;font-size:13px}
-.admin-table-search input{width:min(520px,100%);padding:10px 12px;border:1.5px solid #777;border-radius:5px}
-.professional-data-table{min-width:1180px}
-.professional-data-table th,.professional-data-table td{vertical-align:top}
-.professional-data-table input[type="date"]{width:118px}
-.professional-data-table input[type="time"]{width:82px;margin:4px 0}
-.professional-data-table input[type="text"]{width:160px}
-.collection-form-paper{position:absolute;left:-100000px;top:0;width:210mm;min-height:297mm;background:#fff;color:#222;padding:14mm;font-family:"Segoe UI",Arial,sans-serif;font-size:12px;line-height:1.4}
-.collection-form-paper table{width:100%;border-collapse:collapse;margin-top:18px}
-.collection-form-paper th,.collection-form-paper td{border:1px solid #777;padding:7px;text-align:left;vertical-align:top}
-.collection-form-paper th{background:#0f7775;color:#fff}
-.collection-brand{display:flex;align-items:center;gap:10px;border-bottom:3px solid #0f7775;padding-bottom:12px}
-.collection-brand img{width:52px;height:52px;object-fit:contain}
-.collection-brand h1{margin:0;color:#0f7775;font-size:20px}
-.collection-brand p{margin:2px 0}
-.collection-title{margin-left:auto;text-align:right}
-.collection-title strong{display:block;color:#0f7775;font-size:16px}
-.collection-customer{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;padding:10px;border:1px solid #aaa}
-.collection-summary{margin:18px 0 0 auto;max-width:340px;text-align:right}
-.collection-details{margin-top:18px;padding:12px;border:1px solid #aaa}
-.collection-note{margin-top:18px;padding:10px;border:1px solid #aaa}
-.collection-id{margin-top:18px;color:#666}
-.invoice-attachments{margin-top:14px;padding:10px;border:1px solid #aaa}
-.invoice-attachment-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-.invoice-attachment-grid img{width:120px;height:120px;object-fit:contain;border:1px solid #aaa;background:#f7f7f7}
-#checkoutList .admin-table-search + .table-wrap table th:first-child,#checkoutList table th:first-child{width:105px}
-#checkoutList table th:nth-child(5),#checkoutList table th:nth-child(6){width:120px}
-@media(max-width:800px){.status-tab-bar{padding-bottom:8px}.professional-data-table{min-width:1000px}.collection-form-paper{width:210mm}.admin-table-search{display:block}.admin-table-search input{width:100%;margin-top:5px}}
-
 </style>

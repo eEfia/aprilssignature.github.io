@@ -1040,8 +1040,6 @@ const LEGACY_STREETWEAR_NAMES = new Set([
     "sweatshirts & shorts set", "sweatshirts & sweatpants set"
 ]);
 
-function invoiceStorageKey(id) { return "invoice_price_" + contentSlug(id); }
-
 function productKeyFromName(name) {
     return "product_" + String(name || "").toLowerCase().trim()
         .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
@@ -1822,7 +1820,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size || item.measurements, item.colour].filter(Boolean).join(" • ")
+                details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1908,7 +1906,7 @@ async function getInvoicePayments(invoiceNumber) {
 }
 
 async function saveInvoicePayment(payment) {
-    const key = invoicePaymentStorageKey(payment.invoiceNumber, Date.now());
+    const key = invoicePaymentStorageKey(payment.invoiceNumber, contentSlug(payment.receiptNumber) || Date.now());
     try {
         if (!db) throw new Error("offline");
         const result = await safeSettingUpsert(key, JSON.stringify(payment));
@@ -1917,38 +1915,24 @@ async function saveInvoicePayment(payment) {
         // unless an admin has deliberately marked the registration stopped/completed.
         try {
             const invoice = await getInvoiceSavedRecord(payment.invoiceNumber);
-            if (invoice?.training && invoice?.sourceId) {
+            if (invoice?.sourceId) {
                 const payments = await getInvoicePayments(payment.invoiceNumber);
                 const paid = payments.reduce((sum,row)=>sum+Number(row.amount||0),0);
                 const total = Number(invoice.total||0);
+                const training = !!invoice.training;
+                const statusPrefix = training ? "training_status" : "quote_status";
+                const paymentPrefix = training ? "payment_status_training_" : "payment_status_quote_";
                 if (total > 0) {
-                    const current = await getAdminRecordStatus("training_status", invoice.sourceId);
-                    if (!["stopped","completed","in_class"].includes(current)) {
-                        await setAdminRecordStatus("training_status", invoice.sourceId, paid >= total ? "fully_paid" : "part_paid");
+                    const current = await getAdminRecordStatus(statusPrefix, invoice.sourceId);
+                    let paymentStatus = paid >= total ? "paid_in_full" : paid >= total * .75 ? "deposit_paid" : paid > 0 ? "part_paid" : "unpaid";
+                    await setAdminRecordStatus(paymentPrefix.replace(/_$/,""), invoice.sourceId, paymentStatus);
+                    if (training) {
+                        if (!["stopped","completed","in_class"].includes(current)) {
+                            await setAdminRecordStatus(statusPrefix, invoice.sourceId, paid >= total ? "fully_paid" : paid > 0 ? "part_paid" : current);
+                        }
+                    } else if (!["cancelled","completed","ready","dispatched","received","in_production"].includes(current) && paid > 0) {
+                        await setAdminRecordStatus(statusPrefix, invoice.sourceId, "order_taken");
                     }
-                }
-            }
-        } catch (_) {}
-        // Keep both order/training status and payment status synchronized with the
-        // actual saved payment total. Manual production stages remain untouched.
-        try {
-            const invoice = await getInvoiceSavedRecord(payment.invoiceNumber);
-            if (invoice?.sourceId) {
-                const paymentsNow = await getInvoicePayments(payment.invoiceNumber);
-                const paidNow = paymentsNow.reduce((sum,row)=>sum+Number(row.amount||0),0);
-                const totalNow = Number(invoice.total||0);
-                const refundRows = (await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("refund_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
-                const refundedNow = refundRows.filter(r=>String(r.invoiceNumber||"")===String(payment.invoiceNumber||"")).reduce((sum,r)=>sum+Number(r.refundAmount||0),0);
-                const paymentState = finalPaymentState(totalNow,paidNow,refundedNow);
-                const paymentKey = invoice.training ? "payment_status_training_" : "payment_status_quote_";
-                await safeSettingUpsert(paymentKey+invoice.sourceId,paymentState);
-                const prefix = invoice.training ? "training_status" : "quote_status";
-                const current = await getAdminRecordStatus(prefix,invoice.sourceId);
-                if(!["in_production","completed","ready","dispatched","received","in_class","stopped","cancelled"].includes(current)){
-                    const next = invoice.training
-                        ? (paidNow<=0 ? "under_review" : paidNow>=totalNow && totalNow>0 ? "fully_paid" : "part_paid")
-                        : (paidNow<=0 ? "under_review" : totalNow>0 && paidNow>=totalNow*0.75 ? "order_taken" : "part_paid");
-                    await setAdminRecordStatus(prefix,invoice.sourceId,next);
                 }
             }
         } catch (_) {}
@@ -2054,7 +2038,7 @@ async function setupAccountingForm() {
 }
 
 async function exportAccountingPdf(kind="sales",share=true){
-    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${finalFormatDateTime(new Date())}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
+    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
 
 async function loadNotifications() {
     const list = document.getElementById("notificationList");
@@ -2112,14 +2096,14 @@ async function loadNotifications() {
 
         list.innerHTML = unique.length ? `<table><thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Contact</th><th>Details</th><th>Actions</th></tr></thead><tbody>${
             unique.map(e => `<tr>
-                <td>${escapeHTML(e.date ? finalFormatDateTime(e.date) : "")}</td>
+                <td>${escapeHTML(e.date ? new Date(e.date).toLocaleString() : "")}</td>
                 <td>${escapeHTML(e.type)}</td>
                 <td>${escapeHTML(e.name)}</td>
                 <td>${escapeHTML([e.phone,e.email].filter(Boolean).join(" • "))}</td>
                 <td>${escapeHTML(e.details)}</td>
                 <td>
-                    ${e.phone ? `<button type="button" class="secondary" data-notify-whatsapp="${escapeHTML(e.id)}">WhatsApp</button>` : ""}
-                    ${e.email ? `<button type="button" class="secondary" data-notify-email="${escapeHTML(e.id)}">Email</button>` : ""}
+                    <button type="button" class="secondary" data-notify-whatsapp="${escapeHTML(e.id)}">WhatsApp</button>
+                    <button type="button" class="secondary" data-notify-email="${escapeHTML(e.id)}">Email</button>
                 </td>
             </tr>`).join("")
         }</tbody></table>` : `<div class="empty">No recent customer activity was found.</div>`;
@@ -2202,9 +2186,6 @@ async function loadAccounting() {
     const expenses = rows.filter(r => String(r.setting_key || "").startsWith("accounting_expense_")).map(r => {
         try { return {id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
     }).filter(Boolean);
-    const refunds = rows.filter(r => String(r.setting_key || "").startsWith("refund_record_")).map(r => {
-        try { return {id:r.id, key:r.setting_key, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
-    }).filter(Boolean);
     let offlineExpenses = [];
     try { offlineExpenses = JSON.parse(localStorage.getItem("aprils_offline_expenses") || "[]"); } catch (_) {}
 
@@ -2227,7 +2208,6 @@ async function loadAccounting() {
     let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-    const totalRefunds = refunds.reduce((sum, item) => sum + Number(item.refundAmount || item.amount || 0), 0);
     const inventoryRows = rows.filter(r => String(r.setting_key || "").startsWith("inventory_item_")).map(r => {
         try { return {id:r.id, ...JSON.parse(r.setting_value || "{}")}; } catch (_) { return null; }
     }).filter(Boolean);
@@ -2237,11 +2217,9 @@ async function loadAccounting() {
         const total = Number(invoice.total || 0);
         const discount = Number(invoice.discount || 0);
         const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
-        const refunded = refunds.filter(r => String(r.invoiceNumber || "") === String(invoice.invoiceNumber || "")).reduce((sum,r) => sum + Number(r.refundAmount || r.amount || 0), 0);
-        const netReceived = Math.max(0, paid - refunded);
-        const balance = Math.max(0, total - netReceived);
-        totalSales += Math.max(0, total - refunded);
-        totalReceived += netReceived;
+        const balance = Math.max(0, total - paid);
+        totalSales += total;
+        totalReceived += paid;
         totalOutstanding += balance;
         totalDiscounts += discount;
 
@@ -2252,7 +2230,7 @@ async function loadAccounting() {
             <td>${escapeHTML(invoice.customer || "")}</td>
             <td>GHS ${total.toFixed(2)}</td>
             <td>GHS ${discount.toFixed(2)}</td>
-            <td>GHS ${netReceived.toFixed(2)}</td>
+            <td>GHS ${paid.toFixed(2)}</td>
             <td>GHS ${balance.toFixed(2)}</td>
             <td>${balance <= 0 && total > 0 ? "Paid in full" : paid > 0 ? "Part payment" : "Unpaid"}</td>
         </tr>`;
@@ -2273,7 +2251,6 @@ async function loadAccounting() {
     document.getElementById("accountingOutstanding").textContent = `GHS ${totalOutstanding.toFixed(2)}`;
     document.getElementById("accountingDiscounts").textContent = `GHS ${totalDiscounts.toFixed(2)}`;
     document.getElementById("accountingExpenses").textContent = `GHS ${totalExpenses.toFixed(2)}`;
-    const refundsEl=document.getElementById("accountingRefunds"); if(refundsEl) refundsEl.textContent=`GHS ${totalRefunds.toFixed(2)}`;
     document.getElementById("accountingNetCash").textContent = `GHS ${(totalReceived - totalExpenses).toFixed(2)}`;
     const stockValueEl = document.getElementById("accountingStockValue");
     if (stockValueEl) stockValueEl.textContent = `GHS ${stockValue.toFixed(2)}`;
@@ -2380,16 +2357,8 @@ async function loadSavedInvoiceReceiptRecords() {
         }catch(_){}
         const receipts=rows.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return{type:"Receipt",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
         for(const r of invoices){try{r._paymentTotal=(await getInvoicePayments(r.invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0)}catch(_){r._paymentTotal=0}}
-        const renderUserInvoiceTable=(invoiceRecords,receiptRecords)=>{
-            const all=[...invoiceRecords.map(r=>({...r,_displayType:"Invoice"})),...receiptRecords.map(r=>({...r,_displayType:"Receipt"}))]
-                .sort((a,b)=>String(b.date||b.savedAt||"").localeCompare(String(a.date||a.savedAt||"")));
-            if(!all.length)return `<div class="empty">No saved invoices or receipts yet.</div>`;
-            return `<table><thead><tr><th>Type</th><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${all.map(r=>{
-                const type=r._displayType, amount=type==="Receipt"?Number(r.amount||0):Number(r.total||0);
-                const status=type==="Receipt"?(r.status||"Payment recorded"):(Number(r._paymentTotal||0)>=amount&&amount>0?"Paid in full":Number(r._paymentTotal||0)>0?"Part payment":"Payment pending");
-                return `<tr><td>${type}</td><td>${escapeHTML(r.invoiceNumber||r.receiptNumber||"")}</td><td>${escapeHTML(finalFormatDate(r.date))}</td><td>${escapeHTML(r.customer||r.full_name||"")}</td><td>GHS ${amount.toFixed(2)}</td><td>${escapeHTML(status)}</td><td><button type="button" class="secondary" data-open-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Open</button><button type="button" class="secondary" data-edit-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Edit</button><button type="button" class="secondary" data-share-saved-record="${escapeHTML(r.key)}" data-record-type="${type}">Share PDF</button></td></tr>`;
-            }).join("")}</tbody></table>`;
-        };
+        const renderUserInvoiceTable=(records)=>`<table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{const paid=Number(r._paymentTotal||0),total=Number(r.total||0);const status=paid>=total&&total>0?"Paid in full":paid>0?"Part payment":"Payment pending";return `<tr><td>${escapeHTML(r.invoiceNumber||"")}</td><td>${escapeHTML(r.date||"")}</td><td>${escapeHTML(r.customer||"")}</td><td>GHS ${total.toFixed(2)}</td><td>${escapeHTML(status)}</td><td><button type="button" class="secondary" data-user-view="${escapeHTML(r.key)}">View</button><button type="button" class="secondary" data-user-edit="${escapeHTML(r.key)}">Edit / Correct</button><button type="button" class="secondary" data-user-share="${escapeHTML(r.key)}">Share PDF</button></td></tr>`;}).join("")}</tbody></table>`;
+
         const renderTable=(records,type)=>{
             if(!records.length)return `<div class="empty">No saved ${type.toLowerCase()}s yet.</div>`;
             return `<table><thead><tr><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${records.map(r=>{
@@ -2400,21 +2369,21 @@ async function loadSavedInvoiceReceiptRecords() {
         };
         if(invoiceList)invoiceList.innerHTML=renderTable(invoices,"Invoice");
         if(receiptList)receiptList.innerHTML=renderTable(receipts,"Receipt");
-        if(userInvoiceList)userInvoiceList.innerHTML=renderUserInvoiceTable(invoices,receipts);
+        if(userInvoiceList)userInvoiceList.innerHTML=userInvoices.length ? renderUserInvoiceTable(userInvoices) : `<div class="empty">No user invoices have been saved yet.</div>`;
         const root=document;
         [invoiceList,receiptList,userInvoiceList].filter(Boolean).forEach(list=>{
             list.querySelectorAll("[data-open-saved-record],[data-edit-saved-record]").forEach(button=>button.onclick=async()=>{
                 const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset[button.dataset.openSavedRecord!==undefined?"openSavedRecord":"editSavedRecord"]);
                 if(!row)return;
                 if(type==="Invoice"){
-                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row,images:row.images||[]});
+                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
                 }else await openSavedReceiptRecord(row);
             });
             list.querySelectorAll("[data-share-saved-record]").forEach(button=>button.onclick=async()=>{
                 const type=button.dataset.recordType, row=(type==="Invoice"?invoices:receipts).find(r=>r.key===button.dataset.shareSavedRecord);
                 if(!row)return;
                 if(type==="Invoice"){
-                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row,images:row.images||[]});
+                    await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:!!row.userInvoice,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
                     await generateInvoicePdf(true);
                 }else{
                     await openSavedReceiptRecord(row);
@@ -2427,7 +2396,7 @@ async function loadSavedInvoiceReceiptRecords() {
             });
             list.querySelectorAll("[data-user-edit]").forEach(button=>button.onclick=async()=>{
                 const row=userInvoices.find(r=>r.key===button.dataset.userEdit); if(!row)return;
-                await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:true,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row,images:row.images||[]});
+                await openInvoiceGenerator({id:row.sourceId||"",full_name:row.customer||"",phone:row.phone||"",whatsapp:row.phone||"",email:row.email||"",location:row.address||""},{manualLines:row.lines||[],notes:row.notes||"",training:!!row.training,userInvoice:true,invoiceNumber:row.invoiceNumber,discountPercent:Number(row.discountPercent||0),entryId:row.entryId||"",existingRecord:row});
             });
             list.querySelectorAll("[data-user-share]").forEach(button=>button.onclick=async()=>{
                 const row=userInvoices.find(r=>r.key===button.dataset.userShare); if(!row)return;
@@ -2595,7 +2564,7 @@ async function openInvoiceGenerator(row, details) {
                 <div class="invoice-brand-row">
                     <img src="${escapeHTML(logoSrc)}" alt="Aprils Signature logo">
                     <div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div>
-                    <div class="invoice-meta"><strong>INVOICE</strong><span>${escapeHTML(document.getElementById("generatedInvoiceNumber").value)}</span><span>${escapeHTML(finalFormatDate(document.getElementById("generatedInvoiceDate").value))}</span></div>
+                    <div class="invoice-meta"><strong>INVOICE</strong><span>${escapeHTML(document.getElementById("generatedInvoiceNumber").value)}</span><span>${escapeHTML(document.getElementById("generatedInvoiceDate").value)}</span></div>
                 </div>
                 <div class="invoice-customer"><div><strong>Bill To</strong><br>${escapeHTML(document.getElementById("generatedInvoiceCustomer").value)}<br>${escapeHTML(document.getElementById("generatedInvoicePhone").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceEmail").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceAddress").value)}</div></div>
                 <table class="invoice-lines"><thead><tr><th>#</th><th>Item / Description</th><th>Details</th><th>Qty</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead>
@@ -2617,7 +2586,6 @@ async function openInvoiceGenerator(row, details) {
                         </div>`).join("")}
                     </div>
                     </div>
-                ${Array.isArray(details?.images) && details.images.length ? `<div class="invoice-attachments"><strong>Attached Images</strong><div class="invoice-attachment-grid">${details.images.map(img=>`<div><img src="${escapeHTML(img.data||img.url||"")}" alt="${escapeHTML(img.name||"Attached image")}"></div>`).join("")}</div></div>` : ""}
                 <div class="invoice-note invoice-payment-note"><strong>*** Payment Notes ***</strong><br><em>${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</em></div>
                 <div class="invoice-note invoice-thank-you"><strong>Thank you for choosing Aprils Signature.</strong></div>
                 <div class="invoice-footer">Aprils Signature • Elegance in Every Stitch</div>
@@ -2701,7 +2669,7 @@ async function openInvoiceGenerator(row, details) {
     backdrop.style.display = "block";
     modal.classList.add("open");
 
-    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice, entryId: details?.entryId || makeAprilsUniqueId("INV"), originalRecord: details?.existingRecord || null };
+    window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice, entryId: details?.entryId || makeAprilsUniqueId("INV"), originalRecord: details?.existingRecord || null, attachments: Array.isArray(details?.existingRecord?.attachments) ? details.existingRecord.attachments : [] };
     setTimeout(autoSaveInvoice, 150);
 }
 
@@ -2742,8 +2710,8 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
         email: document.getElementById("generatedInvoiceEmail")?.value || "",
         address: document.getElementById("generatedInvoiceAddress")?.value || "",
         notes: document.getElementById("generatedInvoiceNotes")?.value || "",
-        images: Array.isArray(state.details?.images) ? state.details.images : (Array.isArray(previous?.images) ? previous.images : []),
         lines, discount, discountPercent, total,
+        attachments: Array.isArray(state.attachments) ? state.attachments : [],
         sourceId: row?.id || "",
         sourceType: details?.checkout ? "checkout_orders" : (state.isTrainingInvoice ? "training_registrations" : (details?.userInvoice ? "user_invoices" : "quote_requests")),
         userInvoice: !!details?.userInvoice,
@@ -2753,7 +2721,16 @@ async function statefulSaveGeneratedInvoice(row, details, savedPayments, automat
         revision: Number(previous?.revision || 0) + (isUpdate ? 1 : 0)
     };
     await saveInvoiceRecord(invoiceNumber, record);
-    await auditSystemEvent(record.sourceType || "invoice", record.entryId, isUpdate ? "invoice_updated" : "invoice_created", {invoiceNumber, customer:record.customer, userInvoice:record.userInvoice, revision:record.revision || 0});
+    try {
+        if (record.sourceId && (record.sourceType === "quote_requests" || record.sourceType === "checkout_orders")) {
+            const current = await getAdminRecordStatus("quote_status", record.sourceId);
+            if (!isUpdate && (!current || current === "under_review")) await setAdminRecordStatus("quote_status", record.sourceId, "invoice_generated");
+        } else if (record.sourceId && record.sourceType === "training_registrations") {
+            const current = await getAdminRecordStatus("training_status", record.sourceId);
+            if (!isUpdate && (!current || current === "under_review")) await setAdminRecordStatus("training_status", record.sourceId, "invoice_generated");
+        }
+    } catch (_) {}
+    await auditSystemEvent(record.sourceType || "invoice", record.entryId, isUpdate ? "invoice_updated" : "invoice_created", {invoiceNumber, customer:record.customer, revision:record.revision || 0});
     if (details?.checkout && row?.id) {
         try {
             const checkoutRow = await db.from("quote_requests").select("journey").eq("id", row.id).maybeSingle();
@@ -2820,26 +2797,6 @@ async function pdfFromVisibleElement(element, options){
     }finally{clone.remove();}
 }
 
-function openPdfShareFallback(blob,filename,phone,email,title){
-    const old=document.getElementById("pdfShareFallback");old?.remove();
-    const url=URL.createObjectURL(blob);
-    const box=document.createElement("div");box.id="pdfShareFallback";box.className="submission-modal open";
-    box.style.cssText+="z-index:11000;inset:20vh 25vw;height:auto;max-height:60vh;";
-    box.innerHTML=`<button type="button" class="submission-modal-close" aria-label="Close">×</button><h2>${escapeHTML(title||"Share PDF")}</h2><p>Select how you want to share the generated PDF.</p><div class="submission-modal-actions">
-    <button type="button" class="secondary" data-pdf-fallback="whatsapp">WhatsApp</button>
-    <button type="button" class="secondary" data-pdf-fallback="email">Email</button>
-    <button type="button" class="secondary" data-pdf-fallback="download">Download PDF</button>
-    <button type="button" class="secondary" data-pdf-fallback="copy">Copy File Link</button>
-    </div>`;
-    document.body.appendChild(box);
-    const close=()=>{box.remove();URL.revokeObjectURL(url)};
-    box.querySelector(".submission-modal-close").onclick=close;
-    box.onclick=e=>{if(e.target===box)close()};
-    box.querySelector('[data-pdf-fallback="download"]').onclick=()=>{const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();message("PDF downloaded.","success");};
-    box.querySelector('[data-pdf-fallback="copy"]').onclick=async()=>{try{await navigator.clipboard.writeText(url);message("Temporary PDF link copied. Keep this page open until you have finished sharing.","success");}catch(_){message("The file link could not be copied on this device.","error");}};
-    box.querySelector('[data-pdf-fallback="whatsapp"]').onclick=()=>{const n=normalizeWhatsAppNumber(phone);window.open(n?`https://wa.me/${n}?text=${encodeURIComponent(title+" — The PDF is ready. Please attach the downloaded PDF before sending.")}`:"https://wa.me/","_blank","noopener,noreferrer");};
-    box.querySelector('[data-pdf-fallback="email"]').onclick=()=>{window.location.href=`mailto:${encodeURIComponent(email||"")}?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(title+" — The PDF has been generated. Please attach the downloaded PDF.")}`;};
-}
 async function generateInvoicePdf(share) {
     const state = window._aprilsCurrentInvoice;
     if (!state) return false;
@@ -2867,8 +2824,8 @@ async function generateInvoicePdf(share) {
                 await navigator.share({title: options.filename, text:"Aprils Signature Invoice", files:[file]});
                 return true;
             }
-            openPdfShareFallback(blob,options.filename,document.getElementById("generatedInvoicePhone")?.value||"",document.getElementById("generatedInvoiceEmail")?.value||"","Aprils Signature Invoice");
-            return true;
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
@@ -3074,7 +3031,7 @@ function openReceiptGenerator() {
                 <div class="receipt-brand-row">
                     <img src="${escapeHTML(logoSrc)}" alt="Aprils Signature logo">
                     <div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div>
-                    <div class="receipt-meta"><strong>PAYMENT RECEIPT</strong><span>Receipt No: ${escapeHTML(document.getElementById("generatedReceiptNumber").value)}</span><span>Date: ${escapeHTML(finalFormatDate(document.getElementById("generatedReceiptDate").value))}</span></div>
+                    <div class="receipt-meta"><strong>PAYMENT RECEIPT</strong><span>Receipt No: ${escapeHTML(document.getElementById("generatedReceiptNumber").value)}</span><span>Date: ${escapeHTML(document.getElementById("generatedReceiptDate").value)}</span></div>
                 </div>
                 <div class="receipt-status">PAYMENT RECEIVED</div>
                 <div class="receipt-customer">
@@ -3236,8 +3193,8 @@ async function generateReceiptPdf(share) {
                 await navigator.share({title: options.filename, text:"Aprils Signature Payment Receipt", files:[file]});
                 return true;
             }
-            openPdfShareFallback(blob,options.filename,document.getElementById("generatedReceiptPhone")?.value||"",document.getElementById("generatedReceiptEmail")?.value||"","Aprils Signature Payment Receipt");
-            return true;
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
@@ -3530,7 +3487,7 @@ function buildQuoteDetailRows(row, details) {
     add("WhatsApp", row.whatsapp);
     add("Email", row.email);
     add("Location", row.location);
-    if (row.created_at) add("Submitted", finalFormatDateTime(row.created_at));
+    if (row.created_at) add("Submitted", new Date(row.created_at).toLocaleString());
 
     const selected = Array.isArray(details.selectedServices)
         ? details.selectedServices
@@ -3613,7 +3570,7 @@ function exportSubmissionDetails(title, row = {}, detailsText = "", uploads = []
         .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
         .forEach(([key, value]) => {
             if (value === undefined || value === null || String(value).trim() === "") return;
-            lines.push(`${formatDetailLabel(key)}: ${key === "created_at" && value ? finalFormatDateTime(value) : value}`);
+            lines.push(`${formatDetailLabel(key)}: ${key === "created_at" && value ? new Date(value).toLocaleString() : value}`);
         });
 
     if (detailsText) {
@@ -3722,7 +3679,7 @@ async function showSubmissionDetails(title, row, detailsText = "", uploads = [])
             .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
             .map(([key, value]) => ({
                 label: formatDetailLabel(key),
-                value: key === "created_at" && value ? finalFormatDateTime(value) : (value ?? "—")
+                value: key === "created_at" && value ? new Date(value).toLocaleString() : (value ?? "—")
             }));
 
         if (detailsText) {
@@ -3798,10 +3755,11 @@ function closeSubmissionDetails(){
 
 
 const ORDER_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],["invoice_generated","Invoice Generated"],["part_paid","Part Payment Received"],["order_taken", "Order Taken"],["in_production", "In Production"],["completed", "Completed"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"],["cancelled","Order Cancelled"]
+    ["under_review", "Pending"],["order_taken", "Confirmed / Order Taken"],["in_production", "In Production"],["completed", "Completed"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
 ];
+
 const TRAINING_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["part_paid", "Part Paid"],["fully_paid", "Fully Paid"],["in_class", "In Class"],["stopped", "Stopped"],["completed", "Completed"],["cancelled","Registration Cancelled"]
+    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["part_paid", "Part Paid"],["receipt_generated", "Receipt Generated"],["fully_paid", "Fully Paid"],["in_class", "In Class"],["stopped", "Stopped"],["completed", "Completed"]
 ];
 const CHECKOUT_STATUS_OPTIONS = [
     ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["fully_paid", "Fully Paid"],["order_taken", "Order Taken"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
@@ -3894,9 +3852,9 @@ async function loadRegistrations() {
             effectiveStatus=Number(summary.balance||0)<=0&&Number(summary.amount||0)>0?"fully_paid":"part_paid";
         }
         return `<article class="submission-card">
-            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? finalFormatDateTime(row.created_at) : "")}</time></div>
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(row.phone||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Details</b>${escapeHTML(row.message||row.request_details||row.details||"—")}</span></div>
-            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML(finalPaymentState(summary.amount,summary.paid,0).replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button></div>
         </article>`;
     }).join("")}</div>` : `<div class="empty">No training registrations received.</div>`;
@@ -4087,9 +4045,9 @@ async function loadQuotes() {
         const preview = summarizeQuoteDetails(row);
         const duplicateNote = row._duplicateCount > 1 ? ` <small class="duplicate-note">${row._duplicateCount} identical records grouped as one request</small>` : "";
         return `<article class="submission-card">
-            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? finalFormatDateTime(row.created_at) : "")}</time></div>
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([row.phone,row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Quantity</b>${escapeHTML(summarizeQuoteQuantities(row))}</span><span class="wide"><b>Details</b>${escapeHTML(preview||"—")}</span></div>
-            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML(finalPaymentState(summary.amount,summary.paid,0).replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span><span><b>Delivery / Collection</b>${escapeHTML(deliveryTracking.get(String(row.id))?.date||"—")}${deliveryTracking.get(String(row.id))?.time?" • "+escapeHTML(deliveryTracking.get(String(row.id)).time):""}${deliveryTracking.get(String(row.id))?.location?" • "+escapeHTML(deliveryTracking.get(String(row.id)).location):""}</span></div>
+            <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span><span><b>Delivery / Collection</b>${escapeHTML(deliveryTracking.get(String(row.id))?.date||"—")}${deliveryTracking.get(String(row.id))?.time?" • "+escapeHTML(deliveryTracking.get(String(row.id)).time):""}${deliveryTracking.get(String(row.id))?.location?" • "+escapeHTML(deliveryTracking.get(String(row.id)).location):""}</span></div>
             <div class="delivery-tracking" style="margin:12px 0;padding:12px;border:1px solid #aaa;border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;"><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Date</label><input type="date" data-delivery-date="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.date || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Time</label><input type="time" data-delivery-time="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.time || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery Location</label><input type="text" data-delivery-location="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.location || "")}" placeholder="Enter delivery / collection location"></div><button type="button" class="secondary" data-save-delivery="${escapeHTML(row.id)}">Save Delivery Details</button></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-quote="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-quote="${escapeHTML(row.id)}">Delete</button></div>
         </article>`;
@@ -4173,197 +4131,612 @@ async function loadQuotes() {
 /* =========================================================
    ORDER TRACKING & TRAINEES
 ========================================================= */
-
-const FINAL_ORDER_STATUS_OPTIONS = [
-    ["under_review","New Customer — Under Review"],
-    ["invoice_generated","Invoice Generated"],
-    ["part_paid","Part Payment Received"],
-    ["order_taken","Order Taken"],
-    ["in_production","In Production"],
-    ["completed","Completed"],
-    ["ready","Ready for Collection / Delivery"],
-    ["dispatched","Dispatched"],
-    ["received","Received by Customer"],
-    ["cancelled","Order Cancelled"]
-];
-const FINAL_TRAINING_STATUS_OPTIONS = [
-    ["under_review","New Customer — Under Review"],
-    ["invoice_generated","Invoice Generated"],
-    ["part_paid","Part Paid"],
-    ["fully_paid","Fully Paid"],
-    ["in_class","In Class"],
-    ["stopped","Stopped"],
-    ["completed","Completed"],
-    ["cancelled","Registration Cancelled"]
-];
-
-function finalStatusLabel(value, training=false){
-    const found=(training?FINAL_TRAINING_STATUS_OPTIONS:FINAL_ORDER_STATUS_OPTIONS).find(x=>x[0]===value);
-    return found?found[1]:humanStatus(value);
-}
-function finalFormatDate(value){
-    if(!value)return "—";
-    const d=value instanceof Date?value:new Date(value);
-    if(Number.isNaN(d.getTime())){
-        const iso=String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if(iso)return `${iso[3]}/${iso[2]}/${iso[1]}`;
-        const dmy=String(value).match(/^(\d{2})[\\/.-](\d{2})[\\/.-](\d{4})$/);
-        if(dmy)return `${dmy[1]}/${dmy[2]}/${dmy[3]}`;
-        return String(value);
-    }
-    return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
-}
-function finalFormatDateTime(value){
-    if(!value)return "—";
-    const d=new Date(value); if(Number.isNaN(d.getTime()))return String(value);
-    return `${finalFormatDate(d)} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-}
-function finalPaymentState(total,paid,refunded=0){
-    const net=Math.max(0,Number(paid||0)-Number(refunded||0));
-    const t=Math.max(0,Number(total||0));
-    if(refunded>0 && net<=0 && t>0)return "refunded";
-    if(net>=t && t>0)return "paid_in_full";
-    if(net>0)return "part_paid";
-    return "unpaid";
-}
-async function finalSettingsData(){
-    const rows=await getRows("settings");
-    const parsePrefix=(prefix)=>rows.filter(r=>String(r.setting_key||"").startsWith(prefix)).map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),_settingId:r.id,_settingKey:r.setting_key}}catch(_){return null}}).filter(Boolean);
-    return {rows,invoices:parsePrefix("invoice_record_"),payments:parsePrefix("invoice_payment_record_"),receipts:parsePrefix("receipt_record_"),refunds:parsePrefix("refund_record_")};
-}
-function finalPaymentTotals(invoiceNumber, payments, refunds){
-    const paid=payments.filter(p=>String(p.invoiceNumber||"")===String(invoiceNumber||"")).reduce((s,p)=>s+Number(p.amount||0),0);
-    const refunded=refunds.filter(r=>String(r.invoiceNumber||"")===String(invoiceNumber||"")).reduce((s,r)=>s+Number(r.refundAmount||r.amount||0),0);
-    return {paid,refunded,netPaid:Math.max(0,paid-refunded)};
-}
-function finalDeriveOrderStatus(row, invoice, totals, stored){
-    const legacy={request_received:"under_review",reviewed:"under_review",invoice_sent:"invoice_generated",payment_received:"order_taken",work_in_progress:"in_production",delivered:"received",fully_paid:"order_taken"};
-    let status=legacy[stored]||stored||"under_review";
-    if(status==="cancelled")return status;
-    const total=Number(invoice?.total||0);
-    if(invoice && status==="under_review")status="invoice_generated";
-    if(totals.netPaid>0 && total>0 && totals.netPaid<total && status==="invoice_generated")status="part_paid";
-    if(totals.netPaid>0 && total>0 && totals.netPaid>=Math.max(total*.75,0) && ["under_review","invoice_generated","part_paid"].includes(status))status="order_taken";
-    return status;
-}
-async function finalSetStatus(prefix,id,status){
-    await setAdminRecordStatus(prefix,id,status);
-    const paymentKey=(String(prefix).startsWith("training_status")?"payment_status_training_":"payment_status_quote_")+id;
-    return paymentKey;
-}
-function finalStatusSelect(prefix,id,value,training=false){
-    const opts=training?FINAL_TRAINING_STATUS_OPTIONS:FINAL_ORDER_STATUS_OPTIONS;
-    return `<div class="status-control"><select class="admin-status-select final-status-select" data-status-prefix="${escapeHTML(prefix)}" data-status-id="${escapeHTML(id)}">${opts.map(([k,l])=>`<option value="${k}" ${k===value?"selected":""}>${l}</option>`).join("")}</select></div>`;
-}
-async function finalShareText(title,text){
-    try{
-        if(navigator.share){await navigator.share({title,text});return true;}
-        await navigator.clipboard?.writeText(text);
-        message("Share is not available on this device, so the details were copied to the clipboard.","success");
-        return false;
-    }catch(e){if(e?.name!=="AbortError")message("The share action could not be completed.","error");return false;}
-}
-
 async function loadOrderTracking(){
-    const list=document.getElementById("orderTrackingList"); if(!list)return;
-    try{
-        const [qr, data]=await Promise.all([db.from("quote_requests").select("*"),finalSettingsData()]);
-        if(qr.error)throw qr.error;
-        const delivery=new Map();
-        data.rows.filter(r=>String(r.setting_key||"").startsWith("delivery_tracking_")).forEach(r=>{try{delivery.set(String(r.setting_key).replace("delivery_tracking_",""),JSON.parse(r.setting_value||"{}"))}catch(_){}});
-        const statuses=new Map();
-        data.rows.filter(r=>String(r.setting_key||"").startsWith("quote_status_")).forEach(r=>statuses.set(String(r.setting_key).replace("quote_status_",""),String(r.setting_value||"")));
-        data.rows.filter(r=>String(r.setting_key||"").startsWith("checkout_status_")).forEach(r=>statuses.set(String(r.setting_key).replace("checkout_status_",""),String(r.setting_value||"")));
-        const rows=(qr.data||[]).map(row=>{let j={};try{j=JSON.parse(row.journey||"{}")}catch(_){}return {...row,j}});
-        const records=rows.map(row=>{
-            const invoice=data.invoices.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()||String(i.phone||"").trim()===String(row.phone||"").trim()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
-            const invNo=invoice?.invoiceNumber||row.j.invoiceNumber||"";
-            const totals=finalPaymentTotals(invNo,data.payments,data.refunds);
-            const stored=statuses.get(String(row.id))||row.j.orderStatus||"";
-            const status=finalDeriveOrderStatus(row,invoice,totals,stored);
-            const d=delivery.get(String(row.id))||{date:row.j.deliveryDate||"",time:row.j.deliveryTime||"",location:row.j.deliveryLocation||""};
-            return {row,invoice,invNo,totals,status,delivery:d};
-        });
-        const tabs=[...FINAL_ORDER_STATUS_OPTIONS];
-        list.innerHTML=`<div class="status-tab-bar">${tabs.map(([k,l],i)=>`<button type="button" class="status-tab ${i===0?"active":""}" data-tracking-filter="${k}">${escapeHTML(l)}</button>`).join("")}</div>
-        <div id="orderTrackingTableHost"></div>`;
-        const host=list.querySelector("#orderTrackingTableHost");
-        const render=filter=>{
-            const shown=records.filter(r=>r.status===filter);
-            host.innerHTML=shown.length?`<div class="table-wrap"><table class="professional-data-table"><thead><tr><th>#</th><th>Customer</th><th>Service / Item</th><th>Invoice</th><th>Payment Status</th><th>Paid</th><th>Balance</th><th>Delivery / Collection</th><th>Status</th><th>Actions</th></tr></thead><tbody>${shown.map((x,i)=>{
-                const balance=Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid);
-                const service=x.row.service||x.j.items?.map(v=>`${v.name} × ${v.quantity}`).join(", ")||"Order / Quote";
-                return `<tr><td>${i+1}</td><td><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><br><small>${escapeHTML(finalFormatDateTime(x.row.created_at))}</small></td><td>${escapeHTML(service)}</td><td>${escapeHTML(x.invNo||"—")}</td><td>${escapeHTML(x.totals.refunded>0?finalPaymentState(x.invoice?.total,x.totals.paid,x.totals.refunded).replace(/_/g," "):finalPaymentState(x.invoice?.total,x.totals.paid).replace(/_/g," "))}</td><td>GHS ${x.totals.netPaid.toFixed(2)}</td><td>GHS ${balance.toFixed(2)}</td><td><input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"><input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"><input type="text" data-track-location="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.location||"")}" placeholder="Location"></td><td>${finalStatusSelect(x.row.j.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status,false)}</td><td><button type="button" class="secondary" data-save-final-tracking="${escapeHTML(x.row.id)}">Save</button><button type="button" class="secondary" data-view-final-tracking="${escapeHTML(x.row.id)}">View Full Details</button><button type="button" class="secondary" data-share-final-tracking="${escapeHTML(x.row.id)}">Share</button></td></tr>`;
-            }).join("")}</tbody></table></div>`:`<div class="empty">No orders are currently in this status.</div>`;
-            host.querySelectorAll("[data-save-final-tracking]").forEach(btn=>btn.onclick=async()=>{
-                const x=records.find(r=>String(r.row.id)===String(btn.dataset.saveFinalTracking));if(!x)return;
-                const tr=btn.closest("tr"),status=tr.querySelector(".final-status-select")?.value||x.status;
-                const d={date:tr.querySelector("[data-track-date]")?.value||"",time:tr.querySelector("[data-track-time]")?.value||"",location:tr.querySelector("[data-track-location]")?.value.trim()||""};
-                try{
-                    if(x.row.j.checkout){
-                        x.row.j.orderStatus=status;
-                        const up=await db.from("quote_requests").update({journey:JSON.stringify(x.row.j)}).eq("id",x.row.id);if(up.error)throw up.error;
-                        await safeSettingUpsert("checkout_status_"+x.row.id,status);
-                    }else await setAdminRecordStatus("quote_status",x.row.id,status);
-                    await saveDeliveryTracking(x.row.id,d);
-                    message("Order tracking updated.","success");
-                    await loadOrderTracking();
-                }catch(e){message("Order tracking could not be updated: "+e.message,"error")}
-            });
-            host.querySelectorAll("[data-view-final-tracking]").forEach(btn=>btn.onclick=()=>{
-                const x=records.find(r=>String(r.row.id)===String(btn.dataset.viewFinalTracking));if(!x)return;
-                const details=`Customer: ${x.row.full_name||""}\nPhone: ${x.row.phone||""}\nWhatsApp: ${x.row.whatsapp||""}\nEmail: ${x.row.email||""}\nService: ${x.row.service||""}\nInvoice: ${x.invNo||""}\nTotal: GHS ${Number(x.invoice?.total||0).toFixed(2)}\nPaid: GHS ${x.totals.netPaid.toFixed(2)}\nRefunded: GHS ${x.totals.refunded.toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid).toFixed(2)}\nCurrent Status: ${finalStatusLabel(x.status)}\nCollection / Delivery Date: ${finalFormatDate(x.delivery.date)}\nTime: ${x.delivery.time||"—"}\nLocation: ${x.delivery.location||"—"}`;
-                showSubmissionDetails("Order Tracking Details",x.row,details,[]);
-            });
-            host.querySelectorAll("[data-share-final-tracking]").forEach(btn=>btn.onclick=()=>{
-                const x=records.find(r=>String(r.row.id)===String(btn.dataset.shareFinalTracking));if(!x)return;
-                finalShareText("Aprils Signature Order Tracking",`Aprils Signature — Order Tracking\nCustomer: ${x.row.full_name||""}\nService: ${x.row.service||"Order / Quote"}\nInvoice: ${x.invNo||"—"}\nStatus: ${finalStatusLabel(x.status)}\nPaid: GHS ${x.totals.netPaid.toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid).toFixed(2)}\nDelivery / Collection: ${finalFormatDate(x.delivery.date)} ${x.delivery.time||""} ${x.delivery.location||""}`);
-            });
-        };
-        list.querySelectorAll("[data-tracking-filter]").forEach(tab=>tab.onclick=()=>{list.querySelectorAll(".status-tab").forEach(t=>t.classList.remove("active"));tab.classList.add("active");render(tab.dataset.trackingFilter)});
-        render(FINAL_ORDER_STATUS_OPTIONS[0][0]);
-    }catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+ const list=document.getElementById("orderTrackingList");if(!list)return;
+ try{
+  const [qr,settings,trainingRows]=await Promise.all([db.from("quote_requests").select("*"),getRows("settings"),getRows("training_registrations")]);
+  if(qr.error)throw qr.error;
+  const invs=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const pays=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const rows=(qr.data||[]).map(r=>{let j={};try{j=JSON.parse(r.journey||"{}")}catch(_){}return{...r,j}});
+  const track=[],paymentsByInvoice=new Map(),deliveryById=new Map(),statusById=new Map();
+  pays.forEach(p=>{const k=String(p.invoiceNumber||"");if(!paymentsByInvoice.has(k))paymentsByInvoice.set(k,[]);paymentsByInvoice.get(k).push(p);});
+  settings.filter(r=>String(r.setting_key||"").startsWith("delivery_tracking_")).forEach(r=>{try{deliveryById.set(String(r.setting_key).replace("delivery_tracking_",""),JSON.parse(r.setting_value||"{}"))}catch(_){}});
+  settings.filter(r=>String(r.setting_key||"").startsWith("quote_status_")).forEach(r=>statusById.set(String(r.setting_key).replace("quote_status_",""),String(r.setting_value||"")));
+  for(const row of rows){
+   const checkout=!!row.j.checkout;
+   const invoice=invs.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((x,y)=>String(y.savedAt||"").localeCompare(String(x.savedAt||"")))[0];
+   const invoiceNumber=invoice?.invoiceNumber||row.j.invoiceNumber||"";
+   const paid=(paymentsByInvoice.get(String(invoiceNumber))||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);
+   const total=Number(invoice?.total??row.j.total??0);
+   let status=checkout?(row.j.orderStatus||"under_review"):(statusById.get(String(row.id))||"under_review");
+   const legacyTracking={fully_paid:"order_taken",receipt_generated:"order_taken",deposit_paid:"under_review",invoice_generated:"under_review"};
+   status=legacyTracking[status]||status;
+   const delivery=checkout?{date:row.j.deliveryDate||"",time:row.j.deliveryTime||"",location:row.j.deliveryLocation||""}:(deliveryById.get(String(row.id))||{});
+   const confirmed=paid>0 || ["order_taken","in_production","completed","ready","dispatched","received"].includes(status);
+   if(confirmed)track.push({row,checkout,invoice,invoiceNumber,paid,total,status,delivery});
+  }
+  track.sort((x,y)=>String(y.row.created_at||"").localeCompare(String(x.row.created_at||"")));
+  const columns=[
+   ["pending","Pending",x=>x.status==="under_review"||x.status==="invoice_generated"||x.status==="deposit_paid"||x.status==="part_paid"||x.status==="receipt_generated"],
+   ["confirmed","Confirmed / Order Taken",x=>x.status==="order_taken"],
+   ["production","In Production",x=>x.status==="in_production"],
+   ["completed","Completed",x=>x.status==="completed"],
+   ["ready","Ready for Collection / Delivery",x=>x.status==="ready"],
+   ["dispatched","Dispatched",x=>x.status==="dispatched"],
+   ["received","Received by Customer",x=>x.status==="received"]
+  ];
+  const card=x=>{
+   const balance=Math.max(0,x.total-x.paid);
+   const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);
+   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span><span><b>Location</b>${escapeHTML(x.delivery.location||"Not set")}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label><label>Location<input type="text" data-track-location="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.location||"")}" placeholder="Delivery / collection location"></label></div><div class="submission-card-actions"><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button></div></article>`;
+  };
+  list.innerHTML=track.length?`<div class="tracking-board">${columns.map(([key,title,test])=>{const items=track.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No confirmed orders</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No confirmed customer orders are available for tracking. Orders appear here after a payment has been recorded.</div>`;
+  list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{
+   const id=b.dataset.saveTracking,checkout=b.dataset.checkout==="1",select=b.closest(".tracking-order-card")?.querySelector(".admin-status-select");
+   try{
+    const status=select?.value||"under_review",cardRow=track.find(v=>String(v.row.id)===String(id));
+    const date=b.closest(".tracking-order-card")?.querySelector("[data-track-date]")?.value||"",time=b.closest(".tracking-order-card")?.querySelector("[data-track-time]")?.value||"",location=b.closest(".tracking-order-card")?.querySelector("[data-track-location]")?.value||"";
+    if(checkout){cardRow.row.j.orderStatus=status;await db.from("quote_requests").update({journey:JSON.stringify(cardRow.row.j)}).eq("id",id);await safeSettingUpsert("checkout_status_"+id,status)}
+    else await setAdminRecordStatus("quote_status",id,status);
+    await saveDeliveryTracking(id,{date,time,location});await auditSystemEvent(checkout?"checkout_order":"quote_request",id,"tracking_updated",{status,date,time,location});message("Order tracking updated.","success");await loadOrderTracking();
+   }catch(e){message("Order tracking could not be updated: "+e.message,"error")}
+  });
+  list.querySelectorAll("[data-view-tracking]").forEach(b=>{
+   const x=track.find(v=>String(v.row.id)===String(b.dataset.viewTracking)); if(!x)return;
+   const details=`Customer: ${x.row.full_name||""}\nPhone: ${x.row.phone||""}\nWhatsApp: ${x.row.whatsapp||""}\nEmail: ${x.row.email||""}\nOriginal Location: ${x.row.location||""}\nItems: ${x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row)}\nInvoice: ${x.invoiceNumber||""}\nTotal: GHS ${Number(x.total||0).toFixed(2)}\nPaid: GHS ${Number(x.paid||0).toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.total||0)-Number(x.paid||0)).toFixed(2)}\nStatus: ${humanStatus(x.status)}\nDelivery / Collection Date: ${x.delivery.date||""}\nTime: ${x.delivery.time||""}\nLocation: ${x.delivery.location||""}`;
+   showSubmissionDetails("Order Tracking Details",x.row,details,[]);
+  });
+ }catch(e){list.innerHTML=`<div class="empty">Order tracking could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
-
+function traineeStatusSelectHTML(id,value){
+ const options=[["part_paid","Part Paid"],["fully_paid","Fully Paid"],["in_class","In Class"],["stopped","Stopped"],["completed","Completed"]];
+ return `<div class="status-control"><select class="admin-status-select" data-status-prefix="training_status" data-status-id="${escapeHTML(id)}">${options.map(([k,l])=>`<option value="${k}" ${k===value?"selected":""}>${l}</option>`).join("")}</select><button type="button" class="secondary save-status-button" data-save-status-prefix="training_status" data-save-status-id="${escapeHTML(id)}">Save</button></div>`;
+}
 async function loadTrainees(){
-    const list=document.getElementById("traineesList");if(!list)return;
-    try{
-        const [rows,data]=await Promise.all([getRows("training_registrations"),finalSettingsData()]);
-        const statuses=new Map();data.rows.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>statuses.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"")));
-        const records=rows.map(row=>{
-            const invoice=data.invoices.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
-            const no=invoice?.invoiceNumber||"";
-            const totals=finalPaymentTotals(no,data.payments,data.refunds);
-            let status=statuses.get(String(row.id))||"under_review";
-            if(!["in_class","stopped","completed","cancelled"].includes(status)){
-                if(invoice)status=totals.netPaid>0?(totals.netPaid>=Number(invoice.total||0)?"fully_paid":"part_paid"):"invoice_generated";
-            }
-            return {row,invoice,no,totals,status};
-        });
-        const renderTabs=()=>`<div class="status-tab-bar">${FINAL_TRAINING_STATUS_OPTIONS.map(([k,l],i)=>`<button type="button" class="status-tab ${i===0?"active":""}" data-trainee-filter="${k}">${escapeHTML(l)}</button>`).join("")}</div><div id="traineeTableHost"></div>`;
-        list.innerHTML=renderTabs();
-        const host=list.querySelector("#traineeTableHost");
-        const render=filter=>{
-            const shown=records.filter(r=>r.status===filter);
-            host.innerHTML=shown.length?`<div class="table-wrap"><table class="professional-data-table"><thead><tr><th>#</th><th>Trainee</th><th>Programme / Class</th><th>Invoice</th><th>Payment Status</th><th>Paid</th><th>Balance</th><th>Current Status</th><th>Actions</th></tr></thead><tbody>${shown.map((x,i)=>`<tr><td>${i+1}</td><td><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><br><small>${escapeHTML(finalFormatDateTime(x.row.created_at))}</small></td><td>${escapeHTML(x.row.course||"Training Registration")}</td><td>${escapeHTML(x.no||"—")}</td><td>${escapeHTML(finalPaymentState(x.invoice?.total,x.totals.paid,x.totals.refunded).replace(/_/g," "))}</td><td>GHS ${x.totals.netPaid.toFixed(2)}</td><td>GHS ${Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid).toFixed(2)}</td><td>${finalStatusSelect("training_status",x.row.id,x.status,true)}</td><td><button type="button" class="secondary" data-view-final-trainee="${escapeHTML(x.row.id)}">View Full Details</button><button type="button" class="secondary" data-share-final-trainee="${escapeHTML(x.row.id)}">Share</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">No trainees are currently in this status.</div>`;
-            host.querySelectorAll(".final-status-select").forEach(sel=>sel.addEventListener("change",async()=>{
-                const id=sel.dataset.statusId,status=sel.value;
-                try{await setAdminRecordStatus("training_status",id,status);await auditSystemEvent("training_registration",id,"status_updated",{status});message("Training status updated.","success");await loadTrainees();}catch(e){message("Training status could not be updated: "+e.message,"error")}
-            }));
-            host.querySelectorAll("[data-view-final-trainee]").forEach(btn=>btn.onclick=()=>{
-                const x=records.find(r=>String(r.row.id)===String(btn.dataset.viewFinalTrainee));if(!x)return;
-                showSubmissionDetails("Training Registration Details",x.row,`Trainee: ${x.row.full_name||""}\nPhone: ${x.row.phone||""}\nWhatsApp: ${x.row.whatsapp||""}\nEmail: ${x.row.email||""}\nProgramme: ${x.row.course||""}\nInvoice: ${x.no||""}\nTotal: GHS ${Number(x.invoice?.total||0).toFixed(2)}\nPaid: GHS ${x.totals.netPaid.toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid).toFixed(2)}\nCurrent Status: ${finalStatusLabel(x.status,true)}`,[]);
-            });
-            host.querySelectorAll("[data-share-final-trainee]").forEach(btn=>btn.onclick=()=>{
-                const x=records.find(r=>String(r.row.id)===String(btn.dataset.shareFinalTrainee));if(!x)return;
-                finalShareText("Aprils Signature Training Registration",`Aprils Signature — Training Registration\nTrainee: ${x.row.full_name||""}\nProgramme: ${x.row.course||""}\nInvoice: ${x.no||"—"}\nStatus: ${finalStatusLabel(x.status,true)}\nPaid: GHS ${x.totals.netPaid.toFixed(2)}\nBalance: GHS ${Math.max(0,Number(x.invoice?.total||0)-x.totals.netPaid).toFixed(2)}`);
-            });
-        };
-        list.querySelectorAll("[data-trainee-filter]").forEach(tab=>tab.onclick=()=>{list.querySelectorAll(".status-tab").forEach(t=>t.classList.remove("active"));tab.classList.add("active");render(tab.dataset.traineeFilter)});
-        render(FINAL_TRAINING_STATUS_OPTIONS[0][0]);
-    }catch(e){list.innerHTML=`<div class="empty">Training registrations could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+ const list=document.getElementById("traineesList");if(!list)return;
+ try{
+  const rows=await getRows("training_registrations"),settings=await getRows("settings");
+  const invoices=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+  const statusMap=new Map();
+  settings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>statusMap.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"")));
+  const paid=[];
+  for(const row of rows){
+   const inv=invoices.filter(i=>String(i.sourceId||"")===String(row.id)||String(i.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
+   const invoiceNumber=inv?.invoiceNumber||"";
+   const paidAmount=payments.filter(p=>String(p.invoiceNumber||"")===String(invoiceNumber)).reduce((sum,p)=>sum+Number(p.amount||0),0);
+   if(paidAmount<=0)continue;
+   const total=Number(inv?.total||0),balance=Math.max(0,total-paidAmount);
+   let status=statusMap.get(String(row.id))||"";
+   if(!["in_class","stopped","completed"].includes(status)) status=balance<=0&&total>0?"fully_paid":"part_paid";
+   paid.push({row,invoice:inv,paid:paidAmount,total,balance,status});
+  }
+  const columns=[["part_paid","Part Paid",x=>x.status==="part_paid"],["fully_paid","Fully Paid",x=>x.status==="fully_paid"],["in_class","In Class",x=>x.status==="in_class"],["stopped","Stopped",x=>x.status==="stopped"],["completed","Completed",x=>x.status==="completed"]];
+  const card=x=>`<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><small>${escapeHTML(x.row.course||"Training")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${x.balance.toFixed(2)}</span><span><b>Invoice</b>${escapeHTML(x.invoice?.invoiceNumber||"—")}</span></div><div class="tracking-card-status">${traineeStatusSelectHTML(x.row.id,x.status)}</div><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Full Details</button></article>`;
+  list.innerHTML=paid.length?`<div class="tracking-board trainee-board">${columns.map(([key,title,test])=>{const items=paid.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No trainees</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;
+  list.querySelectorAll("[data-save-status-prefix]").forEach(b=>b.onclick=async()=>{const select=b.closest(".status-control")?.querySelector(".admin-status-select");try{await setAdminRecordStatus("training_status",b.dataset.saveStatusId,select?.value||"part_paid");await auditSystemEvent("training_registration",b.dataset.saveStatusId,"status_updated",{status:select?.value||"part_paid"});message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});
+  list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])});
+ }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
+async function loadEnquiries() {
+    const rows = await getRows("enquiries");
+    const list = document.getElementById("enquiryList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Email</th><th>Subject</th><th>Message</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+            <td>${escapeHTML(row.full_name)}</td>
+            <td>${escapeHTML(row.phone)}</td>
+            <td>${escapeHTML(row.whatsapp)}</td>
+            <td>${escapeHTML(row.email)}</td>
+            <td>${escapeHTML(row.subject)}</td>
+            <td>${escapeHTML(row.message)}</td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No customer enquiries received.</div>`;
 }
 
+/* =========================================================
+   TESTIMONIALS
+   Admin enters a customer's actual/approved testimonial.
+========================================================= */
+
+async function loadTestimonials() {
+    const rows = await getRows("testimonials");
+    const list = document.getElementById("testimonialList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Customer</th><th>Testimonial</th><th>Active</th><th>Actions</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.customer_name)}</td>
+            <td>${escapeHTML(row.testimonial)}</td>
+            <td>${row.active ? "Yes" : "No"}</td>
+            <td>
+                <button type="button" class="secondary" data-edit-testimonial="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-testimonial="${row.id}">Delete</button> <button type="button" class="secondary" data-share-testimonial="${row.id}">Share</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No testimonials yet. Add one only after you have the customer's testimonial/permission to publish it.</div>`;
+
+    list.querySelectorAll("[data-edit-testimonial]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editTestimonial));
+            if (!row) return;
+            document.getElementById("testimonialId").value = row.id;
+            document.getElementById("testimonialName").value = row.customer_name || "";
+            document.getElementById("testimonialText").value = row.testimonial || "";
+            document.getElementById("testimonialActive").checked = row.active !== false;
+            document.getElementById("testimonialForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-share-testimonial]").forEach(button => {
+        button.onclick=()=>{const row=rows.find(item=>String(item.id)===String(button.dataset.shareTestimonial)); if(row) shareText("Aprils Signature Testimonial", `“${row.testimonial||""}”\n— ${row.customer_name||"Customer"}`);};
+    });
+
+    list.querySelectorAll("[data-delete-testimonial]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this testimonial?")) return;
+            const result = await db.from("testimonials").delete().eq("id", button.dataset.deleteTestimonial);
+            if (result.error) {
+                message("Testimonial could not be deleted.", "error");
+                return;
+            }
+            message("Testimonial deleted.", "success");
+            await loadTestimonials();
+            await loadDashboard();
+        };
+    });
+}
+
+function setupTestimonialForm() {
+    const form = document.getElementById("testimonialForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("testimonialId").value.trim();
+        const payload = {
+            customer_name: document.getElementById("testimonialName").value.trim(),
+            testimonial: document.getElementById("testimonialText").value.trim(),
+            active: document.getElementById("testimonialActive").checked,
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("testimonials").update(payload).eq("id", id)
+                : await db.from("testimonials").insert(payload);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("testimonialId").value = "";
+            document.getElementById("testimonialActive").checked = true;
+            message("Testimonial saved.", "success");
+            await loadTestimonials();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("Testimonial could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("testimonialCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("testimonialId").value = "";
+        document.getElementById("testimonialActive").checked = true;
+    });
+}
+
+/* =========================================================
+   FAQ
+========================================================= */
+
+async function loadFAQs() {
+    const rows = await getRows("faqs");
+    const list = document.getElementById("faqList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr>
+            <th>Question</th><th>Answer</th><th>Active</th><th>Actions</th>
+        </tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td>${escapeHTML(row.question)}</td>
+            <td>${escapeHTML(row.answer)}</td>
+            <td>${row.active ? "Yes" : "No"}</td>
+            <td>
+                <button type="button" class="secondary" data-edit-faq="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-faq="${row.id}">Delete</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No FAQs yet.</div>`;
+
+    list.querySelectorAll("[data-edit-faq]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editFaq));
+            if (!row) return;
+            document.getElementById("faqId").value = row.id;
+            document.getElementById("faqQuestion").value = row.question || "";
+            document.getElementById("faqAnswer").value = row.answer || "";
+            document.getElementById("faqActive").checked = row.active !== false;
+            document.getElementById("faqForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-delete-faq]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this FAQ?")) return;
+            const result = await db.from("faqs").delete().eq("id", button.dataset.deleteFaq);
+            if (result.error) {
+                message("FAQ could not be deleted.", "error");
+                return;
+            }
+            message("FAQ deleted.", "success");
+            await loadFAQs();
+            await loadDashboard();
+        };
+    });
+}
+
+function setupFAQForm() {
+    const form = document.getElementById("faqForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("faqId").value.trim();
+        const payload = {
+            question: document.getElementById("faqQuestion").value.trim(),
+            answer: document.getElementById("faqAnswer").value.trim(),
+            active: document.getElementById("faqActive").checked,
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("faqs").update(payload).eq("id", id)
+                : await db.from("faqs").insert(payload);
+
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("faqId").value = "";
+            document.getElementById("faqActive").checked = true;
+            message("FAQ saved.", "success");
+            await loadFAQs();
+            await loadDashboard();
+        } catch (error) {
+            console.error(error);
+            message("FAQ could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("faqCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("faqId").value = "";
+        document.getElementById("faqActive").checked = true;
+    });
+}
+
+/* =========================================================
+   POLICIES / CONTENT / SETTINGS / CONTACT
+========================================================= */
+
+async function loadPolicies() {
+    const rows = await getRows("policies");
+    const policyRank = {payment_policy:1, refund_policy:2, delivery_collection_policy:3, privacy_policy:4};
+    rows.sort((a,b)=>(policyRank[String(a.policy_key||"").toLowerCase()]||99)-(policyRank[String(b.policy_key||"").toLowerCase()]||99));
+    const list = document.getElementById("policyList");
+    if (!list) return;
+
+    list.innerHTML = rows.length ? `
+        <table><thead><tr><th>Policy</th><th>Key</th><th>Content</th><th>Actions</th></tr></thead><tbody>
+        ${rows.map(row => `<tr>
+            <td><span class="policy-number-badge">${policyRank[String(row.policy_key||"").toLowerCase()] || ""}</span>${escapeHTML(String(row.title || "").replace(/^\s*[1-4]\s*\.\s*/, ""))}</td>
+            <td>${escapeHTML(row.policy_key)}</td>
+            <td><pre style="white-space:pre-wrap;max-width:550px;font-family:inherit">${escapeHTML(row.content)}</pre></td>
+            <td>
+                <button type="button" class="secondary" data-edit-policy="${row.id}">Edit</button>
+                <button type="button" class="danger" data-delete-policy="${row.id}">Delete</button> <button type="button" class="secondary" data-share-policy="${row.id}">Share</button>
+            </td>
+        </tr>`).join("")}
+        </tbody></table>
+    ` : `<div class="empty">No policy records yet.</div>`;
+
+    list.querySelectorAll("[data-edit-policy]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editPolicy));
+            if (!row) return;
+            document.getElementById("policyId").value = row.id;
+            document.getElementById("policyTitle").value = row.title || "";
+            document.getElementById("policyKey").value = row.policy_key || "";
+            document.getElementById("policyContent").value = row.content || "";
+            document.getElementById("policyForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-share-policy]").forEach(button=>{button.onclick=()=>{const row=rows.find(item=>String(item.id)===String(button.dataset.sharePolicy));if(row)shareText(row.title||"Policy",`${row.title||"Policy"}\n\n${row.content||""}`);};});
+
+    list.querySelectorAll("[data-delete-policy]").forEach(button => {
+        button.onclick = async () => {
+            if (!confirm("Delete this policy?")) return;
+            const result = await db.from("policies").delete().eq("id", button.dataset.deletePolicy);
+            if (result.error) {
+                message("Policy could not be deleted.", "error");
+                return;
+            }
+            message("Policy deleted.", "success");
+            await loadPolicies();
+        };
+    });
+}
+
+function setupPolicyForm() {
+    const form = document.getElementById("policyForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const id = document.getElementById("policyId").value.trim();
+        const payload = {
+            title: document.getElementById("policyTitle").value.trim(),
+            policy_key: document.getElementById("policyKey").value.trim(),
+            content: document.getElementById("policyContent").value.trim(),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            const result = id
+                ? await db.from("policies").update(payload).eq("id", id)
+                : await db.from("policies").insert(payload);
+            if (result.error) throw result.error;
+
+            form.reset();
+            document.getElementById("policyId").value = "";
+            message("Policy saved.", "success");
+            await loadPolicies();
+        } catch (error) {
+            console.error(error);
+            message("Policy could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("policyCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("policyId").value = "";
+    });
+}
+
+
+function contentSlug(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 80);
+}
+
+function parseDynamicContentKey(key) {
+    const parts = String(key || "").split("::");
+    if (parts[0] !== "dynamic") return null;
+    return {
+        page: parts[1] || "all",
+        type: parts[2] || "paragraph",
+        name: parts.slice(3).join("::").replace(/_/g, " ") || "Website Content"
+    };
+}
+
+async function getHiddenContentKeys() {
+    try {
+        const result = await db.from("settings").select("setting_key,setting_value").like("setting_key", "hidden_content_%");
+        if (result.error) return new Set();
+        return new Set((result.data || [])
+            .filter(r => String(r.setting_value).toLowerCase() === "true")
+            .map(r => String(r.setting_key).replace(/^hidden_content_/, "")));
+    } catch (_) {
+        return new Set();
+    }
+}
+
+async function setHiddenContentKey(key, hidden) {
+    const storage = contentSlug(key);
+    if (!storage) return;
+    if (hidden) {
+        await safeSettingUpsert("hidden_content_" + storage, "true");
+    } else {
+        await db.from("settings").delete().eq("setting_key", "hidden_content_" + storage);
+    }
+}
+
+async function loadContent() {
+    const rows = await getRows("site_content");
+    const list = document.getElementById("contentList");
+    if (!list) return;
+
+    const hidden = await getHiddenContentKeys();
+
+    list.innerHTML = rows.length ? `
+        <table>
+            <thead>
+                <tr><th>Page</th><th>Type</th><th>Content Name</th><th>Current Content</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                ${rows.map(r => {
+                    const dynamic = parseDynamicContentKey(r.content_key);
+                    const page = dynamic ? dynamic.page : "managed";
+                    const type = dynamic ? dynamic.type : "existing";
+                    const isHidden = hidden.has(contentSlug(r.content_key));
+                    return `
+                    <tr>
+                        <td>${escapeHTML(page)}</td>
+                        <td>${escapeHTML(type)}</td>
+                        <td>${escapeHTML(dynamic?.name || r.content_key || "")}</td>
+                        <td><pre style="white-space:pre-wrap;max-width:600px;font-family:inherit">${escapeHTML(r.content_value || "")}</pre></td>
+                        <td>${isHidden ? "Hidden" : "Visible"}</td>
+                        <td>
+                            <button type="button" class="secondary" data-edit-content="${r.id}">Edit</button>
+                            <button type="button" class="secondary" data-toggle-content="${r.id}" data-hidden="${isHidden ? "true" : "false"}">${isHidden ? "Show" : "Hide"}</button>
+                            <button type="button" class="danger" data-delete-content="${r.id}">Remove</button>
+                        </td>
+                    </tr>`;
+                }).join("")}
+            </tbody>
+        </table>
+    ` : `<div class="empty">No website content has been added yet. Use the form above to add the first item.</div>`;
+
+    list.querySelectorAll("[data-edit-content]").forEach(button => {
+        button.onclick = () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.editContent));
+            if (!row) return;
+
+            const dynamic = parseDynamicContentKey(row.content_key);
+            document.getElementById("contentId").value = row.id || "";
+            document.getElementById("contentStorageKey").value = row.content_key || "";
+            document.getElementById("contentKey").value = dynamic?.name || row.content_key || "";
+            document.getElementById("contentValue").value = row.content_value || "";
+            document.getElementById("contentPage").value = dynamic?.page || "all";
+            document.getElementById("contentType").value = dynamic?.type || "paragraph";
+            document.getElementById("contentActive").checked = !hidden.has(contentSlug(row.content_key));
+            document.getElementById("contentForm").scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+    });
+
+    list.querySelectorAll("[data-toggle-content]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.toggleContent));
+            if (!row) return;
+            const currentlyHidden = button.dataset.hidden === "true";
+            try {
+                await setHiddenContentKey(row.content_key, !currentlyHidden);
+                message(currentlyHidden ? "Website content is visible again." : "Website content hidden from the public website.", "success");
+                await loadContent();
+            } catch (error) {
+                message("Website content visibility could not be changed: " + error.message, "error");
+            }
+        };
+    });
+
+    list.querySelectorAll("[data-delete-content]").forEach(button => {
+        button.onclick = async () => {
+            const row = rows.find(item => String(item.id) === String(button.dataset.deleteContent));
+            if (!row || !confirm("Remove this website content item from the public website and the admin list?")) return;
+
+            try {
+                await setHiddenContentKey(row.content_key, true);
+                const result = await db.from("site_content").delete().eq("id", button.dataset.deleteContent);
+                if (result.error) throw result.error;
+                message("Website content removed.", "success");
+                await loadContent();
+            } catch (error) {
+                message("Website content could not be removed: " + error.message, "error");
+            }
+        };
+    });
+}
+
+function setupContentForm() {
+    const form = document.getElementById("contentForm");
+    if (!form || form.dataset.bound) return;
+    form.dataset.bound = "1";
+
+    form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        const id = document.getElementById("contentId").value.trim();
+        const oldStorageKey = document.getElementById("contentStorageKey").value.trim();
+        const name = document.getElementById("contentKey").value.trim();
+        const value = document.getElementById("contentValue").value.trim();
+        const page = document.getElementById("contentPage").value;
+        const type = document.getElementById("contentType").value;
+        const active = document.getElementById("contentActive").checked;
+
+        if (!name || !value) {
+            message("Please enter a content name and content.", "error");
+            return;
+        }
+
+        const storageKey = oldStorageKey && !oldStorageKey.startsWith("dynamic::")
+            ? oldStorageKey
+            : `dynamic::${page}::${type}::${contentSlug(name)}`;
+
+        try {
+            const payload = {
+                content_key: storageKey,
+                content_value: value,
+                updated_at: new Date().toISOString()
+            };
+
+            const result = id
+                ? await db.from("site_content").update(payload).eq("id", id)
+                : await db.from("site_content").insert(payload);
+
+            if (result.error) throw result.error;
+
+            if (oldStorageKey && oldStorageKey !== storageKey) {
+                await setHiddenContentKey(oldStorageKey, false);
+            }
+            await setHiddenContentKey(storageKey, !active);
+
+            form.reset();
+            document.getElementById("contentId").value = "";
+            document.getElementById("contentStorageKey").value = "";
+            document.getElementById("contentActive").checked = true;
+            document.getElementById("contentPage").value = "home";
+            document.getElementById("contentType").value = "paragraph";
+
+            message("Website content saved. Changes are connected to the public website.", "success");
+            await loadContent();
+        } catch (error) {
+            console.error(error);
+            message("Website content could not be saved: " + error.message, "error");
+        }
+    });
+
+    document.getElementById("newContentButton")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("contentId").value = "";
+        document.getElementById("contentStorageKey").value = "";
+        document.getElementById("contentActive").checked = true;
+        document.getElementById("contentPage").value = "home";
+        document.getElementById("contentType").value = "paragraph";
+        form.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    document.getElementById("contentCancel")?.addEventListener("click", () => {
+        form.reset();
+        document.getElementById("contentId").value = "";
+        document.getElementById("contentStorageKey").value = "";
+        document.getElementById("contentActive").checked = true;
+    });
+}
+
+/* =========================================================
+   INVOICE PRICING — INTERNAL ONLY
+   Stored in the existing settings table with invoice_price_
+   keys, so it remains separate from public pricing.
+========================================================= */
+
+function invoiceStorageKey(id) {
+    return "invoice_price_" + contentSlug(id);
+}
 
 async function loadInvoicePricing() {
     const rows = await getRows("settings");
@@ -5161,7 +5534,7 @@ async function renderLogoLibrary() {
                             </div>
                             <div class="logo-library-meta">
                                 <strong>${isCurrent ? "Current Public Logo" : "Saved Logo"}</strong>
-                                ${row.updated_at ? `<small>Saved ${escapeHTML(finalFormatDateTime(row.updated_at))}</small>` : ""}
+                                ${row.updated_at ? `<small>Saved ${escapeHTML(new Date(row.updated_at).toLocaleString())}</small>` : ""}
                             </div>
                             <div class="logo-library-actions">
                                 ${isCurrent ? "" : `<button type="button" class="secondary" data-use-logo="${safeKey}">Use This Logo</button>`}
@@ -5794,7 +6167,7 @@ async function loadDiscountCodes() {
                 }
             }
             redemptionList.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Email</th><th>Code</th><th>Reference</th><th>Status</th><th>Action</th></tr></thead><tbody>
-            ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? finalFormatDateTime(r.created_at) : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
+            ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? new Date(r.created_at).toLocaleString() : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
             </tbody></table>` : `<div class="empty">No customer discount redemptions have been received yet.</div>`;
             redemptionList.querySelectorAll("[data-delete-redemption]").forEach(btn => btn.onclick = async () => {
                 if (!confirm("Delete this redemption record?")) return;
@@ -5960,18 +6333,15 @@ async function openSavedUserInvoiceReadOnly(row){
    USERS INVOICE — walk-in / direct customers
 ========================================================= */
 function setupUsersInvoiceForm(){
-    const form=document.getElementById("usersInvoiceForm"),wrap=document.getElementById("usersInvoiceLines");
+    const form=document.getElementById("usersInvoiceForm");
+    const wrap=document.getElementById("usersInvoiceLines");
     if(!form||!wrap||form.dataset.bound)return;
     form.dataset.bound="1";
     const add=()=>{const n=wrap.querySelectorAll(".manual-invoice-line").length+1;wrap.insertAdjacentHTML("beforeend",`<div class="manual-invoice-line"><input class="manual-line-description" placeholder="Item / Service" required><input class="manual-line-details" placeholder="Details"><input class="manual-line-qty" type="number" min="1" value="1"><input class="manual-line-price" type="number" min="0" step="0.01" placeholder="Price" required><button type="button" class="danger manual-line-remove">Remove</button></div>`);};
-    const readImages=async()=>{
-        const files=[...(document.getElementById("usersInvoiceImages")?.files||[])].slice(0,8);
-        return Promise.all(files.map(file=>new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,type:file.type,data:reader.result});reader.onerror=()=>resolve(null);reader.readAsDataURL(file);}))).then(x=>x.filter(Boolean));
-    };
     wrap.addEventListener("blur",async e=>{
         if(!e.target.classList.contains("manual-line-description"))return;
         const line=e.target.closest(".manual-invoice-line"),price=line?.querySelector(".manual-line-price");if(!line||!price||price.value)return;
-        try{const map=await getInvoicePriceMap(),found=invoicePriceFor(map,e.target.value.trim());if(found>0)price.value=found.toFixed(2);}catch(_){}
+        try{const map=await getInvoicePriceMap();const found=invoicePriceFor(map,e.target.value.trim());if(found>0)price.value=found.toFixed(2);}catch(_){}
     },true);
     add();
     document.getElementById("usersInvoiceAddLine")?.addEventListener("click",add);
@@ -5983,11 +6353,11 @@ function setupUsersInvoiceForm(){
         if(!lines.length){message("Add at least one invoice item.","error");return;}
         const row={full_name:document.getElementById("usersInvoiceCustomer").value.trim(),phone:document.getElementById("usersInvoicePhone").value.trim(),whatsapp:document.getElementById("usersInvoicePhone").value.trim(),email:document.getElementById("usersInvoiceEmail").value.trim(),location:document.getElementById("usersInvoiceAddress").value.trim()};
         if(!row.full_name){message("Enter the customer's name.","error");return;}
-        const images=await readImages();
-        await openInvoiceGenerator(row,{manualLines:lines,notes:document.getElementById("usersInvoiceNotes").value.trim(),userInvoice:true,images});
+        await openInvoiceGenerator(row,{manualLines:lines,notes:document.getElementById("usersInvoiceNotes").value.trim(),userInvoice:true});
         form.reset();wrap.innerHTML="";add();
     });
 }
+
 async function loadCollectionInvoiceOptions(){
     const select=document.getElementById("collectionInvoiceSelect");if(!select)return;
     try{
@@ -6021,43 +6391,22 @@ async function generateCollectionForm(share,mode){
     if(!invoice){message("Select a saved invoice first.","error");return;}
     const date=document.getElementById("collectionDate")?.value||"",time=document.getElementById("collectionTime")?.value||"",location=document.getElementById("collectionLocation")?.value.trim()||"";
     if(!date||!time||!location){message("Enter the collection / delivery date, time and location.","error");return;}
-    const payments=await getInvoicePayments(invoice.invoiceNumber);
-    const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);
-    const data=await finalSettingsData();
-    const refunded=data.refunds.filter(r=>String(r.invoiceNumber||"")===String(invoice.invoiceNumber||"")).reduce((s,r)=>s+Number(r.refundAmount||0),0);
-    const netPaid=Math.max(0,paid-refunded),total=Number(invoice.total||0),balance=Math.max(0,total-netPaid);
-    const entryId=makeAprilsUniqueId("COL"),actor=await getCurrentStaffIdentity();
-    const lines=Array.isArray(invoice.lines)?invoice.lines:[];
-    const root=document.createElement("div");root.className="collection-form-paper";
-    root.innerHTML=`<div class="collection-brand"><img src="${escapeHTML(new URL("../icons/Aprils Signature logo.jpeg",window.location.href).href)}" alt="Aprils Signature logo"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${escapeHTML(invoice.invoiceNumber||"")}</span></div></div>
-    <div class="collection-customer"><p><strong>Customer:</strong> ${escapeHTML(invoice.customer||"")}</p><p><strong>Phone:</strong> ${escapeHTML(invoice.phone||"")}</p><p><strong>Email:</strong> ${escapeHTML(invoice.email||"")}</p></div>
-    <table><thead><tr><th>#</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead><tbody>${lines.map((l,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.details||"")}</td><td>${Number(l.quantity||1)}</td><td>${Number(l.unitPrice||0).toFixed(2)}</td><td>${(Number(l.quantity||1)*Number(l.unitPrice||0)).toFixed(2)}</td></tr>`).join("")}</tbody></table>
-    <div class="collection-summary"><p><strong>Total Cost:</strong> GHS ${total.toFixed(2)}</p><p><strong>Payment Made:</strong> GHS ${netPaid.toFixed(2)}</p><p><strong>Balance:</strong> GHS ${balance.toFixed(2)}</p></div>
-    <div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${escapeHTML(finalFormatDate(date))}</p><p><strong>Time:</strong> ${escapeHTML(time)}</p><p><strong>Location:</strong> ${escapeHTML(location)}</p></div>
-    <p class="collection-note">Please bring this form when collecting your item.</p><p class="collection-id">Form ID: ${escapeHTML(entryId)}</p>`;
+    const payments=await getInvoicePayments(invoice.invoiceNumber);const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);const balance=Math.max(0,Number(invoice.total||0)-paid);
+    const entryId=makeAprilsUniqueId("COL");const actor=await getCurrentStaffIdentity();
+    const root=document.createElement("div");root.className="collection-form-paper";root.innerHTML=`<div class="collection-brand"><img src="${escapeHTML(new URL("../icons/Aprils Signature logo.jpeg",window.location.href).href)}" alt="Aprils Signature logo"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${escapeHTML(invoice.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${escapeHTML(invoice.customer||"")}</p><p><strong>Phone:</strong> ${escapeHTML(invoice.phone||"")}</p></div><table><thead><tr><th>Item</th><th>Quantity</th></tr></thead><tbody>${(invoice.lines||[]).map(l=>`<tr><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Invoice Amount:</strong> GHS ${Number(invoice.total||0).toFixed(2)}</p><p><strong>Payment:</strong> GHS ${paid.toFixed(2)}</p><p><strong>Balance to be Paid:</strong> GHS ${balance.toFixed(2)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${escapeHTML(date)}</p><p><strong>Time:</strong> ${escapeHTML(time)}</p><p><strong>Location:</strong> ${escapeHTML(location)}</p></div><p class="collection-note">Please bring this form when collecting your item.</p><p class="collection-id">Form ID: ${escapeHTML(entryId)}</p></div>`;
     document.body.appendChild(root);
     try{
-        // The same saved delivery details are the source used by Order Tracking.
-        if(invoice.sourceId)await saveDeliveryTracking(invoice.sourceId,{date,time,location,invoiceNumber:invoice.invoiceNumber});
         const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF service unavailable");
-        const blob=await pdfFromVisibleElement(root,{margin:0,filename:`Aprils-Signature-Collection-${invoice.invoiceNumber}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:"#ffffff",logging:false},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}});
+        const blob=await pdfFromVisibleElement(root,{margin:0,filename:`Aprils-Signature-Collection-${invoice.invoiceNumber}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}});
         const file=new File([blob],`Aprils-Signature-Collection-${invoice.invoiceNumber}.pdf`,{type:"application/pdf"});
-        if(share && mode!=="whatsapp"){
-            if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature Collection / Delivery Form",files:[file]});message("Collection / delivery form shared.","success");return;}
-            openPdfShareFallback(blob,file.name,invoice.phone||"",invoice.email||"","Aprils Signature Collection / Delivery Form");
-            return;
-        }
-        const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
-        if(mode==="whatsapp"){
-            const number=normalizeWhatsAppNumber(invoice.phone||"");
-            window.open(number?`https://wa.me/${number}?text=${encodeURIComponent("Aprils Signature Collection / Delivery Form — the PDF has been generated and downloaded. Please attach the PDF before sending.")}`:"https://wa.me/","_blank","noopener,noreferrer");
-        }
-        message("Collection / delivery PDF generated successfully.","success");
+        if(share&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature collection / delivery form",files:[file]});return;}
+        const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+        if(mode==="whatsapp"){const number=normalizeWhatsAppNumber(invoice.phone||"");window.open(number?`https://wa.me/${number}?text=${encodeURIComponent("Aprils Signature Collection / Delivery Form — please attach the downloaded PDF.")}`:"https://wa.me/","_blank","noopener,noreferrer");}
+        message("Collection / delivery PDF generated.","success");
         await auditSystemEvent("collection_delivery_form",entryId,"generated",{invoiceNumber:invoice.invoiceNumber,customer:invoice.customer,date,time,location,enteredBy:actor.staffId});
-        await loadOrderTracking();
-    }catch(e){console.error(e);message("The collection / delivery PDF could not be generated: "+e.message,"error");}
-    finally{root.remove();}
+    }catch(e){console.error(e);message("The collection / delivery PDF could not be generated: "+e.message,"error");}finally{root.remove();}
 }
+
 /* =========================================================
    STAFF ACTIVITY / AUDIT LOG
 ========================================================= */
@@ -6074,11 +6423,9 @@ async function loadAuditLog(){
         const action=String(document.getElementById("auditActionFilter")?.value||"").trim().toLowerCase();
         const term=String(document.getElementById("auditSearch")?.value||"").trim().toLowerCase();
         const filtered=events.filter(e=>{const hay=JSON.stringify(e).toLowerCase();return(!selected||String(e.actorId||"")===selected)&&(!action||String(e.action||"").toLowerCase().includes(action))&&(!term||hay.includes(term));});
-        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(humanizeAuditAction(e.action))}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
+        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(e.action||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
     }catch(e){list.innerHTML=`<div class="empty">Staff activity could not be loaded: ${escapeHTML(e.message||"")}</div>`;}
 }
-function humanizeAuditAction(value){ const map={invoice_created:"Invoice Created",invoice_updated:"Invoice Updated",payment_saved:"Payment Saved",status_updated:"Status Updated",tracking_updated:"Order Tracking Updated",saved:"Saved",created:"Created",updated:"Updated",deleted:"Deleted",refund_recorded:"Refund Recorded",generated:"Document Generated"}; const k=String(value||""); return map[k]||k.replace(/_/g," ").replace(/\\b\\w/g,c=>c.toUpperCase()); }
-
 function setupAuditLog(){
     const list=document.getElementById("auditLogList");if(!list||list.dataset.bound)return;list.dataset.bound="1";
     document.getElementById("auditRefresh")?.addEventListener("click",loadAuditLog);
@@ -6096,7 +6443,7 @@ function setupAuditLog(){
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
     ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
-    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderTracking","Order Tracking"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
+    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderStatusUpdates","Order Status / Payment Updates"],["orderTracking","Order Tracking"],["refund","Refund"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
     ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
@@ -6132,194 +6479,6 @@ function setupUserAccess(){
     document.getElementById("userAccessCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("userAccessId").value="";document.getElementById("userAccessActive").checked=true});
 }
 
-
-/* =========================================================
-   FINAL PROFESSIONAL CORRECTION LAYER
-   - universal table search
-   - manual order/payment status controls
-   - refund records and accounting sync
-   - safe date presentation
-========================================================= */
-
-function setupUniversalAdminSearch(){
-    if(document.documentElement.dataset.universalSearchBound)return;
-    document.documentElement.dataset.universalSearchBound="1";
-    const enhance=()=>{
-        document.querySelectorAll(".section .table-wrap").forEach(wrap=>{
-            if(wrap.dataset.searchReady==="1")return;
-            if(!wrap.querySelector("table,.submission-card-grid,.tracking-board"))return;
-            wrap.dataset.searchReady="1";
-            const box=document.createElement("div");
-            box.className="admin-table-search";
-            box.innerHTML='<label>Search</label><input type="search" placeholder="Search by customer, invoice, item, status or ID...">';
-            wrap.parentNode.insertBefore(box,wrap);
-            const input=box.querySelector("input");
-            const filter=()=>{
-                const term=String(input.value||"").trim().toLowerCase();
-                const table=wrap.querySelector("table");
-                if(table){
-                    table.querySelectorAll("tbody tr").forEach(row=>row.style.display=!term||row.textContent.toLowerCase().includes(term)?"":"none");
-                }else{
-                    wrap.querySelectorAll(".submission-card,.tracking-order-card").forEach(card=>card.style.display=!term||card.textContent.toLowerCase().includes(term)?"":"none");
-                }
-            };
-            input.addEventListener("input",filter);
-        });
-    };
-    enhance();
-    new MutationObserver(()=>enhance()).observe(document.body,{childList:true,subtree:true});
-}
-
-async function loadStatusUpdateRecords(){
-    const select=document.getElementById("statusUpdateRecord"), search=document.getElementById("statusUpdateSearch");
-    if(!select)return;
-    try{
-        const [quotes,trainings,data]=await Promise.all([db.from("quote_requests").select("*"),getRows("training_registrations"),finalSettingsData()]);
-        if(quotes.error)throw quotes.error;
-        const records=[];
-        (quotes.data||[]).forEach(r=>records.push({id:String(r.id),type:"quote",row:r,label:`${r.full_name||"Customer"} — ${r.service||"Order / Quote"}`,search:`${r.full_name||""} ${r.phone||""} ${r.email||""} ${r.service||""} ${r.id}`}));
-        trainings.forEach(r=>records.push({id:String(r.id),type:"training",row:r,label:`${r.full_name||"Customer"} — ${r.course||"Training"}`,search:`${r.full_name||""} ${r.phone||""} ${r.email||""} ${r.course||""} ${r.id}`}));
-        window._aprilsStatusUpdateRecords=records;
-        const fill=()=>{
-            const term=String(search?.value||"").trim().toLowerCase();
-            const filtered=records.filter(r=>!term||r.search.toLowerCase().includes(term));
-            const current=select.value;
-            select.innerHTML='<option value="">Select a record</option>'+filtered.map(r=>`<option value="${escapeHTML(r.type+"|"+r.id)}">${escapeHTML(r.label)}</option>`).join("");
-            if(filtered.some(r=>r.type+"|"+r.id===current))select.value=current;
-        };
-        fill();
-        if(search&&!search.dataset.bound){search.dataset.bound="1";search.addEventListener("input",fill);}
-        if(!select.dataset.bound){
-            select.dataset.bound="1";
-            select.addEventListener("change",()=>populateStatusUpdate(select.value,data));
-        }
-        window._aprilsStatusData=data;
-        renderStatusUpdateHistory(data);
-    }catch(e){message("Status records could not be loaded: "+e.message,"error")}
-}
-async function populateStatusUpdate(value,data){
-    const [type,id]=String(value||"").split("|");
-    const rec=(window._aprilsStatusUpdateRecords||[]).find(r=>r.type===type&&r.id===id);
-    if(!rec)return;
-    const invoice=data.invoices.filter(i=>String(i.sourceId||"")===id||String(i.customer||"").trim().toLowerCase()===String(rec.row.full_name||"").trim().toLowerCase()||String(i.phone||"").trim()===String(rec.row.phone||"").trim()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
-    const totals=finalPaymentTotals(invoice?.invoiceNumber||"",data.payments,data.refunds);
-    let status=await getAdminRecordStatus(type==="training"?"training_status":"quote_status",id);
-    status=type==="training"?finalDeriveTrainingStatus(status,invoice,totals):finalDeriveOrderStatus(rec.row,invoice,totals,status);
-    const opts=type==="training"?FINAL_TRAINING_STATUS_OPTIONS:FINAL_ORDER_STATUS_OPTIONS;
-    const st=document.getElementById("statusUpdateOrderStatus");
-    if(st)st.innerHTML=opts.map(([k,l])=>`<option value="${k}" ${k===status?"selected":""}>${escapeHTML(l)}</option>`).join("");
-    document.getElementById("statusUpdatePaymentStatus").value=finalPaymentState(invoice?.total,totals.paid,totals.refunded).replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase());
-    document.getElementById("statusUpdateInvoice").value=invoice?.invoiceNumber||"—";
-    document.getElementById("statusUpdateTotal").value=`GHS ${Number(invoice?.total||0).toFixed(2)}`;
-    document.getElementById("statusUpdatePaid").value=`GHS ${totals.netPaid.toFixed(2)}`;
-    document.getElementById("statusUpdateBalance").value=`GHS ${Math.max(0,Number(invoice?.total||0)-totals.netPaid).toFixed(2)}`;
-}
-function finalDeriveTrainingStatus(stored,invoice,totals){
-    if(["in_class","stopped","completed","cancelled"].includes(stored))return stored;
-    if(invoice)return totals.netPaid>0?(totals.netPaid>=Number(invoice.total||0)?"fully_paid":"part_paid"):"invoice_generated";
-    return stored||"under_review";
-}
-async function saveStatusUpdate(){
-    const value=document.getElementById("statusUpdateRecord")?.value||"",[type,id]=value.split("|"),status=document.getElementById("statusUpdateOrderStatus")?.value;
-    if(!type||!id||!status){message("Select a customer / record and a status.","error");return;}
-    try{
-        const prefix=type==="training"?"training_status":"quote_status";
-        await setAdminRecordStatus(prefix,id,status);
-        const paymentKey=type==="training"?"payment_status_training_":"payment_status_quote_";
-        const data=window._aprilsStatusData||await finalSettingsData();
-        const rec=(window._aprilsStatusUpdateRecords||[]).find(r=>r.type===type&&r.id===id);
-        const invoice=data.invoices.filter(i=>String(i.sourceId||"")===id||String(i.customer||"").trim().toLowerCase()===String(rec?.row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
-        const totals=finalPaymentTotals(invoice?.invoiceNumber||"",data.payments,data.refunds);
-        await safeSettingUpsert(paymentKey+id,finalPaymentState(invoice?.total,totals.paid,totals.refunded));
-        await auditSystemEvent(type==="training"?"training_registration":"quote_request",id,"status_updated",{status,paymentStatus:finalPaymentState(invoice?.total,totals.paid,totals.refunded)});
-        message("Status and payment status updated.","success");
-        await loadStatusUpdateRecords();
-        if(type==="training")await loadTrainees();else await loadOrderTracking();
-    }catch(e){message("Status update could not be saved: "+e.message,"error")}
-}
-function renderStatusUpdateHistory(data){
-    const box=document.getElementById("statusUpdateHistory");if(!box)return;
-    const rows=[...(data?.invoices||[])].sort((a,b)=>String(b.updatedAt||b.savedAt||"").localeCompare(String(a.updatedAt||a.savedAt||""))).slice(0,100);
-    box.innerHTML=rows.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Type</th><th>Amount</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHTML(finalFormatDateTime(r.updatedAt||r.savedAt))}</td><td>${escapeHTML(r.invoiceNumber||"")}</td><td>${escapeHTML(r.customer||"")}</td><td>${escapeHTML(r.training?"Training":"Order / Quote")}</td><td>GHS ${Number(r.total||0).toFixed(2)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No invoice records found.</div>`;
-}
-function setupStatusUpdate(){
-    if(!document.getElementById("statusUpdateRecord")||document.getElementById("statusUpdateRecord").dataset.setup)return;
-    document.getElementById("statusUpdateRecord").dataset.setup="1";
-    document.getElementById("saveStatusUpdate")?.addEventListener("click",saveStatusUpdate);
-    document.getElementById("refreshStatusUpdateRecords")?.addEventListener("click",loadStatusUpdateRecords);
-    loadStatusUpdateRecords();
-}
-
-async function loadRefunds(){
-    const list=document.getElementById("refundList"),select=document.getElementById("refundInvoice");if(!list||!select)return;
-    try{
-        const data=await finalSettingsData();
-        const invoices=[...data.invoices].sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")));
-        const current=select.value;
-        select.innerHTML='<option value="">Select invoice</option>'+invoices.map(i=>`<option value="${escapeHTML(i.invoiceNumber||"")}">${escapeHTML(i.invoiceNumber||"")} — ${escapeHTML(i.customer||"Customer")}</option>`).join("");
-        if(invoices.some(i=>i.invoiceNumber===current))select.value=current;
-        const refunds=data.refunds.sort((a,b)=>String(b.refundDate||b.savedAt||"").localeCompare(String(a.refundDate||a.savedAt||"")));
-        list.innerHTML=refunds.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Refund</th><th>Fee</th><th>Reason</th></tr></thead><tbody>${refunds.map(r=>`<tr><td>${escapeHTML(finalFormatDate(r.refundDate))}</td><td>${escapeHTML(r.invoiceNumber||"")}</td><td>${escapeHTML(r.customer||"")}</td><td>GHS ${Number(r.refundAmount||0).toFixed(2)}</td><td>GHS ${Number(r.cancellationFee||0).toFixed(2)}</td><td>${escapeHTML(r.reason||"")}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No refunds have been recorded.</div>`;
-    }catch(e){message("Refunds could not be loaded: "+e.message,"error")}
-}
-async function saveRefund(event){
-    event.preventDefault();
-    const invoiceNumber=document.getElementById("refundInvoice")?.value||"";
-    const refundAmount=Math.max(0,Number(document.getElementById("refundAmount")?.value||0));
-    if(!invoiceNumber||refundAmount<=0){message("Select an invoice and enter the refund amount.","error");return;}
-    try{
-        const data=await finalSettingsData(),invoice=data.invoices.find(i=>String(i.invoiceNumber)===String(invoiceNumber));
-        if(!invoice)throw new Error("Invoice not found.");
-        const totals=finalPaymentTotals(invoiceNumber,data.payments,data.refunds);
-        if(refundAmount>totals.netPaid)throw new Error("Refund cannot exceed the customer's net payment received.");
-        const percent=Math.max(0,Math.min(100,Number(document.getElementById("refundFeePercent")?.value||0)));
-        const enteredFee=Math.max(0,Number(document.getElementById("refundFeeAmount")?.value||0));
-        const calculatedFee=Math.min(refundAmount,percent>0?refundAmount*percent/100:enteredFee);
-        const actualRefund=Math.max(0,refundAmount-calculatedFee);
-        const record={refundId:makeAprilsUniqueId("REF"),invoiceNumber,customer:invoice.customer||"",phone:invoice.phone||"",refundDate:document.getElementById("refundDate")?.value||new Date().toISOString().slice(0,10),refundBase:refundAmount,refundAmount:actualRefund,cancellationFee:calculatedFee,cancellationFeePercent:percent,reason:document.getElementById("refundReason")?.value.trim()||"",createdAt:new Date().toISOString()};
-        await safeSettingUpsert("refund_record_"+contentSlug(record.refundId),JSON.stringify(record));
-        if(invoice.sourceId){
-            const prefix=invoice.training?"training_status":"quote_status";
-            await setAdminRecordStatus(prefix,invoice.sourceId,"cancelled");
-        }
-        await auditSystemEvent(invoice.training?"training_registration":"quote_request",invoice.sourceId||invoiceNumber,"refund_recorded",record);
-        message("Refund saved and linked to Sales & Accounting.","success");
-        document.getElementById("refundForm")?.reset();
-        document.getElementById("refundDate").value=new Date().toISOString().slice(0,10);
-        await loadRefunds();await loadAccounting();await loadOrderTracking();await loadTrainees();
-    }catch(e){message("Refund could not be saved: "+e.message,"error")}
-}
-function setupRefunds(){
-    const form=document.getElementById("refundForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
-    const date=document.getElementById("refundDate");if(date&&!date.value)date.value=new Date().toISOString().slice(0,10);
-    form.addEventListener("submit",saveRefund);
-    const recalc=()=>{
-        const base=Number(document.getElementById("refundAmount")?.value||0);
-        const pct=Number(document.getElementById("refundFeePercent")?.value||0);
-        const feeAmount=Number(document.getElementById("refundFeeAmount")?.value||0);
-        const fee=Math.min(base,pct>0?base*pct/100:feeAmount);
-        const out=document.getElementById("refundNetAmount");if(out)out.value=Math.max(0,base-fee).toFixed(2);
-    };
-    document.getElementById("refundAmount")?.addEventListener("input",recalc);
-    document.getElementById("refundFeePercent")?.addEventListener("input",recalc);
-    document.getElementById("refundFeeAmount")?.addEventListener("input",recalc);
-    document.getElementById("refundReset")?.addEventListener("click",()=>{form.reset();if(date)date.value=new Date().toISOString().slice(0,10);recalc();});
-    loadRefunds();
-}
-
-function setupAuditClear(){
-    const btn=document.getElementById("auditClear");if(!btn||btn.dataset.bound)return;btn.dataset.bound="1";
-    btn.addEventListener("click",async()=>{
-        if(!confirm("Clear all staff activity records? This removes the audit history so it should only be used after testing or when an authorized administrator has decided to reset the log."))return;
-        try{
-            const rows=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("audit_event_"));
-            const ids=rows.map(r=>r.id).filter(Boolean);
-            if(ids.length){const result=await db.from("settings").delete().in("id",ids);if(result.error)throw result.error;}
-            message("Staff activity log cleared.","success");await loadAuditLog();
-        }catch(e){message("Audit log could not be cleared: "+e.message,"error")}
-    });
-}
-
 // Public bridge for the commerce admin module. The invoice generator itself
 // remains unchanged; checkout/inventory can open the exact same generator.
 window.aprilsOpenInvoiceGenerator = openInvoiceGenerator;
@@ -6332,21 +6491,14 @@ window.aprilsShowSubmissionDetails = showSubmissionDetails;
 function setupAdminAutomaticCapitalisation(){
     if(document.documentElement.dataset.adminCapitalisationBound)return;
     document.documentElement.dataset.adminCapitalisationBound="1";
-    const canonical={"bubu":"Bubu","kaftan":"Kaftan","jersey":"Jersey","jerseys":"Jerseys","t-shirt":"T-shirt","t-shirts":"T-shirts","hoodie":"Hoodie","hoodies":"Hoodies","joggers":"Joggers","sweatshirt":"Sweatshirt","sweatshirts":"Sweatshirts","sweatpants":"Sweatpants","varsity jacket":"Varsity Jacket","cargo pants":"Cargo Pants","cargo skirts":"Cargo Skirts","palazzo pants":"Palazzo Pants","bubu kaftan":"Bubu Kaftan","streetwear":"Streetwear","ladies wear":"Ladies Wear","kids wear":"Kids Wear","practical fashion training":"Practical Fashion Training"};
-    const fix=field=>{
-        if(!(field instanceof HTMLInputElement||field instanceof HTMLTextAreaElement))return;
-        if(["email","url","password","tel","number","date","time","hidden"].includes(String(field.type||"").toLowerCase()))return;
-        const id=String(field.name||"")+" "+String(field.id||"");
-        if(/email|url|password|phone|whatsapp|website|link/i.test(id))return;
-        let value=String(field.value||"");
-        Object.keys(canonical).sort((a,b)=>b.length-a.length).forEach(key=>{
-            const escaped=key.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-            value=value.replace(new RegExp("(^|[\\s,;:/()\\-])("+escaped+")(?=$|[\\s,;:/()\\-])","gi"),(_,p)=>p+canonical[key]);
-        });
-        field.value=value;
-    };
-    document.addEventListener("blur",e=>fix(e.target),true);
-    document.addEventListener("change",e=>fix(e.target),true);
+    const skip=new Set(["email","url","password","tel","number","date","time","hidden"]);
+    document.addEventListener("input",event=>{
+        const field=event.target;
+        if(!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement))return;
+        if(skip.has(String(field.type||"").toLowerCase()))return;
+        if(/email|url|password|phone|whatsapp|website|link/i.test(String(field.name||"")+" "+String(field.id||"")))return;
+        field.value=String(field.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+    },true);
 }
 
 async function startAdmin() {
@@ -6380,10 +6532,6 @@ async function startAdmin() {
     setupLogoForm();
     setupUserAccess();
     setupAuditLog();
-    setupAuditClear();
-    setupStatusUpdate();
-    setupRefunds();
-    setupUniversalAdminSearch();
     document.getElementById("orderTrackingRefresh")?.addEventListener("click", () => loadOrderTracking());
     document.getElementById("traineesRefresh")?.addEventListener("click", () => loadTrainees());
     setupAdminAutomaticCapitalisation();
@@ -6409,3 +6557,4 @@ if (document.readyState === "loading") {
 } else {
     startAdmin();
 }
+
