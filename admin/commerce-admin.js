@@ -1,7 +1,7 @@
 "use strict";
 (function(){
  const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
- const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+ const dmy=v=>{const d=new Date(v||Date.now());return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear()}; const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
  const slug=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,80);
  async function rows(){const d=db();if(!d)return[];const r=await d.from("settings").select("id,setting_key,setting_value,updated_at");if(r.error)throw r.error;return r.data||[]}
  async function save(key,val){if(window.safeSettingUpsert)return window.safeSettingUpsert(key,JSON.stringify(val));const d=db();if(!d)throw new Error("Supabase is unavailable");const old=await d.from("settings").select("id").eq("setting_key",key).limit(1);if(old.error)throw old.error;if(old.data?.length)return d.from("settings").update({setting_value:JSON.stringify(val),updated_at:new Date().toISOString()}).eq("id",old.data[0].id);return d.from("settings").insert({setting_key:key,setting_value:JSON.stringify(val),updated_at:new Date().toISOString()})}
@@ -136,11 +136,11 @@
                 const pricedLines=[];
                 for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`${i.name}`}); }
                 const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
-                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
+                const invoiceRecord={invoiceNumber,date:dmy(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
                 await save(invoiceKey,invoiceRecord);
-                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
+                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:dmy(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
                 const receiptNumber="AS-RC-"+Date.now().toString().slice(-8);
-                await save("receipt_record_"+slug(receiptNumber),{receiptNumber,invoiceNumber,customer:x.full_name||"",phone:x.phone||"",email:x.email||"",amount:Number(invoiceRecord.total||0),method:x.j.paymentMethod||"Checkout payment",date:new Date().toLocaleDateString(),status:"Payment recorded",savedAt:new Date().toISOString(),lines:invoiceRecord.lines,total:Number(invoiceRecord.total||0)});
+                await save("receipt_record_"+slug(receiptNumber),{receiptNumber,invoiceNumber,customer:x.full_name||"",phone:x.phone||"",email:x.email||"",amount:Number(invoiceRecord.total||0),method:x.j.paymentMethod||"Checkout payment",date:dmy(),status:"Payment recorded",savedAt:new Date().toISOString(),lines:invoiceRecord.lines,total:Number(invoiceRecord.total||0)});
                 await loadCheckoutOrders();await loadInventory();
                 if(window.loadErrorLog){} 
                 alert("Payment recorded, stock deducted, invoice saved, and accounting synchronized.");
