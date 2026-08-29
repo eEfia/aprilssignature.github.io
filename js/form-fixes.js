@@ -94,7 +94,8 @@ PUBLIC FORM FIXES
                 event.preventDefault();
 
                 event.stopImmediatePropagation();
-
+                if (form.dataset.submitting === "1") return;
+                form.dataset.submitting = "1";
 
                 const button =
                     document.getElementById(
@@ -166,8 +167,10 @@ PUBLIC FORM FIXES
                 if (form.querySelector('input[type="file"]')) {
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
                     catch (uploadError) {
+                        form.dataset.submitting = "0";
                         console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        throw new Error("The image upload could not be completed. Please try again.");
+                        message(output,"The image upload could not be completed. Please try again.",false);
+                        return;
                     }
                 }
 
@@ -397,14 +400,9 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    let result =
-                        await supabase
-                            .from("quote_requests")
-                            .insert([payload]);
-
-                    if (result.error && /journey|column/i.test(result.error.message || "")) {
-                        const fallbackPayload = { ...payload };
-                        delete fallbackPayload.journey;
+                    let result = await supabase.from("quote_requests").insert([payload]);
+                    if (result.error && /column|journey|schema|unknown/i.test(result.error.message || "")) {
+                        const fallbackPayload = { full_name:payload.full_name, phone:payload.phone, whatsapp:payload.whatsapp, location:payload.location, email:payload.email, service:payload.service };
                         result = await supabase.from("quote_requests").insert([fallbackPayload]);
                     }
 
@@ -449,6 +447,7 @@ PUBLIC FORM FIXES
 
                 } finally {
 
+                    form.dataset.submitting = "0";
                     if (button) {
 
                         button.disabled =
@@ -490,7 +489,8 @@ PUBLIC FORM FIXES
                 event.preventDefault();
 
                 event.stopImmediatePropagation();
-
+                if (form.dataset.submitting === "1") return;
+                form.dataset.submitting = "1";
 
                 const button =
                     document.getElementById(
@@ -618,14 +618,9 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    let result =
-                        await supabase
-                            .from("training_registrations")
-                            .insert([payload]);
-
-                    if (result.error && /message|column/i.test(result.error.message || "")) {
-                        const fallbackPayload = { ...payload };
-                        delete fallbackPayload.message;
+                    let result = await supabase.from("training_registrations").insert([payload]);
+                    if (result.error && /column|message|schema|unknown/i.test(result.error.message || "")) {
+                        const fallbackPayload = { full_name:payload.full_name, phone:payload.phone, whatsapp:payload.whatsapp, location:payload.location, course:payload.course, email:payload.email };
                         result = await supabase.from("training_registrations").insert([fallbackPayload]);
                     }
 
@@ -670,6 +665,7 @@ PUBLIC FORM FIXES
 
                 } finally {
 
+                    form.dataset.submitting = "0";
                     if (button) {
 
                         button.disabled =
@@ -718,16 +714,4 @@ PUBLIC FORM FIXES
 
     }
 
-})();
-
-/* APRILS FIRST-LETTER CAPITALIZATION */
-(function(){
-    const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
-    document.addEventListener("input",function(e){
-        const el=e.target;
-        if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;
-        if(skip.has(String(el.type||"").toLowerCase()))return;
-        if(/email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||"")))return;
-        el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
-    },true);
 })();
