@@ -94,8 +94,7 @@ PUBLIC FORM FIXES
                 event.preventDefault();
 
                 event.stopImmediatePropagation();
-                if (form.dataset.submitting === "1") return;
-                form.dataset.submitting = "1";
+
 
                 const button =
                     document.getElementById(
@@ -167,10 +166,8 @@ PUBLIC FORM FIXES
                 if (form.querySelector('input[type="file"]')) {
                     try { uploadedFiles = await uploadQuoteFiles(supabase, form); }
                     catch (uploadError) {
-                        form.dataset.submitting = "0";
                         console.error("QUOTE UPLOAD ERROR:", uploadError);
-                        message(output,"The image upload could not be completed. Please try again.",false);
-                        return;
+                        throw new Error("The image upload could not be completed. Please try again.");
                     }
                 }
 
@@ -400,9 +397,14 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    let result = await supabase.from("quote_requests").insert([payload]);
-                    if (result.error && /column|journey|schema|unknown/i.test(result.error.message || "")) {
-                        const fallbackPayload = { full_name:payload.full_name, phone:payload.phone, whatsapp:payload.whatsapp, location:payload.location, email:payload.email, service:payload.service };
+                    let result =
+                        await supabase
+                            .from("quote_requests")
+                            .insert([payload]);
+
+                    if (result.error && /journey|column/i.test(result.error.message || "")) {
+                        const fallbackPayload = { ...payload };
+                        delete fallbackPayload.journey;
                         result = await supabase.from("quote_requests").insert([fallbackPayload]);
                     }
 
@@ -447,7 +449,6 @@ PUBLIC FORM FIXES
 
                 } finally {
 
-                    form.dataset.submitting = "0";
                     if (button) {
 
                         button.disabled =
@@ -489,8 +490,7 @@ PUBLIC FORM FIXES
                 event.preventDefault();
 
                 event.stopImmediatePropagation();
-                if (form.dataset.submitting === "1") return;
-                form.dataset.submitting = "1";
+
 
                 const button =
                     document.getElementById(
@@ -618,9 +618,14 @@ PUBLIC FORM FIXES
 
                 try {
 
-                    let result = await supabase.from("training_registrations").insert([payload]);
-                    if (result.error && /column|message|schema|unknown/i.test(result.error.message || "")) {
-                        const fallbackPayload = { full_name:payload.full_name, phone:payload.phone, whatsapp:payload.whatsapp, location:payload.location, course:payload.course, email:payload.email };
+                    let result =
+                        await supabase
+                            .from("training_registrations")
+                            .insert([payload]);
+
+                    if (result.error && /message|column/i.test(result.error.message || "")) {
+                        const fallbackPayload = { ...payload };
+                        delete fallbackPayload.message;
                         result = await supabase.from("training_registrations").insert([fallbackPayload]);
                     }
 
@@ -665,7 +670,6 @@ PUBLIC FORM FIXES
 
                 } finally {
 
-                    form.dataset.submitting = "0";
                     if (button) {
 
                         button.disabled =
@@ -714,4 +718,31 @@ PUBLIC FORM FIXES
 
     }
 
+})();
+
+/* APRILS GRAMMATICAL CAPITALISATION */
+(function(){
+    const skipTypes=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
+    const namedTerms=new Set([
+        "bubu","kaftan","jersey","hoodie","joggers","sweatshirt","sweatpants","t-shirt","tshirts",
+        "polo","varsity jacket","cargo pants","cargo skirts","jorts","winneba","ghana","aprils signature"
+    ]);
+    function fix(el){
+        if(!el || !(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) return;
+        const type=String(el.type||"").toLowerCase();
+        if(skipTypes.has(type) || /email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||""))) return;
+        const value=String(el.value||"");
+        if(!value) return;
+        // Sentence-style capitalisation: only the first letter of a sentence is changed.
+        let out=value.replace(/(^|[.!?]\s+)([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+        // Preserve grammatical noun names that the site commonly uses, without
+        // capitalising every word in an ordinary sentence.
+        namedTerms.forEach(term=>{
+            const re=new RegExp("(^|\\s|[(/-])("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")(?=$|[\\s.,!?)/-])","gi");
+            out=out.replace(re,(m,p,w)=>p+w.charAt(0).toUpperCase()+w.slice(1));
+        });
+        if(out!==value) el.value=out;
+    }
+    document.addEventListener("input",e=>fix(e.target),true);
+    document.addEventListener("blur",e=>fix(e.target),true);
 })();
