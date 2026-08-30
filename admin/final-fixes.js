@@ -10,14 +10,18 @@ replacing the existing Supabase structure.
 */
 (function(){
     const STATUS_ORDER = [
-        ["under_review","New Customer — Under Review"],
-        ["order_taken","Confirmed / Order Taken"],
+        ["pending","Pending"],
+        ["invoice_generated","Invoice Generated"],
+        ["deposit_paid","Deposit Paid"],
+        ["part_paid","Part Paid"],
+        ["confirmed","Confirmed / Order Taken"],
         ["in_production","In Production"],
         ["completed","Completed"],
         ["ready","Ready for Collection / Delivery"],
+        ["full_payment","Full Payment"],
         ["dispatched","Dispatched"],
         ["received","Received by Customer"],
-        ["cancelled","Order Cancelled"]
+        ["cancelled","Cancelled"]
     ];
     const PAYMENT_STATUS = [
         ["unpaid","Unpaid"],
@@ -233,7 +237,7 @@ replacing the existing Supabase structure.
                     }catch(e){if(e?.name!=="AbortError")message("The order details could not be shared.","error")}
                 });
             }
-            let active=records[0]?.status||"under_review";
+            let active=records[0]?.status||"pending";
             list.querySelectorAll("[data-track-tab]").forEach(b=>b.onclick=()=>{active=b.dataset.trackTab;list.querySelectorAll(".final-status-tab").forEach(x=>x.classList.toggle("active",x===b));render(active);});
             const first=list.querySelector(`[data-track-tab="${CSS.escape(active)}"]`)||list.querySelector("[data-track-tab]");
             first?.classList.add("active"); render(first?.dataset.trackTab||"under_review");
