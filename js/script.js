@@ -926,10 +926,14 @@ async function loadPublicStreetwearProducts(){
     function detailBox(rowName,includeRequest=false){
         return `<div class="catalogue-detail-box">${includeRequest?`<div class="form-group"><label>Specify Your Request</label><textarea data-detail="details" name="streetwearOtherRequest" placeholder="Tell us what you need."></textarea></div>`:""}<div class="catalogue-detail-grid streetwear-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements" placeholder="Example: Size 12 (UK), or provide your measurements."></textarea></div><div class="form-group"><label>Colour</label><input type="text" data-detail="colour" placeholder="e.g. Black, Gold"></div></div></div>`;
     }
+    function quantitySelect(id, productName, zeroSelected=true){
+        const options=Array.from({length:21},(_,i)=>`<option value="${i}" ${zeroSelected&&i===0?"selected":""}>${i}</option>`).join("");
+        return `<select id="${esc(id)}" name="${esc(id)}" data-streetwear-product="true" data-product-name="${esc(productName)}" aria-label="Quantity for ${esc(productName)}">${options}</select>`;
+    }
     function makeRow(name){
         const id="product_"+normal(name).replace(/ /g,"_");
         const jogger=/jogger/i.test(name);
-        return `<div class="quantity-row streetwear-product-row catalogue-product-with-details${jogger?" jogger-product-row":""}"><div class="form-group"><label for="${esc(id)}">${esc(name)}</label><input type="number" id="${esc(id)}" name="${esc(id)}" min="0" value="0" data-streetwear-product="true" data-product-name="${esc(name)}"></div>${detailBox(name)}</div>`;
+        return `<div class="quantity-row streetwear-product-row catalogue-product-with-details${jogger?" jogger-product-row":""}"><div class="form-group"><h4 class="catalogue-product-title">${esc(name)}</h4><label for="${esc(id)}">Quantity</label>${quantitySelect(id,name)}</div>${detailBox(name)}</div>`;
     }
     function makeOthers(){
         return `<div class="quantity-row streetwear-product-row catalogue-other-row"><div class="form-group"><label class="others-choice" for="product_others">Others</label><input type="checkbox" id="product_others" name="product_others" value="1" data-streetwear-product="true" data-product-name="Others"></div>${detailBox("Others",true)}</div>`;
@@ -946,7 +950,7 @@ async function loadPublicStreetwearProducts(){
         });
         html+=makeOthers();
         container.innerHTML=html;
-        container.querySelectorAll('input[data-streetwear-product="true"]').forEach(input=>input.addEventListener("change",()=>{
+        container.querySelectorAll('input[data-streetwear-product="true"], select[data-streetwear-product="true"]').forEach(input=>input.addEventListener("change",()=>{
             const box=input.closest(".streetwear-product-row")?.querySelector(".catalogue-detail-box");
             const active=input.type==="checkbox"?input.checked:Number(input.value||0)>0;
             if(box)box.classList.toggle("is-open",active);

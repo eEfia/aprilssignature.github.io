@@ -216,7 +216,7 @@ PUBLIC FORM FIXES
 
 
 
-                Array.from(form.querySelectorAll('input[data-streetwear-product="true"]')).forEach(function(input) {
+                Array.from(form.querySelectorAll('input[data-streetwear-product="true"], select[data-streetwear-product="true"]')).forEach(function(input) {
                     const product = input.getAttribute("data-product-name") || input.name;
                     const active = input.type === "checkbox" ? input.checked : Number(String(data.get(input.name) || "").trim() || 0) > 0;
                     if (!active) return;
