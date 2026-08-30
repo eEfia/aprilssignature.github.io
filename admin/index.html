@@ -1944,7 +1944,7 @@ WEBSITE SETTINGS
 <h2>Admin Users &amp; Access</h2>
 <p class="intro">Control which signed-in staff can access parts of the Admin Dashboard. Staff accounts must first exist in Supabase Authentication; this section controls their Aprils Signature permissions.</p>
 <div class="notice"><strong>Security:</strong> Never put a Supabase service-role key in the website. Create staff accounts in Supabase Authentication, then assign their permissions here.</div>
-<div class="form-card"><form id="userAccessForm"><input type="hidden" id="userAccessId"><div class="form-grid"><div class="form-group"><label>Staff Email</label><input id="userAccessEmail" type="email" required></div><div class="form-group"><label>Display Name</label><input id="userAccessName"></div><div class="form-group"><label>Role</label><select id="userAccessRole"><option value="owner">Owner</option><option value="manager">Manager</option><option value="sales">Sales</option><option value="training">Training</option><option value="inventory">Inventory</option><option value="content">Content</option></select></div></div><div class="form-group"><label>Allowed Sections</label><div id="userAccessChecks" class="form-grid"></div></div><label class="checkbox"><input type="checkbox" id="userAccessActive" checked> Active</label><br><button class="primary" type="submit">Save User Access</button><button type="button" class="secondary" id="userAccessCancel">Cancel</button></form></div><div id="userAccessList" class="table-wrap"></div>
+<div class="form-card"><form id="userAccessForm"><input type="hidden" id="userAccessId"><div class="form-grid"><div class="form-group"><label>Staff Email</label><input id="userAccessEmail" type="email" required></div><div class="form-group"><label>Display Name</label><input id="userAccessName"></div><div class="form-group"><label>Role</label><select id="userAccessRole"><option value="owner">Owner</option><option value="manager">Manager</option><option value="sales">Sales</option><option value="training">Training</option><option value="inventory">Inventory</option><option value="content">Content</option><option value="front_desk">Front Desk</option><option value="customer_service">Customer Service</option><option value="accounting">Accounting</option><option value="hr">HR</option></select></div></div><div class="form-group"><label>Allowed Sections</label><div id="userAccessChecks" class="form-grid"></div></div><label class="checkbox"><input type="checkbox" id="userAccessActive" checked> Active</label><br><button class="primary" type="submit">Save User Access</button><button type="button" class="secondary" id="userAccessCancel">Cancel</button></form></div><div id="userAccessList" class="table-wrap"></div>
 </section>
 
 <section id="settings" class="section">
@@ -2009,7 +2009,7 @@ You can also remove the current public logo without deleting the original projec
 <script src="admin.js?v=20260828-final" defer></script>
 <script src="Admin-fixes.js?v=20260828-final" defer></script>
 <script src="commerce-admin.js?v=20260828-final" defer></script>
-<script src="final-fixes.js?v=20260829-final"></script><script src="final-fixes-v2.js?v=20260830-strict"></script>
+<script src="final-fixes.js?v=20260829-final"></script><script src="final-fixes-v2.js?v=20260830-strict"></script><script src="final-corrections-v3.js?v=20260831-final"></script>
 
 
 <style>

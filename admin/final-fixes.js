@@ -285,11 +285,11 @@ replacing the existing Supabase structure.
         }catch(e){list.innerHTML=`<div class="empty">Training registrations could not be loaded: ${esc(e.message||"")}</div>`}
     }
     function TRAINING_STATUS_LABEL(k){
-        const map={under_review:"New Customer — Under Review",invoice_generated:"Invoice Generated",part_paid:"Part Paid",receipt_generated:"Receipt Generated",fully_paid:"Fully Paid",in_class:"In Class",stopped:"Stopped",completed:"Completed"};
+        const map={under_review:"New Customer — Under Review",invoice_generated:"Invoice Generated",part_paid:"Part Paid",receipt_generated:"Receipt Generated",fully_paid:"Fully Paid",in_class:"In Class",completed:"Completed",stopped:"Stopped",cancelled:"Cancelled"};
         return map[k]||k;
     }
     function TRAINING_STATUS_TABS(rec){
-        const keys=[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["part_paid","Part Paid"],["fully_paid","Fully Paid"],["in_class","In Class"],["stopped","Stopped"],["completed","Completed"]];
+        const keys=[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["part_paid","Part Paid"],["fully_paid","Fully Paid"],["in_class","In Class"],["completed","Completed"],["stopped","Stopped"],["cancelled","Cancelled"]];
         return keys.map(([k,l])=>`<button type="button" class="final-status-tab" data-track-tab="${k}">${esc(l)} <span>${rec.filter(x=>x.status===k).length}</span></button>`).join("");
     }
 

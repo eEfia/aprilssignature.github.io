@@ -6090,7 +6090,8 @@ async function seedInitialPublicContent() {
         ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 7, location: "header", active: true }],
         ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 8, location: "header", active: true }],
         ["site_link_contact", { label: "Contact", url: "contact.html", order: 9, location: "header", active: true }],
-        ["site_link_google_review", { label: "Send Us a Google Review", url: "https://g.page/r/CcD7hxB7NK7pEAE/review", order: 1, location: "footer", active: true }]
+        ["site_link_google_review", { label: "Send Us a Google Review", url: "https://g.page/r/CcD7hxB7NK7pEAE/review", order: 1, location: "footer", active: true }],
+        ["site_link_payment", { label: "Payment Details", url: "payment.html", order: 10, location: "direct", active: true }]
     ];
     try {
         const existing = await db.from("settings").select("setting_key").like("setting_key", "site_link_%");
@@ -6460,7 +6461,7 @@ function setupAuditLog(){
 const ADMIN_ACCESS_SECTIONS = [
     ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
     ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderStatusUpdates","Order Status / Payment Updates"],["orderTracking","Order Tracking"],["refund","Refund"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
-    ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
+    ["shopAdmin","Shop"],["staffHR","Staff / HR"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
 ];
