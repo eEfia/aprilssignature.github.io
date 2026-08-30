@@ -64,14 +64,14 @@
         const r=await d.from("quote_requests").select("*").order("created_at",{ascending:false});
         if(r.error)throw r.error;
         const orders=(r.data||[]).map(x=>{let j={};try{j=JSON.parse(x.journey||"{}")}catch(_){}return{...x,j}}).filter(x=>x.j.checkout);
-        list.innerHTML=orders.length?`<table><thead><tr><th>Date</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Delivery / Collection</th><th>Actions</th></tr></thead><tbody>${orders.map(x=>`<tr>
-            <td>${esc(x.created_at||x.updated_at||"")}</td>
+        list.innerHTML=orders.length?`<table><thead><tr><th>Date</th><th>Time</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Delivery / Collection</th><th>Actions</th></tr></thead><tbody>${orders.map(x=>`<tr>
+            <td>${esc(x.created_at||x.updated_at||"")}</td><td>${esc(x.created_at?new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(x.created_at))+" GMT":"")}</td>
             <td>${esc(x.full_name)}<br>${esc(x.phone)}</td>
             <td>${esc((x.j.items||[]).map(i=>i.name+" × "+i.quantity).join(", "))}</td>
             <td>GHS ${Number(x.j.total||0).toFixed(2)}</td>
             <td>${esc(x.j.paymentStatus||"pending")}</td>
             <td><select class="admin-status-select" data-checkout-status="${esc(x.id)}">
-                ${[["under_review","Pending"],["order_taken","Confirmed / Order Taken"],["in_production","In Production"],["completed","Completed"],["ready","Ready for Collection / Delivery"],["dispatched","Dispatched"],["received","Received by Customer"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
+                ${[["under_review","New Customer — Under Review"],["invoice_generated","Invoice Generated"],["deposit_paid","Deposit Paid"],["part_paid","Part Paid"],["order_taken","Confirmed / Order Taken"],["in_production","In Production"],["completed","Completed"],["ready","Ready for Collection / Delivery"],["fully_paid","Full Payment"],["dispatched","Dispatched"],["received","Received by Customer"],["cancelled","Cancelled"]].map(([k,l])=>`<option value="${k}" ${(x.j.orderStatus||"under_review")===k?"selected":""}>${l}</option>`).join("")}
             </select></td>
             <td><div style="display:grid;gap:6px"><input type="date" data-checkout-delivery-date="${esc(x.id)}" value="${esc(x.j.deliveryDate||"")}"><input type="time" data-checkout-delivery-time="${esc(x.id)}" value="${esc(x.j.deliveryTime||"")}"><input type="text" data-checkout-delivery-location="${esc(x.id)}" value="${esc(x.j.deliveryLocation||"")}" placeholder="Delivery / collection location"><button class="secondary" data-save-checkout-delivery="${esc(x.id)}">Save Delivery</button></div></td>
             <td>
@@ -136,11 +136,11 @@
                 const pricedLines=[];
                 for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`${i.name}`}); }
                 const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
-                const invoiceRecord={invoiceNumber,date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
+                const invoiceRecord={invoiceNumber,date:new Date().toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
                 await save(invoiceKey,invoiceRecord);
-                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:new Date().toLocaleDateString(),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
+                await save("invoice_payment_record_"+slug(invoiceNumber)+"_"+Date.now(),{invoiceNumber,amount:Number(invoiceRecord.total||0),date:new Date().toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}),savedAt:new Date().toISOString(),method:x.j.paymentMethod||"Checkout payment",customer:x.full_name||""});
                 const receiptNumber="AS-RC-"+Date.now().toString().slice(-8);
-                await save("receipt_record_"+slug(receiptNumber),{receiptNumber,invoiceNumber,customer:x.full_name||"",phone:x.phone||"",email:x.email||"",amount:Number(invoiceRecord.total||0),method:x.j.paymentMethod||"Checkout payment",date:new Date().toLocaleDateString(),status:"Payment recorded",savedAt:new Date().toISOString(),lines:invoiceRecord.lines,total:Number(invoiceRecord.total||0)});
+                await save("receipt_record_"+slug(receiptNumber),{receiptNumber,invoiceNumber,customer:x.full_name||"",phone:x.phone||"",email:x.email||"",amount:Number(invoiceRecord.total||0),method:x.j.paymentMethod||"Checkout payment",date:new Date().toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}),status:"Payment recorded",savedAt:new Date().toISOString(),lines:invoiceRecord.lines,total:Number(invoiceRecord.total||0)});
                 await loadCheckoutOrders();await loadInventory();
                 if(window.loadErrorLog){} 
                 alert("Payment recorded, stock deducted, invoice saved, and accounting synchronized.");

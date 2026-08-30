@@ -2038,7 +2038,7 @@ async function setupAccountingForm() {
 }
 
 async function exportAccountingPdf(kind="sales",share=true){
-    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString()}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
+    const root=document.createElement("div");root.style.cssText="background:#fff;padding:24px;font-family:Arial,sans-serif;color:#222;width:190mm";const source=kind==="expenses"?document.getElementById("accountingExpenseList"):document.getElementById("accountingList");const title=kind==="expenses"?"Aprils Signature — Business Expenses":"Aprils Signature — Sales & Accounting";root.innerHTML=`<h1>Aprils Signature</h1><h2>${title}</h2><p>Elegance in Every Stitch</p><p>Generated: ${new Date().toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT"}</p>`;if(kind==="sales")root.innerHTML+=`<p><strong>Total Sales:</strong> ${escapeHTML(document.getElementById("accountingSales")?.textContent||"")} &nbsp; <strong>Money Received:</strong> ${escapeHTML(document.getElementById("accountingReceived")?.textContent||"")} &nbsp; <strong>Outstanding:</strong> ${escapeHTML(document.getElementById("accountingOutstanding")?.textContent||"")}</p>`;if(source)root.appendChild(source.cloneNode(true));document.body.appendChild(root);try{const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF library unavailable");const filename=`Aprils-Signature-${kind}-${new Date().toISOString().slice(0,10)}.pdf`;const options={margin:.35,filename,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};const blob=await pdfFromVisibleElement(root,options);if(share&&navigator.share&&navigator.canShare){const file=new File([blob],filename,{type:"application/pdf"});if(navigator.canShare({files:[file]})){await navigator.share({title:title,text:"Aprils Signature accounting PDF",files:[file]});return;}}const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);message("PDF exported successfully.","success");}catch(error){console.error(error);message("The PDF could not be created. Use Print and choose Save as PDF.","error");}finally{root.remove();}}
 
 async function loadNotifications() {
     const list = document.getElementById("notificationList");
@@ -2096,7 +2096,7 @@ async function loadNotifications() {
 
         list.innerHTML = unique.length ? `<table><thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Contact</th><th>Details</th><th>Actions</th></tr></thead><tbody>${
             unique.map(e => `<tr>
-                <td>${escapeHTML(e.date ? new Date(e.date).toLocaleString() : "")}</td>
+                <td>${escapeHTML(e.date ? new Date(e.date).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : "")}</td>
                 <td>${escapeHTML(e.type)}</td>
                 <td>${escapeHTML(e.name)}</td>
                 <td>${escapeHTML([e.phone,e.email].filter(Boolean).join(" • "))}</td>
@@ -3487,7 +3487,7 @@ function buildQuoteDetailRows(row, details) {
     add("WhatsApp", row.whatsapp);
     add("Email", row.email);
     add("Location", row.location);
-    if (row.created_at) add("Submitted", new Date(row.created_at).toLocaleString());
+    if (row.created_at) add("Submitted", new Date(row.created_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT");
 
     const selected = Array.isArray(details.selectedServices)
         ? details.selectedServices
@@ -3570,7 +3570,7 @@ function exportSubmissionDetails(title, row = {}, detailsText = "", uploads = []
         .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
         .forEach(([key, value]) => {
             if (value === undefined || value === null || String(value).trim() === "") return;
-            lines.push(`${formatDetailLabel(key)}: ${key === "created_at" && value ? new Date(value).toLocaleString() : value}`);
+            lines.push(`${formatDetailLabel(key)}: ${key === "created_at" && value ? new Date(value).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : value}`);
         });
 
     if (detailsText) {
@@ -3679,7 +3679,7 @@ async function showSubmissionDetails(title, row, detailsText = "", uploads = [])
             .filter(([key]) => !["id", "journey", "request_details", "details", "message", "uploads"].includes(key))
             .map(([key, value]) => ({
                 label: formatDetailLabel(key),
-                value: key === "created_at" && value ? new Date(value).toLocaleString() : (value ?? "—")
+                value: key === "created_at" && value ? new Date(value).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : (value ?? "—")
             }));
 
         if (detailsText) {
@@ -3755,15 +3755,31 @@ function closeSubmissionDetails(){
 
 
 const ORDER_STATUS_OPTIONS = [
-    ["under_review", "Pending"],["order_taken", "Confirmed / Order Taken"],["in_production", "In Production"],["completed", "Completed"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
+    ["under_review", "New Customer — Under Review"],
+    ["invoice_generated", "Invoice Generated"],
+    ["deposit_paid", "Deposit Paid"],
+    ["part_paid", "Part Paid"],
+    ["order_taken", "Confirmed / Order Taken"],
+    ["in_production", "In Production"],
+    ["completed", "Completed"],
+    ["ready", "Ready for Collection / Delivery"],
+    ["fully_paid", "Full Payment"],
+    ["dispatched", "Dispatched"],
+    ["received", "Received by Customer"],
+    ["cancelled", "Cancelled"]
 ];
 
 const TRAINING_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["part_paid", "Part Paid"],["receipt_generated", "Receipt Generated"],["fully_paid", "Fully Paid"],["in_class", "In Class"],["stopped", "Stopped"],["completed", "Completed"]
+    ["under_review", "New Customer — Under Review"],
+    ["invoice_generated", "Invoice Generated"],
+    ["part_paid", "Part Paid"],
+    ["fully_paid", "Fully Paid"],
+    ["in_class", "In Class"],
+    ["completed", "Completed"],
+    ["stopped", "Stopped"],
+    ["cancelled", "Cancelled"]
 ];
-const CHECKOUT_STATUS_OPTIONS = [
-    ["under_review", "New Customer — Under Review"],["invoice_generated", "Invoice Generated"],["fully_paid", "Fully Paid"],["order_taken", "Order Taken"],["ready", "Ready for Collection / Delivery"],["dispatched", "Dispatched"],["received", "Received by Customer"]
-];
+const CHECKOUT_STATUS_OPTIONS = ORDER_STATUS_OPTIONS;
 
 function statusOptionsForPrefix(prefix) {
     if (String(prefix || "").startsWith("training_status")) return TRAINING_STATUS_OPTIONS;
@@ -3852,7 +3868,7 @@ async function loadRegistrations() {
             effectiveStatus=Number(summary.balance||0)<=0&&Number(summary.amount||0)>0?"fully_paid":"part_paid";
         }
         return `<article class="submission-card">
-            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.course||"Training Registration")}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone</b>${escapeHTML(row.phone||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Details</b>${escapeHTML(row.message||row.request_details||row.details||"—")}</span></div>
             <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("training_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span></div>
             <div class="submission-card-actions"><button type="button" class="secondary" data-view-registration="${escapeHTML(row.id)}">View Full Details</button><button type="button" class="primary" data-generate-training-invoice="${escapeHTML(row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-registration="${escapeHTML(row.id)}">Delete</button></div>
@@ -4045,7 +4061,7 @@ async function loadQuotes() {
         const preview = summarizeQuoteDetails(row);
         const duplicateNote = row._duplicateCount > 1 ? ` <small class="duplicate-note">${row._duplicateCount} identical records grouped as one request</small>` : "";
         return `<article class="submission-card">
-            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</time></div>
+            <div class="submission-card-top"><div><strong>${escapeHTML(row.full_name||"Customer")}</strong><span>${escapeHTML(row.service||"Order / Quote")}${duplicateNote}</span></div><time>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : "")}</time></div>
             <div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${escapeHTML([row.phone,row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${escapeHTML(row.location||"—")}</span><span><b>Quantity</b>${escapeHTML(summarizeQuoteQuantities(row))}</span><span class="wide"><b>Details</b>${escapeHTML(preview||"—")}</span></div>
             <div class="submission-status-strip"><span><b>Order Status</b>${statusSelectHTML("quote_status", row.id, effectiveStatus)}</span><span><b>Payment Status</b>${escapeHTML((paymentStatuses.get(String(row.id))||"unpaid").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()))}</span><span><b>Invoice</b>${escapeHTML(summary.invoice||"—")}</span><span><b>Receipt</b>${escapeHTML(summary.receipt||"—")}</span><span><b>Amount</b>GHS ${Number(summary.amount||0).toFixed(2)}</span><span><b>Paid</b>GHS ${Number(summary.paid||0).toFixed(2)}</span><span><b>Balance</b>GHS ${Number(summary.balance||0).toFixed(2)}</span><span><b>Delivery / Collection</b>${escapeHTML(deliveryTracking.get(String(row.id))?.date||"—")}${deliveryTracking.get(String(row.id))?.time?" • "+escapeHTML(deliveryTracking.get(String(row.id)).time):""}${deliveryTracking.get(String(row.id))?.location?" • "+escapeHTML(deliveryTracking.get(String(row.id)).location):""}</span></div>
             <div class="delivery-tracking" style="margin:12px 0;padding:12px;border:1px solid #aaa;border-radius:6px;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;"><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Date</label><input type="date" data-delivery-date="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.date || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery / Collection Time</label><input type="time" data-delivery-time="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.time || "")}"></div><div><label style="display:block;font-weight:600;margin-bottom:5px;">Delivery Location</label><input type="text" data-delivery-location="${escapeHTML(row.id)}" value="${escapeHTML(deliveryTracking.get(String(row.id))?.location || "")}" placeholder="Enter delivery / collection location"></div><button type="button" class="secondary" data-save-delivery="${escapeHTML(row.id)}">Save Delivery Details</button></div>
@@ -4169,7 +4185,7 @@ async function loadOrderTracking(){
   const card=x=>{
    const balance=Math.max(0,x.total-x.paid);
    const items=x.checkout?(x.row.j.items||[]).map(i=>`${i.name} × ${i.quantity}`).join(", "):summarizeQuoteDetails(x.row);
-   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span><span><b>Location</b>${escapeHTML(x.delivery.location||"Not set")}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label><label>Location<input type="text" data-track-location="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.location||"")}" placeholder="Delivery / collection location"></label></div><div class="submission-card-actions"><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button></div></article>`;
+   return `<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Customer")}</strong><small>${escapeHTML(x.checkout?"Checkout Order":x.row.service||"Order / Quote")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}):"")}</time></div><div class="tracking-card-data"><span><b>Items</b>${escapeHTML(items||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${balance.toFixed(2)}</span><span><b>Due</b>${escapeHTML(x.delivery.date||"Not set")}${x.delivery.time?" • "+escapeHTML(x.delivery.time):""}</span><span><b>Location</b>${escapeHTML(x.delivery.location||"Not set")}</span></div><div class="tracking-card-status">${statusSelectHTML(x.checkout?"checkout_tracking_status":"quote_status",x.row.id,x.status)}</div><div class="tracking-card-due"><label>Collection / Delivery Date<input type="date" data-track-date="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.date||"")}"></label><label>Time<input type="time" data-track-time="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.time||"")}"></label><label>Location<input type="text" data-track-location="${escapeHTML(x.row.id)}" value="${escapeHTML(x.delivery.location||"")}" placeholder="Delivery / collection location"></label></div><div class="submission-card-actions"><button type="button" class="secondary" data-save-tracking="${escapeHTML(x.row.id)}" data-checkout="${x.checkout?"1":"0"}">Save</button><button type="button" class="secondary" data-view-tracking="${escapeHTML(x.row.id)}">View Full Details</button></div></article>`;
   };
   list.innerHTML=track.length?`<div class="tracking-board">${columns.map(([key,title,test])=>{const items=track.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No confirmed orders</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No confirmed customer orders are available for tracking. Orders appear here after a payment has been recorded.</div>`;
   list.querySelectorAll("[data-save-tracking]").forEach(b=>b.onclick=async()=>{
@@ -4213,7 +4229,7 @@ async function loadTrainees(){
    paid.push({row,invoice:inv,paid:paidAmount,total,balance,status});
   }
   const columns=[["part_paid","Part Paid",x=>x.status==="part_paid"],["fully_paid","Fully Paid",x=>x.status==="fully_paid"],["in_class","In Class",x=>x.status==="in_class"],["stopped","Stopped",x=>x.status==="stopped"],["completed","Completed",x=>x.status==="completed"]];
-  const card=x=>`<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><small>${escapeHTML(x.row.course||"Training")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleDateString():"")}</time></div><div class="tracking-card-data"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${x.balance.toFixed(2)}</span><span><b>Invoice</b>${escapeHTML(x.invoice?.invoiceNumber||"—")}</span></div><div class="tracking-card-status">${traineeStatusSelectHTML(x.row.id,x.status)}</div><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Full Details</button></article>`;
+  const card=x=>`<article class="tracking-order-card"><div class="tracking-card-head"><div><strong>${escapeHTML(x.row.full_name||"Trainee")}</strong><small>${escapeHTML(x.row.course||"Training")}</small></div><time>${escapeHTML(x.row.created_at?new Date(x.row.created_at).toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}):"")}</time></div><div class="tracking-card-data"><span><b>Phone</b>${escapeHTML(x.row.phone||"—")}</span><span><b>Paid</b>GHS ${x.paid.toFixed(2)}</span><span><b>Balance</b>GHS ${x.balance.toFixed(2)}</span><span><b>Invoice</b>${escapeHTML(x.invoice?.invoiceNumber||"—")}</span></div><div class="tracking-card-status">${traineeStatusSelectHTML(x.row.id,x.status)}</div><button type="button" class="secondary" data-view-trainee="${escapeHTML(x.row.id)}">View Full Details</button></article>`;
   list.innerHTML=paid.length?`<div class="tracking-board trainee-board">${columns.map(([key,title,test])=>{const items=paid.filter(test);return `<section class="tracking-column tracking-${key}"><header><h3>${title}</h3><strong>${items.length}</strong></header><div class="tracking-column-body">${items.length?items.map(card).join(""):`<div class="tracking-empty">No trainees</div>`}</div></section>`}).join("")}</div>`:`<div class="empty">No paid trainees have been recorded yet.</div>`;
   list.querySelectorAll("[data-save-status-prefix]").forEach(b=>b.onclick=async()=>{const select=b.closest(".status-control")?.querySelector(".admin-status-select");try{await setAdminRecordStatus("training_status",b.dataset.saveStatusId,select?.value||"part_paid");await auditSystemEvent("training_registration",b.dataset.saveStatusId,"status_updated",{status:select?.value||"part_paid"});message("Trainee status updated.","success");await loadTrainees()}catch(e){message("Trainee status could not be updated: "+e.message,"error")}});
   list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=paid.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x)showSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"",[])});
@@ -4229,7 +4245,7 @@ async function loadEnquiries() {
             <th>Date</th><th>Name</th><th>Phone</th><th>WhatsApp</th><th>Email</th><th>Subject</th><th>Message</th>
         </tr></thead><tbody>
         ${rows.map(row => `<tr>
-            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString() : "")}</td>
+            <td>${escapeHTML(row.created_at ? new Date(row.created_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : "")}</td>
             <td>${escapeHTML(row.full_name)}</td>
             <td>${escapeHTML(row.phone)}</td>
             <td>${escapeHTML(row.whatsapp)}</td>
@@ -5534,7 +5550,7 @@ async function renderLogoLibrary() {
                             </div>
                             <div class="logo-library-meta">
                                 <strong>${isCurrent ? "Current Public Logo" : "Saved Logo"}</strong>
-                                ${row.updated_at ? `<small>Saved ${escapeHTML(new Date(row.updated_at).toLocaleString())}</small>` : ""}
+                                ${row.updated_at ? `<small>Saved ${escapeHTML(new Date(row.updated_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT")}</small>` : ""}
                             </div>
                             <div class="logo-library-actions">
                                 ${isCurrent ? "" : `<button type="button" class="secondary" data-use-logo="${safeKey}">Use This Logo</button>`}
@@ -6167,7 +6183,7 @@ async function loadDiscountCodes() {
                 }
             }
             redemptionList.innerHTML = redemptions.length ? `<table><thead><tr><th>Date</th><th>Customer</th><th>Phone</th><th>Email</th><th>Code</th><th>Reference</th><th>Status</th><th>Action</th></tr></thead><tbody>
-            ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? new Date(r.created_at).toLocaleString() : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
+            ${redemptions.map(r => `<tr><td>${escapeHTML(r.created_at ? new Date(r.created_at).toLocaleString("en-GB", {timeZone:"UTC"}) + " GMT" : "")}</td><td>${escapeHTML(r.full_name)}</td><td>${escapeHTML(r.phone)}</td><td>${escapeHTML(r.email || "")}</td><td>${escapeHTML(r.code)}</td><td>${escapeHTML(r.order_reference || "")}</td><td>${escapeHTML(r.status || "pending")}</td><td><button type="button" class="danger" data-delete-redemption="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}
             </tbody></table>` : `<div class="empty">No customer discount redemptions have been received yet.</div>`;
             redemptionList.querySelectorAll("[data-delete-redemption]").forEach(btn => btn.onclick = async () => {
                 if (!confirm("Delete this redemption record?")) return;

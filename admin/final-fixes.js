@@ -10,15 +10,15 @@ replacing the existing Supabase structure.
 */
 (function(){
     const STATUS_ORDER = [
-        ["pending","Pending"],
+        ["under_review","New Customer — Under Review"],
         ["invoice_generated","Invoice Generated"],
         ["deposit_paid","Deposit Paid"],
         ["part_paid","Part Paid"],
-        ["confirmed","Confirmed / Order Taken"],
+        ["order_taken","Confirmed / Order Taken"],
         ["in_production","In Production"],
         ["completed","Completed"],
         ["ready","Ready for Collection / Delivery"],
-        ["full_payment","Full Payment"],
+        ["fully_paid","Full Payment"],
         ["dispatched","Dispatched"],
         ["received","Received by Customer"],
         ["cancelled","Cancelled"]
@@ -27,7 +27,7 @@ replacing the existing Supabase structure.
         ["unpaid","Unpaid"],
         ["deposit_paid","Deposit Paid"],
         ["part_paid","Part Paid"],
-        ["paid_in_full","Paid in Full"],
+        ["fully_paid","Fully Paid"],
         ["refunded","Refunded"],
         ["partially_refunded","Partially Refunded"]
     ];
@@ -237,7 +237,7 @@ replacing the existing Supabase structure.
                     }catch(e){if(e?.name!=="AbortError")message("The order details could not be shared.","error")}
                 });
             }
-            let active=records[0]?.status||"pending";
+            let active=records[0]?.status||"under_review";
             list.querySelectorAll("[data-track-tab]").forEach(b=>b.onclick=()=>{active=b.dataset.trackTab;list.querySelectorAll(".final-status-tab").forEach(x=>x.classList.toggle("active",x===b));render(active);});
             const first=list.querySelector(`[data-track-tab="${CSS.escape(active)}"]`)||list.querySelector("[data-track-tab]");
             first?.classList.add("active"); render(first?.dataset.trackTab||"under_review");
@@ -611,7 +611,8 @@ replacing the existing Supabase structure.
             try{
                 const settings=await getRowsSafe("settings");
                 const refunds=settings.filter(r=>String(r.setting_key||"").startsWith("refund_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
-                const totalRefunds=refunds.reduce((a,r)=>a+Number(r.refundAmount||0),0);
+                const paidRefunds=refunds.filter(r=>String(r.status||"").toLowerCase()==="paid" || String(r.status||"").toLowerCase()==="refund recorded");
+                const totalRefunds=paidRefunds.reduce((a,r)=>a+Number(r.refundAmount||0),0);
                 const salesEl=document.getElementById("accountingSales"),receivedEl=document.getElementById("accountingReceived"),netEl=document.getElementById("accountingNetCash");
                 const currentMoney=el=>Number(String(el?.textContent||"").replace(/[^\d.-]/g,""))||0;
                 if(salesEl)salesEl.textContent=money(Math.max(0,currentMoney(salesEl)-totalRefunds));
@@ -656,7 +657,15 @@ replacing the existing Supabase structure.
     function patchGlobals(){
         if(typeof window.loadOrderTracking==="function") window.loadOrderTracking=loadOrderTrackingFinal;
         if(typeof window.loadRegistrations==="function") window.loadRegistrations=loadRegistrationsFinal;
-        if(typeof window.loadSavedInvoiceReceiptRecords==="function") window.loadSavedInvoiceReceiptRecords=loadSavedInvoiceReceiptRecordsFinal;
+        if(typeof window.loadSavedInvoiceReceiptRecords==="function" && !window.loadSavedInvoiceReceiptRecords.__finalWrapper){
+            const originalSavedRecords=window.loadSavedInvoiceReceiptRecords;
+            const wrappedSavedRecords=async function(){
+                await originalSavedRecords();
+                await loadSavedInvoiceReceiptRecordsFinal();
+            };
+            wrappedSavedRecords.__finalWrapper=true;
+            window.loadSavedInvoiceReceiptRecords=wrappedSavedRecords;
+        }
         if(typeof window.generateCollectionForm==="function") window.generateCollectionForm=generateCollectionFormFinal;
         patchSharing(); patchInvoicePdfAttachments(); patchAccountingRefundSync();
     }
