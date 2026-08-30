@@ -1,6 +1,6 @@
 (function(){
 "use strict";
-const tableMsg = "This section needs the included Supabase database setup to be run once. The rest of the admin dashoard is unchanged.";
+const tableMsg = "This section needs the included Supabase database setup to be run once. The rest of e admin dashoard is unchanged.";
 
 function e(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));}
 function n(v){return Number(v||0);}
