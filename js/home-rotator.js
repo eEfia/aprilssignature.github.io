@@ -4,7 +4,7 @@ function esc(v){return String(v||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 function setFrame(frame,item){
  if(!frame)return;
  frame.classList.remove("is-visible");
- setTimeout(()=>{frame.innerHTML=item.type==="video"?`<video muted autoplay loop playsinline preload="metadata"><source src="${esc(item.url)}" type="video/mp4"></video>`:`<img src="${esc(item.url)}" alt="${esc(item.title||"Aprils Signature featured garment")}">`;requestAnimationFrame(()=>frame.classList.add("is-visible"));},250);
+ setTimeout(()=>{frame.innerHTML=item.type==="video"?`<video muted autoplay loop playsinline preload="medata"><source src="${esc(item.url)}" type="video/mp4"></video>`:`<img src="${esc(item.url)}" alt="${esc(item.title||"Aprils Signature featured garment")}">`;requestAnimationFrame(()=>frame.classList.add("is-visible"));},250);
 }
 async function start(){
  const left=document.querySelector(".hero-side-left .hero-side-frame"),right=document.querySelector(".hero-side-right .hero-side-frame");
