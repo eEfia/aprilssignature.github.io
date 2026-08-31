@@ -8,7 +8,7 @@
     if(!sourceTable) return Promise.resolve(false);
     const c=cfg(); if(!c.url || !c.publishableKey) return Promise.resolve(false);
     const url=String(c.url).replace(/\/$/,"")+"/functions/v1/notify-new-submission";
-    return fetch(url,{method:"POST",headers:{"Content-Type":"application/json","apikey":c.publishableKey,"Authorization":"Bearer "+c.publishableKey},body:JSON.stringify({source_table:sourceTable,source_id:sourceId?String(sourceId):"",customer_phone:String(customer?.phone||""),customer_email:String(customer?.email||"")})})
+    return fetch(url,{method:"POST",headers:{"Content-Type":"application/j,"apikey":c.publishableKey,"Authorization":"Bearer "+c.publishableKey},body:JSON.stringify({source_table:sourceTable,source_id:sourceId?String(sourceId):"",customer_phone:String(customer?.phone||""),customer_email:String(customer?.email||"")})})
       .then(r=>r.json().catch(()=>({}))).then(x=>!!x.ok).catch(()=>false);
   }
   window.aprilsDispatchNotification=dispatch;
