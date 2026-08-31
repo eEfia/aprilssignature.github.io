@@ -13,7 +13,7 @@
 }
 
 html {
-    scroll-behavior: smh;
+    scroll-behavior: smooth;
 }
 
 body {
