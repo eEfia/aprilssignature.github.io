@@ -7,7 +7,7 @@
 
 let db = null;
 
-const DEFAULT_GALLERY_COLLECTIONS = [
+const DEFAULT_GALLERY_COLLECONS = [
     "Streetwear Collection",
     "Rhinestone Embellishment",
     "Fashion Creations",
