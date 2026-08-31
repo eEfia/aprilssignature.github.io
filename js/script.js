@@ -1964,3 +1964,53 @@ if (
         el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
     },true);
 })();
+
+
+/* Strict correction bridge: public pages always re-read current admin-managed
+   products/training prices so edits are reflected without rebuilding static HTML. */
+(function(){
+  async function strictLivePublicSync(){
+    try{
+      const body=document.body;if(!body)return;
+      const db=typeof window.waitForSupabase==='function'?await window.waitForSupabase():null;if(!db)return;
+      if(body.classList.contains('training-page')){
+        const [tr,pr]=await Promise.all([db.from('training_programs').select('title,category,description,active,display_order'),db.from('settings').select('setting_value').like('setting_key','public_training_price_%')]);
+        if(!tr.error){const rows=(tr.data||[]).filter(x=>x.active!==false&&x.title),prices=(pr.data||[]).map(x=>{try{return JSON.parse(x.setting_value||'{}')}catch(_){return null}}).filter(Boolean),norm=x=>String(x||'').toLowerCase().replace(/[’']/g,"'").replace(/[^a-z0-9]+/g,' ').trim(),getPrice=x=>prices.find(p=>norm(p.name)===norm(x))?.price;
+          document.querySelectorAll('.training-category li,.training-category h4').forEach(n=>{const r=rows.find(x=>norm(x.title)===norm(n.textContent.replace(/\s+—\s+GHS\s+[\d,.]+$/,'')));if(r){const p=getPrice(r.title);n.textContent=r.title+(p!==undefined?` — GHS ${Number(p).toFixed(2)}`:'')}});
+        }
+      }
+      if(body.classList.contains('services-page')){
+        const r=await db.from('settings').select('setting_value').like('setting_key','product_%');if(!r.error){const products=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||'{}')}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false);let sec=document.getElementById('managedProductCatalogue');if(!sec){sec=document.createElement('section');sec.id='managedProductCatalogue';sec.className='service-section';sec.innerHTML='<div class="container"><h2>Product Catalogue</h2><div class="services-grid" id="managedProductGrid"></div></div>';document.querySelector('main')?.appendChild(sec)}const grid=sec.querySelector('#managedProductGrid');if(grid){const groups=new Map();products.forEach(x=>{const k=x.category||'Products / Services';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(x)});grid.innerHTML=[...groups].map(([k,a])=>`<article class="service-card"><h3>${escapeHTML(k)}</h3>${a.sort((x,y)=>Number(x.display_order||9999)-Number(y.display_order||9999)).map(x=>`<div><strong>${escapeHTML(x.name)}</strong>${x.public_price!==null&&x.public_price!==undefined&&x.public_price!==''?`<p class="service-public-price">Price: GHS ${Number(x.public_price).toFixed(2)}</p>`:''}${x.subcategory?`<small>${escapeHTML(x.subcategory)}</small>`:''}${x.notes?`<p>${escapeHTML(x.notes)}</p>`:''}</div>`).join('')}</article>`).join('')}}
+      }
+    }catch(e){console.warn('Strict live public sync unavailable',e)}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(strictLivePublicSync,1200));else setTimeout(strictLivePublicSync,1200);
+})();
+
+/* Strict quote-catalogue bridge: every active product saved in Admin is also
+   available in the relevant public selection area, including future additions. */
+(function(){
+  async function strictQuoteCatalogue(){
+    try{
+      if(!document.querySelector('#streetwearProductsDynamic,#embellishmentProductsDynamic'))return;
+      const d=await (typeof window.waitForSupabase==='function'?window.waitForSupabase():Promise.resolve(null));if(!d)return;
+      const r=await d.from('settings').select('setting_value').like('setting_key','product_%');if(r.error)return;
+      const rows=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||'{}')}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false);
+      const norm=x=>String(x||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+      const addCustom=(containerId,category)=>{
+        const c=document.getElementById(containerId);if(!c)return;
+        const existing=new Set([...c.querySelectorAll('[data-product-name]')].map(x=>norm(x.dataset.productName)));
+        const custom=rows.filter(x=>norm(x.category)===norm(category)&&!existing.has(norm(x.name)));
+        if(!custom.length)return;
+        let title=c.querySelector('.strict-custom-catalogue-title');if(!title){title=document.createElement('h3');title.className='catalogue-group-title strict-custom-catalogue-title';title.textContent='Additional Options';c.appendChild(title)}
+        custom.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)).forEach(x=>{
+          const row=document.createElement('div');row.className='quantity-row streetwear-product-row catalogue-product-with-details';row.innerHTML=`<div class="form-group"><h4 class="catalogue-product-title">${escapeHTML(x.name)}</h4><label>Quantity</label><select data-streetwear-product="true" data-product-name="${escapeHTML(x.name)}">${Array.from({length:21},(_,i)=>`<option value="${i}">${i}</option>`).join('')}</select></div><div class="catalogue-detail-box"><div class="catalogue-detail-grid"><div class="form-group"><label>Size (UK) / Measurements</label><textarea data-detail="sizeMeasurements"></textarea></div><div class="form-group"><label>Colour</label><input data-detail="colour"></div></div></div>`;c.appendChild(row);
+          const sel=row.querySelector('select');sel.addEventListener('change',()=>row.querySelector('.catalogue-detail-box')?.classList.toggle('is-open',Number(sel.value||0)>0));
+        });
+      };
+      addCustom('streetwearProductsDynamic','Streetwear');
+      addCustom('embellishmentProductsDynamic','Embellishment Services');
+    }catch(e){console.warn('Strict quote catalogue sync unavailable',e)}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(strictQuoteCatalogue,1500));else setTimeout(strictQuoteCatalogue,1500);
+})();
