@@ -434,6 +434,7 @@ async function loadSection(id) {
         if (id === "notifications") await loadNotifications();
         if (id === "shopAdmin") setupShopAdmin();
         if (id === "accounting") await loadAccounting();
+        if (id === "refund") { setupRefundForm(); await loadRefunds(); }
         if (id === "discounts") await loadDiscountCodes();
         if (id === "links") await loadWebsiteLinks();
         if (id === "testimonials") await loadTestimonials();
@@ -1403,6 +1404,7 @@ function setupProductForm() {
             document.getElementById("adminProductSubcategory").value = "";
             message("Product saved successfully.", "success");
             await loadProducts();
+            await window.aprilsStrictCorrectionsV4?.syncPublicCatalogueMirrors?.();
             returnToAdminList("[data-edit-product]", id || null);
         } catch (error) {
             console.error(error);
@@ -1648,7 +1650,7 @@ function setupDirectCustomerLinks() {
         contact: new URL("../contact.html", window.location.href).href,
         policies: new URL("../policies.html", window.location.href).href,
         discount: new URL("../redeem.html", window.location.href).href,
-        payment: new URL("../payment.html", window.location.href).href,
+        payment: new URL("../index.html?payment=1", window.location.href).href,
         shop: new URL("../shop.html", window.location.href).href,
         googleReview: "https://g.page/r/CcD7hxB7NK7pEAE/review"
     };
@@ -1689,14 +1691,8 @@ function setupDirectCustomerLinks() {
                 try {
                     const saved = await getSettingValue("invoice_payment_accounts");
                     const accounts = JSON.parse(saved || "[]");
-                    if (Array.isArray(accounts) && accounts.length) {
-                        const paymentUrl = new URL(url);
-                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
-                        url = paymentUrl.href;
-                    } else {
-                        message("Save the payment details first.", "error");
-                        return;
-                    }
+                    if (!Array.isArray(accounts) || !accounts.length) { message("Save the payment details first.", "error"); return; }
+                    url = new URL("../index.html?payment=1", window.location.href).href;
                 } catch (_) { message("The saved payment details could not be read.", "error"); return; }
             }
             try {
@@ -1718,12 +1714,9 @@ function setupDirectCustomerLinks() {
                 try {
                     const saved = await getSettingValue("invoice_payment_accounts");
                     const accounts = JSON.parse(saved || "[]");
-                    if (Array.isArray(accounts) && accounts.length) {
-                        const paymentUrl = new URL(url);
-                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
-                        url = paymentUrl.href;
-                    }
-                } catch (_) {}
+                    if (!Array.isArray(accounts) || !accounts.length) { message("Save the payment details first.", "error"); return; }
+                    url = new URL("../index.html?payment=1", window.location.href).href;
+                } catch (_) { message("The saved payment details could not be read.", "error"); return; }
             }
             if (navigator.share) {
                 try {
@@ -2158,6 +2151,22 @@ async function loadNotifications() {
     }
 }
 
+async function loadRefunds(){
+    const list=document.getElementById("refundList"); if(!list)return;
+    try{
+        const rows=await getRows("settings");
+        const refunds=rows.filter(r=>String(r.setting_key||"").startsWith("refund_record_")).map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),id:r.id,key:r.setting_key}}catch(_){return null}}).filter(Boolean).sort((a,b)=>String(b.date||b.savedAt||"").localeCompare(String(a.date||a.savedAt||"")));
+        list.innerHTML=refunds.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th><th>Reason</th><th>Actions</th></tr></thead><tbody>${refunds.map(r=>`<tr><td>${escapeHTML((()=>{const v=r.date||r.savedAt;const x=new Date(v);return Number.isNaN(x.getTime())?String(v||""):new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}).format(x)})())}</td><td>${escapeHTML(r.invoiceNumber||"")}</td><td>${escapeHTML(r.customer||"")}</td><td>GHS ${Number(r.refundAmount||0).toFixed(2)}</td><td>${escapeHTML(r.status||"")}</td><td>${escapeHTML(r.reason||"")}</td><td><button type="button" class="danger" data-delete-refund="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No refunds have been recorded.</div>`;
+        list.querySelectorAll("[data-delete-refund]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this refund record?"))return;const actor=await getCurrentStaffIdentity();const rr=await db.from("settings").delete().eq("id",b.dataset.deleteRefund);if(rr.error){message("Refund could not be deleted: "+rr.error.message,"error");return;}await auditSystemEvent("refund",b.dataset.deleteRefund,"deleted",{deletedBy:actor.staffId});await loadRefunds();await loadAccounting();});
+    }catch(e){list.innerHTML=`<div class="empty">Refunds could not be loaded: ${escapeHTML(e.message||"")}</div>`}
+}
+function setupRefundForm(){
+    const f=document.getElementById("refundForm");if(!f||f.dataset.bound)return;f.dataset.bound="1";
+    f.addEventListener("submit",async e=>{e.preventDefault();const invoiceNumber=document.getElementById("refundInvoice").value.trim(),date=document.getElementById("refundDate").value,amount=Number(document.getElementById("refundAmount").value||0),reason=document.getElementById("refundReason").value.trim(),reference=document.getElementById("refundReference").value.trim();if(!invoiceNumber||!date||amount<=0||!reason){message("Enter the invoice, date, refund amount and reason.","error");return;}const invoice=await getInvoiceSavedRecord(invoiceNumber);if(!invoice){message("That invoice could not be found.","error");return;}const paid=(await getInvoicePayments(invoiceNumber)).reduce((s,p)=>s+Number(p.amount||0),0);const existing=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("refund_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(r=>r&&String(r.invoiceNumber||"")===invoiceNumber&&String(r.status||"").toLowerCase()==="paid").reduce((s,r)=>s+Number(r.refundAmount||0),0);if(amount>Math.max(0,paid-existing)){message("Refund cannot exceed the amount actually received and not already refunded.","error");return;}const actor=await getCurrentStaffIdentity();const id=makeAprilsUniqueId("REF");const record={refundId:id,invoiceNumber,customer:invoice.customer||"",refundAmount:amount,date,reference,reason,status:"paid",createdAt:new Date().toISOString(),createdBy:actor.staffId};await safeSettingUpsert("refund_record_"+contentSlug(id),JSON.stringify(record));await auditSystemEvent("refund",id,"created",record);f.reset();await loadRefunds();await loadAccounting();message("Refund recorded. Sales and Money Received have been updated automatically.","success")});
+    document.getElementById("refundClear")?.addEventListener("click",()=>f.reset());
+    document.getElementById("refundRefresh")?.addEventListener("click",loadRefunds);
+}
+
 async function loadAccounting() {
     const list = document.getElementById("accountingList");
     if (!list) return;
@@ -2202,10 +2211,12 @@ async function loadAccounting() {
         paymentMap.get(key).push(item);
     });
 
+    const refundByInvoice = new Map();
+    refunds.forEach(r => { const k=String(r.invoiceNumber||""); refundByInvoice.set(k,(refundByInvoice.get(k)||0)+Number(r.refundAmount||0)); });
     const records = [...invoiceMap.values()]
         .filter(invoice => (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0) > 0)
         .sort((a,b) => String(b.date || b.savedAt || "").localeCompare(String(a.date || a.savedAt || "")));
-    let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0;
+    let totalSales = 0, totalReceived = 0, totalOutstanding = 0, totalDiscounts = 0, totalRefunds = 0;
     const allExpenses = [...expenses, ...offlineExpenses];
     const totalExpenses = allExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     const inventoryRows = rows.filter(r => String(r.setting_key || "").startsWith("inventory_item_")).map(r => {
@@ -2216,10 +2227,13 @@ async function loadAccounting() {
     const body = records.map(invoice => {
         const total = Number(invoice.total || 0);
         const discount = Number(invoice.discount || 0);
-        const paid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
-        const balance = Math.max(0, total - paid);
-        totalSales += total;
+        const grossPaid = (paymentMap.get(String(invoice.invoiceNumber)) || []).reduce((sum,p) => sum + Number(p.amount || 0), 0);
+        const refunded = Number(refundByInvoice.get(String(invoice.invoiceNumber)) || 0);
+        const paid = Math.max(0, grossPaid - refunded);
+        const balance = Math.max(0, total - grossPaid);
+        totalSales += paid;
         totalReceived += paid;
+        totalRefunds += refunded;
         totalOutstanding += balance;
         totalDiscounts += discount;
 
@@ -2242,7 +2256,7 @@ async function loadAccounting() {
 
     list.innerHTML = records.length ? `
         <table>
-            <thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Customer</th><th>Sale</th><th>Discount</th><th>Received</th><th>Balance</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Customer</th><th>Net Sale</th><th>Discount</th><th>Net Received</th><th>Balance</th><th>Status</th></tr></thead>
             <tbody>${body}</tbody>
         </table>` : `<div class="empty">${escapeHTML(emptyNote)}</div>`;
 
@@ -2252,6 +2266,7 @@ async function loadAccounting() {
     document.getElementById("accountingDiscounts").textContent = `GHS ${totalDiscounts.toFixed(2)}`;
     document.getElementById("accountingExpenses").textContent = `GHS ${totalExpenses.toFixed(2)}`;
     document.getElementById("accountingNetCash").textContent = `GHS ${(totalReceived - totalExpenses).toFixed(2)}`;
+    let refundEl=document.getElementById("accountingRefunds"); if(!refundEl){ document.getElementById("accountingSummaryCards")?.insertAdjacentHTML("beforeend",`<div class="card"><h3>Refunds</h3><div class="number" id="accountingRefunds">GHS 0.00</div><p>Paid refunds deducted</p></div>`); refundEl=document.getElementById("accountingRefunds"); } if(refundEl) refundEl.textContent=`GHS ${totalRefunds.toFixed(2)}`;
     const stockValueEl = document.getElementById("accountingStockValue");
     if (stockValueEl) stockValueEl.textContent = `GHS ${stockValue.toFixed(2)}`;
 
@@ -2587,6 +2602,7 @@ async function openInvoiceGenerator(row, details) {
                     </div>
                     </div>
                 <div class="invoice-note invoice-payment-note"><strong>*** Payment Notes ***</strong><br><em>${escapeHTML(document.getElementById("generatedInvoiceNotes").value)}</em></div>
+                ${(window._aprilsCurrentInvoice?.attachments||[]).length ? `<div class="invoice-note invoice-attachments"><strong>Customer Attachments</strong><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">${(window._aprilsCurrentInvoice.attachments||[]).map(a=>a.url?`<div><img src="${escapeHTML(a.url)}" alt="${escapeHTML(a.name||'Customer attachment')}" style="width:130px;height:130px;object-fit:contain;border:1px solid #bbb;border-radius:5px"><div style="font-size:9px;margin-top:3px">${escapeHTML(a.name||'Attachment')}</div></div>`:'').join('')}</div></div>` : ''}
                 <div class="invoice-note invoice-thank-you"><strong>Thank you for choosing Aprils Signature.</strong></div>
                 <div class="invoice-footer">Aprils Signature • Elegance in Every Stitch</div>
             </div>
@@ -2769,9 +2785,10 @@ async function pdfFromVisibleElement(element, options){
     const clone=element.cloneNode(true);
     clone.id=element.id+"-pdf-copy";
     clone.style.position="absolute";
-    clone.style.left="-100000px";
+    clone.style.left="0";
     clone.style.top="0";
-    clone.style.zIndex="2147483647";
+    clone.style.zIndex="-1";
+    clone.style.pointerEvents="none";
     clone.style.display="block";
     clone.style.visibility="visible";
     clone.style.opacity="1";
@@ -2852,7 +2869,7 @@ function getGeneratedInvoiceShareText() {
 
 async function sharePdfToWhatsApp(paper, filename, phone, title) {
     const html2pdf = await ensureHtml2Pdf();
-    if (!html2pdf || !paper) { message("The PDF could not be prepared for sharing. No PDF page was opened.", "error"); return false; }
+    if (!html2pdf || !paper) { message("The exact PDF could not be prepared for sharing. No blank document was opened.", "error"); return false; }
     const options = {margin:0,filename,image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}};
     try {
         const blob = await pdfFromVisibleElement(paper, options);
@@ -2861,25 +2878,10 @@ async function sharePdfToWhatsApp(paper, filename, phone, title) {
             await navigator.share({title, text:`${title} — Aprils Signature`, files:[file]});
             return true;
         }
-        // A browser cannot attach a local PDF to a WhatsApp wa.me URL. Do not
-        // open a PDF/download page; open WhatsApp only as a last-resort text chat.
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href=url; a.download=filename; a.click();
-        setTimeout(()=>URL.revokeObjectURL(url),1500);
-        const number = normalizeWhatsAppNumber(phone);
-        if (number) {
-            window.open(`https://wa.me/${number}?text=${encodeURIComponent(`${title} — The PDF has been generated and downloaded. Please attach the downloaded PDF before sending.`)}`, "_blank", "noopener,noreferrer");
-            message("The original PDF was generated and downloaded. WhatsApp was opened for the customer chat.", "success");
-            return false;
-        }
-        message("The original PDF was generated and downloaded. Your browser does not provide a file-sharing menu.", "success");
+        const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),2000);
+        message("The exact PDF was generated and downloaded. This browser cannot attach a local PDF directly to WhatsApp. On a phone/tablet, use Share PDF to select WhatsApp and send the PDF directly.", "error");
         return false;
-    } catch (error) {
-        if (error?.name === "AbortError") return false;
-        console.warn("WhatsApp PDF sharing unavailable:", error);
-        message("The PDF could not be shared. No PDF page was opened.", "error");
-        return false;
-    }
+    } catch(error){if(error?.name==='AbortError')return false;console.error(error);message("The exact PDF could not be shared.","error");return false;}
 }
 
 async function shareGeneratedInvoiceWhatsApp(){const phone=document.getElementById("generatedInvoicePhone")?.value||"";const state=window._aprilsCurrentInvoice;if(!state)return;state.renderInvoice();await sharePdfToWhatsApp(document.getElementById("invoicePaper"),`${document.getElementById("generatedInvoiceNumber")?.value||"Aprils-Signature-Invoice"}.pdf`,phone,`Aprils Signature Invoice ${document.getElementById("generatedInvoiceNumber")?.value||""}`);}
@@ -3016,7 +3018,7 @@ function openReceiptGenerator() {
                 <div class="form-group"><label>Email</label><input id="generatedReceiptEmail" value="${escapeHTML(email)}"></div>
                 <div class="form-group"><label>Original Invoice Date</label><input value="${escapeHTML(invoiceDate)}" readonly></div>
             </div>
-            <div class="form-group"><label>Receipt Note</label><textarea id="generatedReceiptNote">Payment received by Aprils Signature. Thank you for your business.</textarea></div>
+            <div class="form-group"><label>Receipt Note</label><textarea id="generatedReceiptNote">Payment received by Aprils Signature. Thank you for your business.</textarea></div><div class="form-group"><label>Attach Image(s)</label><input id="generatedReceiptAttachments" type="file" accept="image/*" multiple><small>Attach the customer garment/mockup/reference image(s) to this receipt.</small></div>
         </div>
         <div id="generatedReceiptPreview"></div>
     `;
@@ -3057,6 +3059,7 @@ function openReceiptGenerator() {
                     </div>
                 </div>
                 <div class="receipt-note"><strong>Note</strong><br><em>${escapeHTML(document.getElementById("generatedReceiptNote").value)}</em></div>
+                ${(window._aprilsCurrentReceipt?.attachments||[]).length ? `<div class="receipt-note receipt-attachments"><strong>Customer Attachments</strong><div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px">${(window._aprilsCurrentReceipt.attachments||[]).map(a=>a.url?`<div><img src="${escapeHTML(a.url)}" alt="${escapeHTML(a.name||'Customer attachment')}" style="width:130px;height:130px;object-fit:contain;border:1px solid #bbb;border-radius:5px"><div style="font-size:9px;margin-top:3px">${escapeHTML(a.name||'Attachment')}</div></div>`:'').join('')}</div></div>` : ''}
                 <div class="receipt-footer">Aprils Signature • Elegance in Every Stitch<br>This receipt confirms the payment recorded above.</div>
             </div>
         `;
@@ -3105,6 +3108,7 @@ function openReceiptGenerator() {
                     reference: document.getElementById("generatedReceiptReference")?.value || "",
                     date: document.getElementById("generatedReceiptDate")?.value || new Date().toISOString().slice(0,10),
                     status: "Payment recorded",
+                    attachments: Array.isArray(window._aprilsCurrentReceipt?.attachments) ? window._aprilsCurrentReceipt.attachments : [],
                     savedAt: new Date().toISOString(),
                     saveType: "manual"
                 })
@@ -3156,7 +3160,8 @@ function openReceiptGenerator() {
     };
     backdrop.style.display = "block";
     modal.classList.add("open");
-    window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals };
+    window._aprilsCurrentReceipt = { modal, preview, renderReceipt, invoiceState, totals, attachments: Array.isArray(invoiceState.attachments) ? invoiceState.attachments.slice() : [] };
+    modal.querySelector("#generatedReceiptAttachments")?.addEventListener("change", async e => { try { const added = await uploadUserInvoiceImages(e.target.files); window._aprilsCurrentReceipt.attachments = (window._aprilsCurrentReceipt.attachments||[]).concat(added); renderReceipt(); message("Receipt image attachment(s) added. Save the receipt to keep them.","success"); } catch(err) { message("Receipt image attachment failed: "+err.message,"error"); } finally { e.target.value=""; } });
     
 }
 
@@ -3252,12 +3257,12 @@ async function loadAdminServices() {
     try { const result=await db.from("admin_services").select("*").order("display_order",{ascending:true}).order("title"); if(result.error)throw result.error; const rows=result.data||[];
         list.innerHTML=rows.length?`<table><thead><tr><th>Service</th><th>Category</th><th>Order</th><th>Active</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${escapeHTML(r.title)}</td><td>${escapeHTML(r.category||"")}</td><td>${escapeHTML(r.display_order??1)}</td><td>${r.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-service="${escapeHTML(r.id)}">Edit</button> <button type="button" class="danger" data-delete-service="${escapeHTML(r.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No services have been added yet.</div>`;
         list.querySelectorAll("[data-edit-service]").forEach(b=>b.onclick=()=>{const r=rows.find(x=>String(x.id)===String(b.dataset.editService));if(!r)return;document.getElementById("adminServiceId").value=r.id;document.getElementById("adminServiceTitle").value=r.title||"";document.getElementById("adminServiceCategory").value=r.category||"";document.getElementById("adminServiceOrder").value=r.display_order??1;document.getElementById("adminServiceDescription").value=r.description||"";document.getElementById("adminServiceActive").checked=r.active!==false;focusAdminForm("adminServiceForm","adminServiceTitle");});
-        list.querySelectorAll("[data-delete-service]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this service?"))return;const r=await db.from("admin_services").delete().eq("id",b.dataset.deleteService);if(r.error){message("Service could not be deleted: "+r.error.message,"error");return;}await loadAdminServices();});
+        list.querySelectorAll("[data-delete-service]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this service?"))return;const r=await db.from("admin_services").delete().eq("id",b.dataset.deleteService);if(r.error){message("Service could not be deleted: "+r.error.message,"error");return;}await loadAdminServices();await window.aprilsStrictCorrectionsV4?.syncPublicCatalogueMirrors?.();});
     } catch(error) { list.innerHTML=`<div class="empty">Services could not be loaded. Check the Supabase table/policy. ${escapeHTML(error.message||"")}</div>`; }
 }
 function setupAdminServiceForm(){
     const form=document.getElementById("adminServiceForm");if(!form||form.dataset.bound)return;form.dataset.bound="1";
-    form.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("adminServiceId").value.trim();const payload={title:document.getElementById("adminServiceTitle").value.trim(),category:document.getElementById("adminServiceCategory").value.trim(),display_order:Number(document.getElementById("adminServiceOrder").value||1),description:document.getElementById("adminServiceDescription").value.trim(),active:document.getElementById("adminServiceActive").checked,updated_at:new Date().toISOString()};if(!payload.title){message("Enter a service name.","error");return;}try{const r=id?await db.from("admin_services").update(payload).eq("id",id):await db.from("admin_services").insert(payload);if(r.error)throw r.error;form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;message("Service saved successfully.","success");await loadAdminServices();returnToAdminList("[data-edit-service]", id);}catch(error){message("Service could not be saved: "+error.message,"error");}});
+    form.addEventListener("submit",async e=>{e.preventDefault();const id=document.getElementById("adminServiceId").value.trim();const payload={title:document.getElementById("adminServiceTitle").value.trim(),category:document.getElementById("adminServiceCategory").value.trim(),display_order:Number(document.getElementById("adminServiceOrder").value||1),description:document.getElementById("adminServiceDescription").value.trim(),active:document.getElementById("adminServiceActive").checked,updated_at:new Date().toISOString()};if(!payload.title){message("Enter a service name.","error");return;}try{const r=id?await db.from("admin_services").update(payload).eq("id",id):await db.from("admin_services").insert(payload);if(r.error)throw r.error;form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;message("Service saved successfully.","success");await loadAdminServices();await window.aprilsStrictCorrectionsV4?.syncPublicCatalogueMirrors?.();returnToAdminList("[data-edit-service]", id);}catch(error){message("Service could not be saved: "+error.message,"error");}});
     document.getElementById("adminServiceCancel")?.addEventListener("click",()=>{form.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;});
 }
 function newAdminService(){const f=document.getElementById("adminServiceForm");if(!f)return;f.reset();document.getElementById("adminServiceId").value="";document.getElementById("adminServiceActive").checked=true;f.scrollIntoView({behavior:"smooth",block:"center"});document.getElementById("adminServiceTitle")?.focus();}
@@ -3422,6 +3427,7 @@ function setupTrainingForm() {
             document.getElementById("trainingActive").checked = true;
             message("Training programme saved successfully.", "success");
             await loadTraining();
+            await window.aprilsStrictCorrectionsV4?.syncPublicCatalogueMirrors?.();
             await loadDashboard();
             returnToAdminList("[data-edit-training]", id || null);
         } catch (error) {
@@ -4985,25 +4991,6 @@ function setupInvoicePaymentForm(){
 
         try {
             await safeSettingUpsert("invoice_payment_accounts", JSON.stringify(accounts));
-            // Publish only the payment fields intended for the public payment page.
-            // Customer/invoice settings remain private to authenticated admins.
-            try {
-                const existingPublic = await db.from("public_payment_details").select("id");
-                if (!existingPublic.error && existingPublic.data?.length) {
-                    const deleted = await db.from("public_payment_details").delete().in("id", existingPublic.data.map(x=>x.id));
-                    if (deleted.error) throw deleted.error;
-                }
-                const publicRows = accounts.map((item,index)=>({
-                    network:item.network || "", number:item.number || "", name:item.name || "", branch:item.branch || "",
-                    active:true, display_order:index+1, updated_at:new Date().toISOString()
-                })).filter(item=>item.number || item.name || item.network);
-                if (publicRows.length) {
-                    const inserted = await db.from("public_payment_details").insert(publicRows);
-                    if (inserted.error) throw inserted.error;
-                }
-            } catch (publicSyncError) {
-                console.warn("Public payment detail sync unavailable:", publicSyncError);
-            }
             // Keep the older single-value settings in sync for backward compatibility.
             const first = accounts[0] || {};
             await safeSettingUpsert("invoice_payment_number", first.number || "");
@@ -5011,7 +4998,7 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_network", first.network || "");
             await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
-            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html?accounts="+encodeURIComponent(JSON.stringify(accounts)),accounts}));
+            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:new URL("../index.html",window.location.href).href,accounts}));
             // Saving publishes the entered accounts; clear the entry form so the
             // next payment detail starts blank instead of showing saved values.
             const paymentWrap = document.getElementById("invoicePaymentRows");
@@ -6090,8 +6077,7 @@ async function seedInitialPublicContent() {
         ["site_link_order_request", { label: "Order / Request a Quote", url: "quotes.html", order: 7, location: "header", active: true }],
         ["site_link_policies_terms", { label: "Policies & Terms", url: "policies.html", order: 8, location: "header", active: true }],
         ["site_link_contact", { label: "Contact", url: "contact.html", order: 9, location: "header", active: true }],
-        ["site_link_google_review", { label: "Send Us a Google Review", url: "https://g.page/r/CcD7hxB7NK7pEAE/review", order: 1, location: "footer", active: true }],
-        ["site_link_payment", { label: "Payment Details", url: "payment.html", order: 10, location: "direct", active: true }]
+        ["site_link_google_review", { label: "Send Us a Google Review", url: "https://g.page/r/CcD7hxB7NK7pEAE/review", order: 1, location: "footer", active: true }]
     ];
     try {
         const existing = await db.from("settings").select("setting_key").like("setting_key", "site_link_%");
@@ -6371,6 +6357,11 @@ function setupUsersInvoiceForm(){
         const row={full_name:document.getElementById("usersInvoiceCustomer").value.trim(),phone:document.getElementById("usersInvoicePhone").value.trim(),whatsapp:document.getElementById("usersInvoicePhone").value.trim(),email:document.getElementById("usersInvoiceEmail").value.trim(),location:document.getElementById("usersInvoiceAddress").value.trim()};
         if(!row.full_name){message("Enter the customer's name.","error");return;}
         await openInvoiceGenerator(row,{manualLines:lines,notes:document.getElementById("usersInvoiceNotes").value.trim(),userInvoice:true});
+        if(window._aprilsCurrentInvoice && Array.isArray(window._aprilsPendingUserInvoiceAttachments) && window._aprilsPendingUserInvoiceAttachments.length){
+            window._aprilsCurrentInvoice.attachments=(window._aprilsCurrentInvoice.attachments||[]).concat(window._aprilsPendingUserInvoiceAttachments);
+            window._aprilsPendingUserInvoiceAttachments=[];
+            window._aprilsCurrentInvoice.renderInvoice?.();
+        }
         form.reset();wrap.innerHTML="";add();
     });
 }
@@ -6459,9 +6450,9 @@ function setupAuditLog(){
    controls which signed-in staff member may use which sections.
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
-    ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
+    ["dashboard","Dashboard"],["staffHR","Staff / HR"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
     ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderStatusUpdates","Order Status / Payment Updates"],["orderTracking","Order Tracking"],["refund","Refund"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
-    ["shopAdmin","Shop"],["staffHR","Staff / HR"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
+    ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"],["notifications","Notifications"],["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
 ];
@@ -6471,6 +6462,10 @@ function accessDefaultSections(role){
     if(role==="sales") return ["dashboard","orders","orderTracking","invoice","usersInvoice","collectionForms","manualInvoice","accounting","checkout"];
     if(role==="training") return ["dashboard","registrations","orders","orderTracking","trainees","usersInvoice","collectionForms","manualInvoice","invoice"];
     if(role==="inventory") return ["dashboard","shopAdmin","inventory","checkout","accounting"];
+    if(role==="front_desk") return ["dashboard","orders","orderTracking","collectionForms","checkout"];
+    if(role==="customer_service") return ["dashboard","orders","registrations","orderTracking","trainees","testimonials","enquiries"];
+    if(role==="accounting") return ["dashboard","invoice","usersInvoice","collectionForms","manualInvoice","accounting","refund"];
+    if(role==="hr") return ["dashboard","staffHR","auditLog","users"];
     return ["dashboard","gallery","homepage","services","content","policies","testimonials","faq"];
 }
 async function loadUserAccess(){
