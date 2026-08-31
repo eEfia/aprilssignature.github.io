@@ -11,7 +11,8 @@ Forms covered:
 2. Training Registration
 3. Contact Messages
 
-IMPORTANT:to be a database.
+IMPORTANT:
+This file does NOT pretend to be a database.
 The actual secure storage/submission connection
 will be connected separately.
 =========================================================
