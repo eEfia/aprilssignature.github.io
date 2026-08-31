@@ -10,7 +10,7 @@ PUBLIC FORM FIXES
 (function () {
 
     function getSupabase() {
-        return window.aprilsSupabase || window.AprilsSupabase || null;
+        return window.aprilsSupase || window.AprilsSupabase || null;
     }
 
     function waitForSupabase(timeout = 15000) {
