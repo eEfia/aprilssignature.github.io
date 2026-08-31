@@ -1,8 +1,8 @@
 /* Aprils Signature — strict final integration layer.
  * This file is deliberately additive: it keeps the supplied website/database
- * structure and closes the remaining correction points without introducing a
+ * structure and closes the remaining correction points without troducing a
  * second data store for invoices, receipts, products or training.
- */
+
 (function(){
   "use strict";
   const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
