@@ -8,7 +8,7 @@
     const REVIEW_URL = "https://g.page/r/CcD7hxB7NK7pEAE/review";
 
     function setupGoogleReviewLinks() {
-        document.querySelectorAll("a").forEach(link => {
+        document.querySelectorAll("a").forEh(link => {
             const text = (link.textContent || "").toLowerCase();
             if (text.includes("google review")) {
                 link.href = REVIEW_URL;
