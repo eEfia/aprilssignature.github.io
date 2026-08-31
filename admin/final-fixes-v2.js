@@ -6,7 +6,7 @@
 (function(){
 "use strict";
 
-const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":;","\"":"&quot;","'":"&#039;"}[c])));
+const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])));
 const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
 const getRows=()=>typeof window.getRows==="function"?window.getRows("settings"):Promise.resolve([]);
 const money=v=>`GHS ${Number(v||0).toFixed(2)}`;
@@ -579,7 +579,6 @@ function strictCollectionOverride(){
   if(!btn||btn.dataset.strictCollection)return;
   [btn,share,wa].filter(Boolean).forEach(b=>{b.dataset.strictCollection="1";b.addEventListener("click",async e=>{e.preventDefault();e.stopImmediatePropagation();await strictGenerateCollection(b===share||b===wa,b===wa)},true)});
 }
-function downloadBlobCompat(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
 async function strictGenerateCollection(share,whatsapp){
   const inv=(window._aprilsCollectionInvoices||[]).find(i=>String(i.invoiceNumber)===String(document.getElementById("collectionInvoiceSelect")?.value||""));if(!inv){msg("Select a saved invoice first.","error");return}
   const date=document.getElementById("collectionDate")?.value||"",time=document.getElementById("collectionTime")?.value||"",location=document.getElementById("collectionLocation")?.value.trim()||"";if(!date||!time||!location){msg("Enter the collection / delivery date, time and location.","error");return}
@@ -592,10 +591,7 @@ async function strictGenerateCollection(share,whatsapp){
     if(typeof window.safeSettingUpsert==="function")await window.safeSettingUpsert("invoice_record_"+slug(inv.invoiceNumber),JSON.stringify(rec));
     root=document.createElement("div");root.className="final-collection-paper";root.innerHTML=`<div class="collection-brand"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${esc(inv.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${esc(inv.customer||"")}</p><p><strong>Phone:</strong> ${esc(inv.phone||"")}</p></div><table><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${(inv.lines||[]).map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description||"")}</td><td>${esc(l.details||"")}</td><td>${Number(l.quantity||1)}</td><td>${money(l.unitPrice)}</td><td>${money(Number(l.quantity||1)*Number(l.unitPrice||0))}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Cost:</strong> ${money(inv.total)}</p><p><strong>Payment Made:</strong> ${money(paid)}</p><p><strong>Balance:</strong> ${money(balance)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${esc(strictDate(date))}</p><p><strong>Time:</strong> ${esc(time)} GMT</p><p><strong>Location:</strong> ${esc(location)}</p></div><p class="collection-id">Form ID: ${esc(entryId)}</p>`;
     document.body.appendChild(root);const h=await (typeof window.ensureHtml2Pdf==="function"?window.ensureHtml2Pdf():Promise.resolve(window.html2pdf));if(!h)throw new Error("PDF service unavailable. Refresh the admin page and try again.");await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const blob=await window.pdfFromVisibleElement(root,{margin:0,filename:`Aprils-Signature-Collection-${inv.invoiceNumber}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:"#fff"},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}});if(!blob||blob.size<5000)throw new Error("The generated PDF was empty or incomplete.");const file=new File([blob],`Aprils-Signature-Collection-${inv.invoiceNumber}.pdf`,{type:"application/pdf"});
-    if(whatsapp){
-      if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature collection / delivery form",files:[file]});}
-      else {const n=typeof window.normalizeWhatsAppNumber==="function"?window.normalizeWhatsAppNumber(inv.phone):String(inv.phone||"").replace(/\D/g,"");const url=n?`whatsapp://send?phone=${n}`:"whatsapp://send";window.location.href=url;downloadBlobCompat(blob,file.name);msg("WhatsApp was opened. This browser cannot attach a local PDF automatically, so the PDF was also saved for attachment.","success");}
-    }
+    if(whatsapp){const n=typeof window.normalizeWhatsAppNumber==="function"?window.normalizeWhatsAppNumber(inv.phone):String(inv.phone||"").replace(/\D/g,"");const url=n?`https://wa.me/${n}`:"https://wa.me/";const w=window.open(url,"_blank","noopener,noreferrer");if(!w)location.href=url;const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file.name;a.click();msg("WhatsApp opened directly. The generated PDF has been downloaded for attachment.","success");}
     else if(share&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature collection / delivery form",files:[file]});
     else {const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file.name;a.click();msg("Collection / delivery PDF generated successfully.","success")}
     await audit("collection_delivery_form",entryId,"generated",{invoiceNumber:inv.invoiceNumber,customer:inv.customer,date,time,location});

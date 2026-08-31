@@ -1,7 +1,7 @@
 "use strict";
 (function(){
 const DB_NAME="aprils_signature_offline_v1", STORE="vault", KEY="main"; let vault=null, currentTab="customers";
-const $=id=>document.getElementById(id), esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;"":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
+const $=id=>document.getElementById(id), esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
 function msg(t,ok=true){const e=$("offlineStatus");e.textContent=t;e.className="status show "+(ok?"ok":"err");}
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function getVault(){const d=await openDB();return new Promise((res,rej)=>{const q=d.transaction(STORE,"readonly").objectStore(STORE).get(KEY);q.onsuccess=()=>res(q.result||null);q.onerror=()=>rej(q.error);});}
