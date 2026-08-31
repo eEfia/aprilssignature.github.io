@@ -13,7 +13,7 @@ PUBLIC FORM FIXES
         return window.aprilsSupabase || window.AprilsSupabase || null;
     }
 
-    function waitForSupabase(timeout = 1{
+    function waitForSupabase(timeout = 15000) {
         const ready = getSupabase();
         if (ready) return Promise.resolve(ready);
         return new Promise(resolve => {

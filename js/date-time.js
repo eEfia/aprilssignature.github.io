@@ -10,7 +10,7 @@
     document.querySelectorAll('input[type="date"]').forEach(i=>{
       i.lang="en-GB";
       i.title="Date format: DD/MM/YYYY";
-      const l=i.closest(".form-group")?.querySelector("la");
+      const l=i.closest(".form-group")?.querySelector("label");
       if(l&&!/DD\/MM\/YYYY/i.test(l.textContent))l.insertAdjacentText("beforeend"," (DD/MM/YYYY)");
     });
     document.querySelectorAll('input[type="time"]').forEach(i=>{
