@@ -9,7 +9,7 @@ This file prepares the website forms for submission.
 Forms covered:
 1. Order / Quote Requests
 2. Training Registration
-3. Contact Mesges
+3. Contact Messages
 
 IMPORTANT:
 This file does NOT pretend to be a database.
