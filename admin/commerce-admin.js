@@ -4,7 +4,7 @@
  const esc=v=>String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
  const slug=v=>String(v||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,80);
  async function rows(){const d=db();if(!d)return[];const r=await d.from("settings").select("id,setting_key,setting_value,updated_at");if(r.error)throw r.error;return r.data||[]}
- async function save(key,val){if(window.safeSettingUpsert)return window.safeSettingUpsert(k,JSON.stringify(val));const d=db();if(!d)throw new Error("Supabase is unavailable");const old=await d.from("settings").select("id").eq("setting_key",key).limit(1);if(old.error)throw old.error;if(old.data?.length)return d.from("settings").update({setting_value:JSON.stringify(val),updated_at:new Date().toISOString()}).eq("id",old.data[0].id);return d.from("settings").insert({setting_key:key,setting_value:JSON.stringify(val),updated_at:new Date().toISOString()})}
+ async function save(key,val){if(window.safeSettingUpsert)return window.safeSettingUpsert(key,JSON.stringify(val));const d=db();if(!d)throw new Error("Supabase is unavailable");const old=await d.from("settings").select("id").eq("setting_key",key).limit(1);if(old.error)throw old.error;if(old.data?.length)return d.from("settings").update({setting_value:JSON.stringify(val),updated_at:new Date().toISOString()}).eq("id",old.data[0].id);return d.from("settings").insert({setting_key:key,setting_value:JSON.stringify(val),updated_at:new Date().toISOString()})}
  async function getInventory(){return(await rows()).filter(r=>String(r.setting_key||"").startsWith("inventory_item_")).map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),id:r.id,setting_key:r.setting_key}}catch(_){return null}}).filter(x=>x&&x.name).sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999))}
  async function syncPublicShopInventory(items){try{await save("site_link_shop_inventory",items.map(x=>({id:x.id,name:x.name,collection:x.collection,price:Number(x.price||0),quantity:Number(x.quantity||0),description:x.description||"",active:x.active!==false,display_order:Number(x.display_order||9999),image:x.image||""})));}catch(e){console.warn("Public shop sync skipped:",e)}}
  function busy(btn,on,label){if(!btn)return;btn.disabled=on;btn.classList.toggle("button-working",!!on);btn.setAttribute("aria-busy",on?"true":"false");}
@@ -109,7 +109,7 @@
             const x=orders.find(o=>String(o.id)===String(b.dataset.checkoutInvoice));if(!x)return;
             if(!window.aprilsOpenInvoiceGenerator){alert("Invoice generator is not ready yet.");return;}
             const manualLines=[];
-            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:`${i.name}`}); }
+            for(const i of (x.j.items||[])){ manualLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice:await getCheckoutInvoicePrice(d,i.name,i.unitPrice),details:[i.size,i.measurements,i.colour,i.details,i.description].filter(Boolean).join(" • ")||"Order details not supplied"}); }
             await window.aprilsOpenInvoiceGenerator({id:x.id,full_name:x.full_name||"",phone:x.phone||"",whatsapp:x.whatsapp||x.phone||"",email:x.email||"",location:x.location||""},{manualLines,notes:"Checkout order",invoiceNumber:x.j.invoiceNumber||"",training:false,checkout:true,deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""});
         });
 
@@ -134,7 +134,7 @@
                 // Keep checkout, invoice, payment and accounting records synchronized.
                 const invoiceKey="invoice_record_"+slug(invoiceNumber);
                 const pricedLines=[];
-                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:`${i.name}`}); }
+                for(const i of (x.j.items||[])){ const unitPrice=await getCheckoutInvoicePrice(d,i.name,i.unitPrice); pricedLines.push({description:i.name,quantity:Number(i.quantity||1),unitPrice,details:[i.size,i.measurements,i.colour,i.details,i.description].filter(Boolean).join(" • ")||"Order details not supplied"}); }
                 const invoiceSubtotal=pricedLines.reduce((sum,line)=>sum+Number(line.quantity||0)*Number(line.unitPrice||0),0);
                 const invoiceRecord={invoiceNumber,date:new Date().toLocaleString("en-GB", {timeZone:"UTC", day:"2-digit", month:"2-digit", year:"numeric"}),savedAt:new Date().toISOString(),customer:x.full_name||"",phone:x.phone||"",email:x.email||"",address:x.location||"",lines:pricedLines,subtotal:invoiceSubtotal,discount:0,total:invoiceSubtotal,notes:"Checkout order",training:false,status:"fully_paid",deliveryDate:x.j.deliveryDate||"",deliveryTime:x.j.deliveryTime||"",deliveryLocation:x.j.deliveryLocation||""};
                 await save(invoiceKey,invoiceRecord);

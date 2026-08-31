@@ -357,13 +357,13 @@ function refreshSavedSearchOptions(){
  });
 }
 function enhanceAllSearches(){
-  document.querySelectorAll(".section .table-wrap").forEach(wrap=>{
-    let box=wrap.previousElementSibling;
-    if(!box?.classList.contains("admin-table-search")){
-      box=document.createElement("div");box.className="admin-table-search";wrap.parentNode.insertBefore(box,wrap);
-    }
-    enhanceSearchBox(box,wrap);
-  });
+ document.querySelectorAll(".section .table-wrap").forEach(wrap=>{
+   let box=null,anchor=wrap.previousElementSibling;
+   if(anchor?.classList.contains("admin-table-search"))box=anchor;
+   else if(anchor?.classList.contains("v2-table-arrows") && anchor.previousElementSibling?.classList.contains("admin-table-search"))box=anchor.previousElementSibling;
+   if(!box){box=document.createElement("div");box.className="admin-table-search";if(anchor?.classList.contains("v2-table-arrows"))wrap.parentNode.insertBefore(box,anchor);else wrap.parentNode.insertBefore(box,wrap)}
+   enhanceSearchBox(box,wrap);
+ });
 }
 
 /* ---------- Button / date presentation helpers ---------- */
@@ -446,10 +446,218 @@ async function calculateAccountingPeriod(){
  }catch(e){if(note)note.textContent="Could not calculate the selected period: "+e.message}
 }
 
+
+/* =========================================================
+   STRICT FINAL INTEGRATION — all remaining correction points
+========================================================= */
+function strictDateTime(v){
+  if(!v)return "—";
+  const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
+  return new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).format(d)+" GMT";
+}
+function strictDate(v){
+  if(!v)return "—";
+  const raw=String(v);
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return `${m[3]}/${m[2]}/${m[1]}`;
+  const d=new Date(v);if(Number.isNaN(d.getTime()))return raw;
+  return new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}).format(d);
+}
+function strictDateInputs(){
+  document.documentElement.lang="en-GB";
+  document.querySelectorAll('input[type="date"]').forEach(i=>{
+    i.lang="en-GB";i.title="Date format: DD/MM/YYYY";i.setAttribute("aria-label",(i.getAttribute("aria-label")||i.id||"Date")+" — DD/MM/YYYY");
+    const label=i.closest(".form-group")?.querySelector("label");
+    if(label&&!label.dataset.strictDateLabel){label.dataset.strictDateLabel="1";if(!/DD\/MM\/YYYY/i.test(label.textContent))label.insertAdjacentText("beforeend"," (DD/MM/YYYY)");}
+  });
+  document.querySelectorAll('input[type="time"]').forEach(i=>{
+    i.title="Time is recorded/displayed in GMT";
+    const label=i.closest(".form-group")?.querySelector("label");
+    if(label&&!label.dataset.strictGmtLabel){label.dataset.strictGmtLabel="1";if(!/GMT/i.test(label.textContent))label.insertAdjacentText("beforeend"," (GMT)");}
+  });
+  document.querySelectorAll(".section td,.section time,.section .small").forEach(el=>{
+    const t=String(el.textContent||"").trim();
+    if(!t||el.dataset.strictDateDisplay)return;
+    if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(t)){el.textContent=strictDateTime(t);el.dataset.strictDateDisplay="1";}
+  });
+}
+
+function strictSearchDedup(){
+  document.querySelectorAll(".section .table-wrap").forEach(wrap=>{
+    const boxes=[];let node=wrap.previousElementSibling;
+    while(node && (node.classList.contains("admin-table-search")||node.classList.contains("v2-table-arrows"))){if(node.classList.contains("admin-table-search"))boxes.unshift(node);node=node.previousElementSibling;}
+    if(boxes.length){const keep=boxes[0];boxes.slice(1).forEach(b=>b.remove());if(keep.dataset.v2!=="1")enhanceSearchBox(keep,wrap)}
+    else{const box=document.createElement("div");box.className="admin-table-search";box.innerHTML=`<div class="v2-search-row"><input type="search" aria-label="Search this table" placeholder="Search by customer, invoice, item, product, name or number…"><select aria-label="Saved items"><option value="">Saved items — choose one</option></select><input type="date" aria-label="Date from"><input type="date" aria-label="Date to"></div>`;const anchor=wrap.previousElementSibling;wrap.parentNode.insertBefore(box,anchor?.classList.contains("v2-table-arrows")?anchor:wrap)}
+  });
+}
+
+async function strictAccounting(){
+  const list=document.getElementById("accountingList");if(!list)return;
+  try{
+    const rows=await settingsRows();
+    const parse=prefix=>rows.filter(r=>String(r.setting_key||"").startsWith(prefix)).map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),_id:r.id,_key:r.setting_key}}catch(_){return null}}).filter(Boolean);
+    const invoices=parse("invoice_record_");
+    const payments=parse("invoice_payment_record_");
+    const refunds=parse("refund_record_").filter(r=>["paid","refund recorded"].includes(String(r.status||"").toLowerCase()));
+    const businessExpenses=parse("accounting_expense_");
+    const staffExpenses=parse("staff_expense_");
+    let offlineInvoices=[],offlinePayments=[],offlineExpenses=[];
+    try{offlineInvoices=JSON.parse(localStorage.getItem("aprils_offline_invoices")||"[]")}catch(_){}
+    try{offlinePayments=JSON.parse(localStorage.getItem("aprils_offline_payments")||"[]")}catch(_){}
+    try{offlineExpenses=JSON.parse(localStorage.getItem("aprils_offline_expenses")||"[]")}catch(_){}
+    const invMap=new Map([...invoices,...offlineInvoices].filter(x=>x.invoiceNumber).map(x=>[String(x.invoiceNumber),x]));
+    const payMap=new Map();[...payments,...offlinePayments].forEach(p=>{const k=String(p.invoiceNumber||"");if(!k)return;if(!payMap.has(k))payMap.set(k,[]);payMap.get(k).push(p)});
+    const refundByInvoice=new Map();refunds.forEach(r=>refundByInvoice.set(String(r.invoiceNumber||""),(refundByInvoice.get(String(r.invoiceNumber||""))||0)+Number(r.refundAmount||0)));
+    const records=[...invMap.values()].map(inv=>{const gross=(payMap.get(String(inv.invoiceNumber))||[]).reduce((a,p)=>a+Number(p.amount||0),0);const ref=refundByInvoice.get(String(inv.invoiceNumber))||0;const net=Math.max(0,gross-ref);const total=Number(inv.total||0);return {...inv,_grossPaid:gross,_refund:ref,_netPaid:net,_balance:Math.max(0,total-net)}}).filter(x=>x._grossPaid>0).sort((a,b)=>String(b.date||b.savedAt||"").localeCompare(String(a.date||a.savedAt||"")));
+    const grossReceived=records.reduce((a,x)=>a+x._grossPaid,0),totalRefunds=refunds.reduce((a,x)=>a+Number(x.refundAmount||0),0),netReceived=Math.max(0,grossReceived-totalRefunds);
+    const totalSales=netReceived,totalOutstanding=records.reduce((a,x)=>a+x._balance,0),totalDiscounts=records.reduce((a,x)=>a+Number(x.discount||0),0);
+    const expenseMap=new Map();[...businessExpenses,...staffExpenses,...offlineExpenses].forEach(e=>{const k=String(e._id||e.id||e.savedAt||`${e.date}|${e.category}|${e.description}|${e.amount}`);if(!expenseMap.has(k))expenseMap.set(k,e)});
+    const expenses=[...expenseMap.values()],totalExpenses=expenses.reduce((a,x)=>a+Number(x.amount||0),0);
+    list.innerHTML=records.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Customer</th><th>Sale (Net Received)</th><th>Discount</th><th>Received</th><th>Refunded</th><th>Balance</th><th>Status</th></tr></thead><tbody>${records.map(x=>`<tr><td>${esc(strictDate(x.date||x.savedAt))}</td><td>${esc(x.invoiceNumber||"")}</td><td>${esc(x.training?"Training":"Order / Quote")}</td><td>${esc(x.customer||"")}</td><td>${money(x._netPaid)}</td><td>${money(x.discount)}</td><td>${money(x._grossPaid)}</td><td>${money(x._refund)}</td><td>${money(x._balance)}</td><td>${x._balance<=0?"Paid in full":"Part payment"}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No payments received have been recorded yet. Invoices alone are not counted as sales.</div>`;
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=money(v)};
+    set("accountingSales",totalSales);set("accountingReceived",netReceived);set("accountingOutstanding",totalOutstanding);set("accountingDiscounts",totalDiscounts);set("accountingExpenses",totalExpenses);set("accountingNetCash",netReceived-totalExpenses);set("accountingRefunds",totalRefunds);
+    let card=document.getElementById("refundAccountingList");const accounting=document.getElementById("accounting");if(!card&&accounting){card=document.createElement("div");card.id="refundAccountingList";card.className="form-card";card.innerHTML="<h3>Refunds</h3><div class='table-wrap'></div>";accounting.appendChild(card)}
+    const rl=card?.querySelector(".table-wrap");if(rl)rl.innerHTML=refunds.length?`<table><thead><tr><th>Date</th><th>Refund</th><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>${refunds.map(r=>`<tr><td>${esc(strictDateTime(r.date||r.updatedAt))}</td><td>${esc(r.refundNumber||"")}</td><td>${esc(r.invoiceNumber||"")}</td><td>${esc(r.customer||"")}</td><td>${money(r.refundAmount)}</td><td>Paid</td></tr>`).join("")}</tbody></table>`:`<div class='empty'>No refunds recorded.</div>`;
+    renderStaffAccountingCard();const sl=document.querySelector("#staffAccountingList .table-wrap");const staffVisible=[...businessExpenses.filter(e=>/staff|salary|wage/i.test(String(e.category||"")+" "+String(e.description||""))),...staffExpenses];
+    if(sl)sl.innerHTML=staffVisible.length?`<table><thead><tr><th>Date</th><th>Staff ID</th><th>Staff Name</th><th>Description</th><th>Amount</th></tr></thead><tbody>${staffVisible.map(e=>`<tr><td>${esc(strictDate(e.date||e.savedAt))}</td><td>${esc(e.staffId||"")}</td><td>${esc(e.staffName||"")}</td><td>${esc(e.description||"")}</td><td>${money(e.amount)}</td></tr>`).join("")}</tbody></table>`:`<div class='empty'>No staff / HR expenses recorded.</div>`;
+    const expList=document.getElementById("accountingExpenseList");if(expList)expList.innerHTML=expenses.length?`<table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Actions</th></tr></thead><tbody>${expenses.map(e=>`<tr><td>${esc(strictDate(e.date||e.savedAt))}</td><td>${esc(e.category||"")}</td><td>${esc(e.description||"")}</td><td>${money(e.amount)}</td><td>${e._id&&!String(e._id).startsWith("offline-")?`<button type="button" class="secondary" data-edit-expense="${esc(e._id)}">Edit</button> <button type="button" class="danger" data-delete-expense="${esc(e._id)}">Delete</button>`:""}</td></tr>`).join("")}</tbody></table>`:`<div class='empty'>No business expenses recorded yet.</div>`;
+    strictSearchDedup();strictDateInputs();
+  }catch(e){console.warn("Strict accounting load failed",e);}
+}
+
+function strictStaffPayButton(){
+  document.querySelectorAll("[data-staff-pay]").forEach(b=>{
+    if(b.dataset.strictPayBound)return;b.dataset.strictPayBound="1";
+    b.onclick=async()=>{
+      const rows=await staffRecords(),r=rows.find(x=>x._key===b.dataset.staffPay);if(!r)return;
+      const amount=Number(r.salary||0)+Number(r.bonus||0);if(amount<=0){msg("Enter a salary or bonus amount on this staff record first.","error");return}
+      const f=document.getElementById("accountingExpenseForm");if(!f)return;
+      document.getElementById("accountingExpenseId").value="";document.getElementById("accountingExpenseDate").value=new Date().toISOString().slice(0,10);document.getElementById("accountingExpenseCategory").value="Staff / HR";document.getElementById("accountingExpenseAmount").value=amount.toFixed(2);document.getElementById("accountingExpenseDescription").value=`Salary / bonus — ${r.name||"Staff"} (${r.staffId||""})`;document.querySelector('.sidebar button[data-section="accounting"]')?.click();
+    };
+  });
+}
+
+function strictRoleOptions(){
+  const role=document.getElementById("userAccessRole");if(role&&!role.querySelector('option[value="front_desk"]'))role.insertAdjacentHTML("beforeend",`<option value="front_desk">Front Desk</option><option value="customer_service">Customer Service</option><option value="accounting">Accounting</option><option value="hr">HR</option>`);
+  const roles={front_desk:["dashboard","orders","checkout","collectionForms"],customer_service:["dashboard","orders","orderTracking","usersInvoice","collectionForms","testimonials"],accounting:["dashboard","invoice","usersInvoice","manualInvoice","accounting","refund","orderStatusUpdates"],hr:["dashboard","staffHR","auditLog","accounting"]};
+  const old=window.accessDefaultSections;if(typeof old==="function"&&!old.__strictRole){const fn=function(role){return roles[role]||old(role)};fn.__strictRole=true;window.accessDefaultSections=fn;}
+  const accessSection=window.ADMIN_ACCESS_SECTIONS;if(Array.isArray(accessSection)&&!accessSection.some(x=>x[0]==="staffHR"))accessSection.push(["staffHR","Staff / HR"]);
+}
+
+function strictDeleteAudit(){
+  if(document.documentElement.dataset.strictDeleteAudit)return;document.documentElement.dataset.strictDeleteAudit="1";
+  document.addEventListener("click",async e=>{
+    const b=e.target.closest("button,a");if(!b)return;
+    const text=String(b.textContent||"").trim().toLowerCase(),ds=b.dataset||{};
+    const isDelete=/delete|remove/i.test(text)||Object.keys(ds).some(k=>/delete/i.test(k));if(!isDelete)return;
+    try{await audit("admin_record",ds.deleteSavedRecord||ds.deleteExpense||ds.deleteUserAccess||ds.deleteTraining||ds.deleteProduct||ds.deleteService||ds.deleteContent||ds.deleteGallery||ds.refundDelete||b.id||text,"delete_initiated",{button:text,dataset:{...ds},at:new Date().toISOString()});}catch(_){}
+  },true);
+}
+
+function strictInvoiceReceiptAttachments(){
+  const add=(modalId,stateKey,inputId,label)=>{
+    const modal=document.getElementById(modalId),state=window[stateKey];if(!modal||!state)return;
+    if(modal.querySelector(`[data-strict-attachment="${inputId}"]`)|| (modalId==="invoiceGeneratorModal" && modal.querySelector(".final-invoice-attachments")))return;
+    const editor=modal.querySelector(".invoice-generator-editor");if(!editor)return;
+    const wrap=document.createElement("div");wrap.className="form-group final-invoice-attachments";wrap.dataset.strictAttachment=inputId;wrap.innerHTML=`<label>${label}</label><input id="${inputId}" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple><small>Optional customer/order reference images. Maximum 5 MB each.</small><div class="final-attachment-list"></div>`;editor.prepend(wrap);
+    const input=wrap.querySelector("input"),list=wrap.querySelector(".final-attachment-list");state.attachments=Array.isArray(state.attachments)?state.attachments:[];
+    list.innerHTML=state.attachments.map(a=>`<span class="final-attachment-chip">${esc(a.name||"Image")}</span>`).join("");
+    input.onchange=async()=>{const d=db();if(!d){msg("Supabase is unavailable; the image could not be attached.","error");return}for(const file of Array.from(input.files||[])){if(file.size>5*1024*1024){msg("Each image must be 5 MB or smaller.","error");continue}try{const path=`invoice-attachments/${Date.now()}-${Math.random().toString(36).slice(2)}-${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;const up=await d.storage.from("quote-uploads").upload(path,file,{upsert:false,contentType:file.type});if(up.error)throw up.error;const pub=d.storage.from("quote-uploads").getPublicUrl(path);state.attachments.push({name:file.name,path,url:pub?.data?.publicUrl||""});}catch(err){msg("Image upload failed: "+err.message,"error")}}input.value="";list.innerHTML=state.attachments.map(a=>`<span class="final-attachment-chip">${esc(a.name||"Image")}</span>`).join("");if(state.renderReceipt)state.renderReceipt();if(state.renderInvoice)state.renderInvoice()};
+  };
+  add("invoiceGeneratorModal","_aprilsCurrentInvoice","strictInvoiceAttachments","Attach Images to Invoice");
+  add("receiptGeneratorModal","_aprilsCurrentReceipt","strictReceiptAttachments","Attach Images to Receipt");
+}
+
+function strictReceiptSaveWithAttachments(){
+  const state=window._aprilsCurrentReceipt;if(!state||state.__strictAttachSave)return;state.__strictAttachSave=true;
+  const oldSave=window.saveReceiptRecordDraft;
+  if(typeof oldSave==="function"&&!oldSave.__strict){const fn=async()=>{const result=await oldSave();try{const number=document.getElementById("generatedReceiptNumber")?.value;if(number&&state.attachments?.length){const d=db();const row=await d.from("settings").select("id,setting_value").eq("setting_key","receipt_record_"+slug(number)).maybeSingle();if(!row.error&&row.data){let rec={};try{rec=JSON.parse(row.data.setting_value||"{}")}catch(_){}rec.attachments=state.attachments;await d.from("settings").update({setting_value:JSON.stringify(rec),updated_at:new Date().toISOString()}).eq("id",row.data.id)}}}catch(_){}return result};fn.__strict=true;window.saveReceiptRecordDraft=fn;}
+}
+
+function strictCollectionOverride(){
+  const btn=document.getElementById("collectionGenerate"),share=document.getElementById("collectionShare"),wa=document.getElementById("collectionWhatsApp");
+  if(!btn||btn.dataset.strictCollection)return;
+  [btn,share,wa].filter(Boolean).forEach(b=>{b.dataset.strictCollection="1";b.addEventListener("click",async e=>{e.preventDefault();e.stopImmediatePropagation();await strictGenerateCollection(b===share||b===wa,b===wa)},true)});
+}
+async function strictGenerateCollection(share,whatsapp){
+  const inv=(window._aprilsCollectionInvoices||[]).find(i=>String(i.invoiceNumber)===String(document.getElementById("collectionInvoiceSelect")?.value||""));if(!inv){msg("Select a saved invoice first.","error");return}
+  const date=document.getElementById("collectionDate")?.value||"",time=document.getElementById("collectionTime")?.value||"",location=document.getElementById("collectionLocation")?.value.trim()||"";if(!date||!time||!location){msg("Enter the collection / delivery date, time and location.","error");return}
+  const pays=await (typeof window.getInvoicePayments==="function"?window.getInvoicePayments(inv.invoiceNumber):Promise.resolve([])),paid=pays.reduce((a,p)=>a+Number(p.amount||0),0),balance=Math.max(0,Number(inv.total||0)-paid),entryId="COL-"+Date.now().toString(36).toUpperCase();
+  let root=null;
+  try{
+    let rec={...inv,deliveryDate:date,deliveryTime:time,deliveryLocation:location,updatedAt:new Date().toISOString()};
+    if(inv.sourceId){try{const d=db();const q=await d.from("quote_requests").select("journey").eq("id",inv.sourceId).maybeSingle();if(!q.error){let j={};try{j=JSON.parse(q.data?.journey||"{}")}catch(_){}j.deliveryDate=date;j.deliveryTime=time;j.deliveryLocation=location;await d.from("quote_requests").update({journey:JSON.stringify(j)}).eq("id",inv.sourceId);rec.journey=j}}catch(_){}
+    }
+    if(typeof window.safeSettingUpsert==="function")await window.safeSettingUpsert("invoice_record_"+slug(inv.invoiceNumber),JSON.stringify(rec));
+    root=document.createElement("div");root.className="final-collection-paper";root.innerHTML=`<div class="collection-brand"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${esc(inv.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${esc(inv.customer||"")}</p><p><strong>Phone:</strong> ${esc(inv.phone||"")}</p></div><table><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${(inv.lines||[]).map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description||"")}</td><td>${esc(l.details||"")}</td><td>${Number(l.quantity||1)}</td><td>${money(l.unitPrice)}</td><td>${money(Number(l.quantity||1)*Number(l.unitPrice||0))}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Cost:</strong> ${money(inv.total)}</p><p><strong>Payment Made:</strong> ${money(paid)}</p><p><strong>Balance:</strong> ${money(balance)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${esc(strictDate(date))}</p><p><strong>Time:</strong> ${esc(time)} GMT</p><p><strong>Location:</strong> ${esc(location)}</p></div><p class="collection-id">Form ID: ${esc(entryId)}</p>`;
+    document.body.appendChild(root);const h=await (typeof window.ensureHtml2Pdf==="function"?window.ensureHtml2Pdf():Promise.resolve(window.html2pdf));if(!h)throw new Error("PDF service unavailable. Refresh the admin page and try again.");await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const blob=await window.pdfFromVisibleElement(root,{margin:0,filename:`Aprils-Signature-Collection-${inv.invoiceNumber}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2,useCORS:true,backgroundColor:"#fff"},jsPDF:{unit:"in",format:"a4",orientation:"portrait"}});if(!blob||blob.size<5000)throw new Error("The generated PDF was empty or incomplete.");const file=new File([blob],`Aprils-Signature-Collection-${inv.invoiceNumber}.pdf`,{type:"application/pdf"});
+    if(whatsapp){const n=typeof window.normalizeWhatsAppNumber==="function"?window.normalizeWhatsAppNumber(inv.phone):String(inv.phone||"").replace(/\D/g,"");const url=n?`https://wa.me/${n}`:"https://wa.me/";const w=window.open(url,"_blank","noopener,noreferrer");if(!w)location.href=url;const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file.name;a.click();msg("WhatsApp opened directly. The generated PDF has been downloaded for attachment.","success");}
+    else if(share&&navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]})))await navigator.share({title:"Aprils Signature Collection / Delivery Form",text:"Aprils Signature collection / delivery form",files:[file]});
+    else {const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=file.name;a.click();msg("Collection / delivery PDF generated successfully.","success")}
+    await audit("collection_delivery_form",entryId,"generated",{invoiceNumber:inv.invoiceNumber,customer:inv.customer,date,time,location});
+  }catch(e){console.error(e);msg("The collection / delivery PDF could not be generated: "+e.message,"error")}finally{root?.remove()}
+}
+
+function strictTrainingPublicPrices(){
+  if(!document.body.classList.contains("training-page"))return;
+  const run=async()=>{
+    try{
+      const d=await (typeof window.waitForSupabase==="function"?window.waitForSupabase():Promise.resolve(null));if(!d)return;
+      const [tr,pr]=await Promise.all([d.from("training_programs").select("title,category,description,active,display_order"),d.from("settings").select("setting_value").like("setting_key","public_training_price_%")]);
+      if(tr.error)return;
+      const rows=(tr.data||[]).filter(x=>x.active!==false&&x.title),prices=(pr.data||[]).map(x=>{try{return JSON.parse(x.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+      const norm=x=>String(x||"").toLowerCase().replace(/[’']/g,"'").replace(/[^a-z0-9]+/g," ").trim();
+      const price=x=>prices.find(p=>norm(p.name)===norm(x))?.price;
+      const nodes=[...document.querySelectorAll(".training-category li,.training-category h4,.training-section ul li,.training-section h4")],used=new Set();
+      nodes.forEach(n=>{const clean=n.textContent.trim().replace(/\s+—\s+GHS\s+[\d,.]+$/i,"");const m=rows.find(r=>norm(r.title)===norm(clean));if(m){used.add(m.title);const p=price(m.title);n.textContent=m.title+(p!==undefined?` — GHS ${Number(p).toFixed(2)}`:"")}});
+      document.querySelectorAll(".training-category").forEach(cat=>{const title=norm(cat.querySelector("h3")?.textContent);rows.filter(r=>norm(r.category)===title).forEach(r=>{if(used.has(r.title))return;const ul=cat.querySelector("ul")||(()=>{const u=document.createElement("ul");cat.appendChild(u);return u})();const li=document.createElement("li");const p=price(r.title);li.textContent=r.title+(p!==undefined?` — GHS ${Number(p).toFixed(2)}`:"");ul.appendChild(li);used.add(r.title)})});
+      const extras=rows.filter(r=>!used.has(r.title));
+      if(extras.length){
+        let sec=document.getElementById("managedTrainingClasses");
+        if(!sec){sec=document.createElement("section");sec.id="managedTrainingClasses";sec.className="training-section";sec.innerHTML='<div class="container"><h2>Additional Training Classes</h2><div class="training-category-list"></div></div>';document.querySelector("main")?.appendChild(sec)}
+        const box=sec.querySelector(".training-category-list"),groups=new Map();
+        extras.forEach(r=>{const k=r.category||"Other Classes";if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+        box.innerHTML=[...groups.entries()].map(([k,arr])=>`<div class="training-category"><h3>${esc(k)}</h3><ul>${arr.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)).map(r=>{const p=price(r.title);return `<li>${esc(r.title)}${p!==undefined?` — GHS ${Number(p).toFixed(2)}`:""}</li>`}).join("")}</ul></div>`).join("");
+      }
+    }catch(e){console.warn("Strict training price sync failed",e)}
+  };
+  run();
+}
+function strictPublicCatalogue(){
+  if(!document.body.classList.contains("services-page"))return;
+  const run=async()=>{
+    try{
+      const d=await (typeof window.waitForSupabase==="function"?window.waitForSupabase():Promise.resolve(null));if(!d)return;
+      const r=await d.from("settings").select("setting_value").like("setting_key","product_%");if(r.error)return;
+      const products=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||"{}")}catch(_){return null}}).filter(x=>x&&x.name&&x.active!==false);
+      let sec=document.getElementById("managedProductCatalogue");
+      if(!sec){sec=document.createElement("section");sec.id="managedProductCatalogue";sec.className="service-section";sec.innerHTML='<div class="container"><h2>Product Catalogue</h2><div class="services-grid" id="managedProductGrid"></div></div>';document.querySelector("main")?.appendChild(sec)}
+      const grid=sec.querySelector("#managedProductGrid"),groups=new Map();products.forEach(p=>{const k=p.category||"Products / Services";if(!groups.has(k))groups.set(k,[]);groups.get(k).push(p)});
+      if(grid)grid.innerHTML=[...groups.entries()].map(([k,arr])=>`<article class="service-card"><h3>${esc(k)}</h3>${arr.sort((a,b)=>Number(a.display_order||9999)-Number(b.display_order||9999)).map(p=>`<div class="managed-product"><strong>${esc(p.name)}</strong>${p.public_price!==null&&p.public_price!==undefined&&p.public_price!==""?`<p class="service-public-price">Price: GHS ${Number(p.public_price).toFixed(2)}</p>`:""}${p.subcategory?`<small>${esc(p.subcategory)}</small>`:""}${p.notes?`<p>${esc(p.notes)}</p>`:""}</div>`).join("")}</article>`).join("");
+    }catch(e){console.warn("Strict public product catalogue sync failed",e)}
+  };
+  run();
+}
+function strictReceiptPdfAttachments(){
+  if(typeof window.generateReceiptPdf!=="function"||window.generateReceiptPdf.__strictAttachments)return;
+  const old=window.generateReceiptPdf;const fn=async function(share){const state=window._aprilsCurrentReceipt,paper=document.getElementById("receiptPaper");let gallery=null;try{if(paper&&state?.attachments?.length){gallery=document.createElement("div");gallery.className="final-invoice-attachment-gallery";gallery.innerHTML=`<h3>Attached Images</h3><div>${state.attachments.map(a=>a.url?`<img src="${esc(a.url)}" alt="${esc(a.name||"Attached image")}">`:`<p>${esc(a.name||"Attached image")}</p>`).join("")}</div>`;paper.appendChild(gallery);await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))}return await old(share)}finally{gallery?.remove()}};fn.__strictAttachments=true;window.generateReceiptPdf=fn;
+}
+
+function strictSavedReceiptOpen(){
+  if(typeof window.openSavedReceiptRecord!=="function"||window.openSavedReceiptRecord.__strictSaved)return;
+  const old=window.openSavedReceiptRecord;const fn=async function(row){await old(row);const st=window._aprilsCurrentReceipt;if(st){st.attachments=Array.isArray(row?.attachments)?row.attachments:[]}};fn.__strictSaved=true;window.openSavedReceiptRecord=fn;
+}
+
+function strictGlobalSync(){
+  strictRoleOptions();strictDeleteAudit();strictDateInputs();strictSearchDedup();strictInvoiceReceiptAttachments();strictReceiptSaveWithAttachments();strictReceiptPdfAttachments();strictSavedReceiptOpen();strictStaffPayButton();strictCollectionOverride();strictTrainingPublicPrices();strictPublicCatalogue();
+}
+
 /* ---------- Boot ---------- */
 function boot(){
   addV2Css();
   addStaffSection();
+  strictGlobalSync();
+  if(window._aprilsAdminUser && typeof window.applyCurrentUserAccess==="function")window.applyCurrentUserAccess(window._aprilsAdminUser);
   enhanceRefundForm();
   setTimeout(()=>enhanceStatusUpdates(),700);
   if(typeof window.loadTrainees==="function" && !window.loadTrainees.__v2){window.loadTrainees=loadTraineesEnhanced;window.loadTrainees.__v2=true;}
@@ -457,7 +665,7 @@ function boot(){
   setTimeout(()=>setupAccountingPeriod(),500);
   addTopArrows();
   enhanceAllSearches();
-  setInterval(()=>{enhanceAllSearches();refreshSavedSearchOptions();addTopArrows();patchAdminDateStrings()},1500);
+  setInterval(()=>{enhanceAllSearches();refreshSavedSearchOptions();addTopArrows();patchAdminDateStrings();strictGlobalSync()},1500);
   document.querySelectorAll('.sidebar button[data-section="refund"]').forEach(b=>b.addEventListener("click",()=>setTimeout(()=>renderRefundList(),250)));
   // Re-render refund list after the existing final-fixes boot has created its section.
   setTimeout(async()=>{try{enhanceRefundForm();await renderRefundList()}catch(_){}try{if(document.getElementById("staffHR"))await loadStaff()}catch(_){}},1200);

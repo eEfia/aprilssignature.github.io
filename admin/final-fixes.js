@@ -45,13 +45,13 @@ replacing the existing Supabase structure.
             const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
             return m ? `${m[3]}/${m[2]}/${m[1]}` : raw;
         }
-        return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+        return new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"}).format(d);
     }
     function formatDateTime(value){
         if(!value) return "—";
         const d=new Date(value);
         if(Number.isNaN(d.getTime())) return String(value);
-        return `${formatDate(d)} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+        const p=new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(d);const g=t=>p.find(x=>x.type===t)?.value||"";return `${g("day")}/${g("month")}/${g("year")} ${g("hour")}:${g("minute")} GMT`;
     }
     function normal(s){return String(s||"").trim().toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
     function getRowsSafe(table){

@@ -1690,9 +1690,7 @@ function setupDirectCustomerLinks() {
                     const saved = await getSettingValue("invoice_payment_accounts");
                     const accounts = JSON.parse(saved || "[]");
                     if (Array.isArray(accounts) && accounts.length) {
-                        const paymentUrl = new URL(url);
-                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
-                        url = paymentUrl.href;
+                        url = new URL("../payment.html", window.location.href).href;
                     } else {
                         message("Save the payment details first.", "error");
                         return;
@@ -1719,9 +1717,7 @@ function setupDirectCustomerLinks() {
                     const saved = await getSettingValue("invoice_payment_accounts");
                     const accounts = JSON.parse(saved || "[]");
                     if (Array.isArray(accounts) && accounts.length) {
-                        const paymentUrl = new URL(url);
-                        paymentUrl.searchParams.set("accounts", JSON.stringify(accounts));
-                        url = paymentUrl.href;
+                        url = new URL("../payment.html", window.location.href).href;
                     }
                 } catch (_) {}
             }
@@ -3938,16 +3934,16 @@ function summarizeQuoteQuantities(row) {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
             const quantity = typeof item === "object" ? item.quantity : item;
-            if (product && quantity) quantities.push(`${product}: ${quantity}`);
+            if (product && quantity) quantities.push(`${product}: Quantity: ${quantity}`);
         });
     }
     if (details?.ladiesWearProducts && typeof details.ladiesWearProducts === "object" && Object.keys(details.ladiesWearProducts).length) {
-        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: ${item.quantity}`); });
-    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: ${details.ladiesWearQuantity}`);
-    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: ${details.kidsWearQuantity}`);
+        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: Quantity: ${item.quantity}`); });
+    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: Quantity: ${details.ladiesWearQuantity}`);
+    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: Quantity: ${details.kidsWearQuantity}`);
     if (details?.embellishmentDetails) {
         Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
-            if (item?.quantity) quantities.push(`${name}: ${item.quantity}`);
+            if (item?.quantity) quantities.push(`${name}: Quantity: ${item.quantity}`);
         });
     }
     return quantities.join(" • ") || "—";
@@ -5011,14 +5007,17 @@ function setupInvoicePaymentForm(){
             await safeSettingUpsert("invoice_payment_network", first.network || "");
             await safeSettingUpsert("invoice_payment_branch", first.branch || "");
             await safeSettingUpsert("invoice_payment_note", first.note || "");
-            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html?accounts="+encodeURIComponent(JSON.stringify(accounts)),accounts}));
+            await safeSettingUpsert("site_link_payment", JSON.stringify({label:"Payment Details",url:"payment.html",accounts}));
             // Saving publishes the entered accounts; clear the entry form so the
             // next payment detail starts blank instead of showing saved values.
             const paymentWrap = document.getElementById("invoicePaymentRows");
             if (paymentWrap) paymentWrap.innerHTML = paymentRowTemplate({});
             renderInvoicePaymentRowsFromCurrentDom();
             message("Invoice payment details saved.", "success");
+            // Keep the saved records visible below, but leave the entry fields blank for the next record.
+            renderInvoicePaymentRows([{}]);
             await loadInvoicePaymentDetails();
+            renderInvoicePaymentRows([{}]);
         } catch (error) {
             message("Invoice payment details could not be saved: " + error.message, "error");
         }
@@ -6389,7 +6388,7 @@ function renderCollectionPreview(){
     const row=(window._aprilsCollectionInvoices||[]).find(i=>String(i.invoiceNumber)===String(select.value));
     if(!row){box.innerHTML="";return;}
     const lines=row.lines||[];const total=Number(row.total||0);
-    box.innerHTML=`<div class="collection-preview-card"><h3>Collection / Delivery Form Preview</h3><p><strong>Customer:</strong> ${escapeHTML(row.customer||"")}</p><p><strong>Invoice:</strong> ${escapeHTML(row.invoiceNumber||"")}</p><table><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th></tr></thead><tbody>${lines.map((l,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.details||l.detail||l.specification||"—")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><p><strong>Total Invoice Amount:</strong> GHS ${total.toFixed(2)}</p><p><strong>Payment:</strong> GHS <span id="collectionPreviewPaid">0.00</span></p><p><strong>Balance:</strong> GHS <span id="collectionPreviewBalance">${total.toFixed(2)}</span></p></div>`;
+    box.innerHTML=`<div class="collection-preview-card"><h3>Collection / Delivery Form Preview</h3><p><strong>Customer:</strong> ${escapeHTML(row.customer||"")}</p><p><strong>Invoice:</strong> ${escapeHTML(row.invoiceNumber||"")}</p><table><thead><tr><th>Item</th><th>Quantity</th></tr></thead><tbody>${lines.map(l=>`<tr><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><p><strong>Total Invoice Amount:</strong> GHS ${total.toFixed(2)}</p><p><strong>Payment:</strong> GHS <span id="collectionPreviewPaid">0.00</span></p><p><strong>Balance:</strong> GHS <span id="collectionPreviewBalance">${total.toFixed(2)}</span></p></div>`;
     getInvoicePayments(row.invoiceNumber).then(payments=>{const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);const p=document.getElementById("collectionPreviewPaid"),b=document.getElementById("collectionPreviewBalance");if(p)p.textContent=paid.toFixed(2);if(b)b.textContent=Math.max(0,total-paid).toFixed(2);});
 }
 
@@ -6409,7 +6408,7 @@ async function generateCollectionForm(share,mode){
     if(!date||!time||!location){message("Enter the collection / delivery date, time and location.","error");return;}
     const payments=await getInvoicePayments(invoice.invoiceNumber);const paid=payments.reduce((sum,p)=>sum+Number(p.amount||0),0);const balance=Math.max(0,Number(invoice.total||0)-paid);
     const entryId=makeAprilsUniqueId("COL");const actor=await getCurrentStaffIdentity();
-    const root=document.createElement("div");root.className="collection-form-paper";root.innerHTML=`<div class="collection-brand"><img src="${escapeHTML(new URL("../icons/Aprils Signature logo.jpeg",window.location.href).href)}" alt="Aprils Signature logo"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${escapeHTML(invoice.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${escapeHTML(invoice.customer||"")}</p><p><strong>Phone:</strong> ${escapeHTML(invoice.phone||"")}</p></div><table><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th></tr></thead><tbody>${(invoice.lines||[]).map((l,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.details||l.detail||l.specification||"—")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Invoice Amount:</strong> GHS ${Number(invoice.total||0).toFixed(2)}</p><p><strong>Payment:</strong> GHS ${paid.toFixed(2)}</p><p><strong>Balance to be Paid:</strong> GHS ${balance.toFixed(2)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${escapeHTML(formatDateGMT(date+"T00:00:00Z"))}</p><p><strong>Time:</strong> ${escapeHTML(time)} GMT</p><p><strong>Location:</strong> ${escapeHTML(location)}</p></div><p class="collection-note">Please bring this form when collecting your item.</p><p class="collection-id">Form ID: ${escapeHTML(entryId)}</p></div>`;
+    const root=document.createElement("div");root.className="collection-form-paper";root.innerHTML=`<div class="collection-brand"><img src="${escapeHTML(new URL("../icons/Aprils Signature logo.jpeg",window.location.href).href)}" alt="Aprils Signature logo"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${escapeHTML(invoice.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${escapeHTML(invoice.customer||"")}</p><p><strong>Phone:</strong> ${escapeHTML(invoice.phone||"")}</p></div><table><thead><tr><th>Item</th><th>Quantity</th></tr></thead><tbody>${(invoice.lines||[]).map(l=>`<tr><td>${escapeHTML(l.description||"")}</td><td>${escapeHTML(l.quantity||1)}</td></tr>`).join("")}</tbody></table><div class="collection-summary"><p><strong>Total Invoice Amount:</strong> GHS ${Number(invoice.total||0).toFixed(2)}</p><p><strong>Payment:</strong> GHS ${paid.toFixed(2)}</p><p><strong>Balance to be Paid:</strong> GHS ${balance.toFixed(2)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${escapeHTML(date)}</p><p><strong>Time:</strong> ${escapeHTML(time)}</p><p><strong>Location:</strong> ${escapeHTML(location)}</p></div><p class="collection-note">Please bring this form when collecting your item.</p><p class="collection-id">Form ID: ${escapeHTML(entryId)}</p></div>`;
     document.body.appendChild(root);
     try{
         const html2pdf=await ensureHtml2Pdf();if(!html2pdf)throw new Error("PDF service unavailable");
@@ -6439,7 +6438,7 @@ async function loadAuditLog(){
         const action=String(document.getElementById("auditActionFilter")?.value||"").trim().toLowerCase();
         const term=String(document.getElementById("auditSearch")?.value||"").trim().toLowerCase();
         const filtered=events.filter(e=>{const hay=JSON.stringify(e).toLowerCase();return(!selected||String(e.actorId||"")===selected)&&(!action||String(e.action||"").toLowerCase().includes(action))&&(!term||hay.includes(term));});
-        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(formatDateTimeGMT(e.at)||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(e.action||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
+        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(e.action||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
     }catch(e){list.innerHTML=`<div class="empty">Staff activity could not be loaded: ${escapeHTML(e.message||"")}</div>`;}
 }
 function setupAuditLog(){
@@ -6459,7 +6458,7 @@ function setupAuditLog(){
 ========================================================= */
 const ADMIN_ACCESS_SECTIONS = [
     ["dashboard","Dashboard"],["gallery","Gallery & Media"],["homepage","Homepage Media"],["services","Products / Services / Training"],
-    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderStatusUpdates","Order Status / Payment Updates"],["orderTracking","Order Tracking"],["refund","Refund"],["trainees","Trainees"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
+    ["registrations","Training Registrations"],["orders","Order / Quote Requests"],["orderStatusUpdates","Order Status / Payment Updates"],["orderTracking","Order Tracking"],["refund","Refund"],["trainees","Trainees"],["staffHR","Staff / HR"],["invoice","Invoice Pricing"],["usersInvoice","Users Invoice"],["collectionForms","Delivery/Pickup Form"],["manualInvoice","Invoices & Receipts"],
     ["shopAdmin","Shop"],["inventory","Inventory / Stock"],["checkout","Checkout Orders"],["errors","System Error Log"], ["auditLog","Staff Activity / Audit Log"],["accounting","Sales & Accounting"],
     ["links","Website Links"],["testimonials","Testimonials"],["faq","FAQs"],["content","Website Content"],["policies","Policies & Terms"],
     ["contact","Contact"],["social","Social Links"],["discounts","Discount Codes"],["settings","Website Settings"],["users","Admin Users & Access"]
@@ -6470,10 +6469,10 @@ function accessDefaultSections(role){
     if(role==="sales") return ["dashboard","orders","orderTracking","invoice","usersInvoice","collectionForms","manualInvoice","accounting","checkout"];
     if(role==="training") return ["dashboard","registrations","orders","orderTracking","trainees","usersInvoice","collectionForms","manualInvoice","invoice"];
     if(role==="inventory") return ["dashboard","shopAdmin","inventory","checkout","accounting"];
-    if(role==="front_desk") return ["dashboard","orders","registrations","collectionForms","usersInvoice","checkout"];
-    if(role==="customer_service") return ["dashboard","orders","registrations","orderStatusUpdates","orderTracking","testimonials","contact"];
-    if(role==="accounting") return ["dashboard","invoice","usersInvoice","manualInvoice","refund","accounting","checkout"];
-    if(role==="hr") return ["dashboard","trainees","auditLog","accounting"];
+    if(role==="front_desk") return ["dashboard","orders","checkout","collectionForms"];
+    if(role==="customer_service") return ["dashboard","orders","orderTracking","usersInvoice","collectionForms","testimonials"];
+    if(role==="accounting") return ["dashboard","invoice","usersInvoice","manualInvoice","accounting","refund","orderStatusUpdates"];
+    if(role==="hr") return ["dashboard","staffHR","auditLog","accounting"];
     return ["dashboard","gallery","homepage","services","content","policies","testimonials","faq"];
 }
 async function loadUserAccess(){
@@ -6490,7 +6489,7 @@ async function loadUserAccess(){
         }
         list.innerHTML=users.length?`<table><thead><tr><th>Staff ID</th><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody>${users.map(u=>`<tr><td>${escapeHTML(u.staffId||"—")}</td><td>${escapeHTML(u.email)}</td><td>${escapeHTML(u.name||"")}</td><td>${escapeHTML(u.role||"")}</td><td>${u.active!==false?"Yes":"No"}</td><td><button type="button" class="secondary" data-edit-user-access="${escapeHTML(u.id)}">Edit</button> <button type="button" class="danger" data-delete-user-access="${escapeHTML(u.id)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff access profiles have been added yet.</div>`;
         list.querySelectorAll("[data-edit-user-access]").forEach(b=>b.onclick=()=>{const u=users.find(x=>String(x.id)===String(b.dataset.editUserAccess));if(!u)return;document.getElementById("userAccessId").value=u.id;document.getElementById("userAccessEmail").value=u.email||"";document.getElementById("userAccessName").value=u.name||"";document.getElementById("userAccessRole").value=u.role||"owner";document.getElementById("userAccessActive").checked=u.active!==false;checks.querySelectorAll("input").forEach(c=>c.checked=(u.sections||[]).includes(c.value));focusAdminForm("userAccessForm","userAccessEmail")});
-        list.querySelectorAll("[data-delete-user-access]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this staff access profile?"))return;const victim=users.find(x=>String(x.id)===String(b.dataset.deleteUserAccess));const r=await db.from("settings").delete().eq("id",b.dataset.deleteUserAccess);if(r.error){message("User access could not be deleted: "+r.error.message,"error");return}await auditSystemEvent("admin_user_access",victim?.staffId||b.dataset.deleteUserAccess,"deleted",{email:victim?.email||"",role:victim?.role||""});await loadUserAccess();});
+        list.querySelectorAll("[data-delete-user-access]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this staff access profile?"))return;const r=await db.from("settings").delete().eq("id",b.dataset.deleteUserAccess);if(r.error){message("User access could not be deleted: "+r.error.message,"error");return}await loadUserAccess();});
     }catch(e){list.innerHTML=`<div class="empty">User access could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
 function setupUserAccess(){
@@ -6503,18 +6502,6 @@ function setupUserAccess(){
 // remains unchanged; checkout/inventory can open the exact same generator.
 window.aprilsOpenInvoiceGenerator = openInvoiceGenerator;
 window.aprilsShowSubmissionDetails = showSubmissionDetails;
-
-
-/* Global date/time standard: DD/MM/YYYY, UTC/GMT. Stored values remain ISO for database safety. */
-function formatDateGMT(value){
-    if(!value)return ""; const d=new Date(value); if(Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric"});
-}
-function formatDateTimeGMT(value){
-    if(!value)return ""; const d=new Date(value); if(Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleString("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})+" GMT";
-}
-function formatInputDateDMY(value){ return formatDateGMT(value); }
 
 /* =========================================================
    STARTUP
