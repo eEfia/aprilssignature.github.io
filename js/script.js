@@ -1413,25 +1413,6 @@ async function loadPublicTraining() {
     `).join("");
 }
 
-
-async function loadPublicTrainingSpecialtyPrices(){
-    if(!document.body.classList.contains("training-page"))return;
-    try{
-        const supabase=await waitForSupabase(); if(!supabase)return;
-        const r=await supabase.from("settings").select("setting_key,setting_value").like("setting_key","public_training_price_%");
-        if(r.error)return;
-        const prices=(r.data||[]).map(x=>{try{return JSON.parse(x.setting_value||"{}")}catch(_){return null}}).filter(x=>x&&x.name&&x.price!==undefined&&x.price!==null&&x.price!=="");
-        const norm=v=>String(v||"").trim().toLowerCase().replace(/[’']/g,"'").replace(/\s+/g," ");
-        const priceFor=text=>{const n=norm(text);const exact=prices.find(x=>norm(x.name)===n)||prices.find(x=>n.includes(norm(x.name))||norm(x.name).includes(n));if(exact)return exact;const tokens=v=>norm(v).replace(/\b\d+\b/g," ").replace(/\b(months?|weeks?|years?|class|training|course|programme|program)\b/g," ").split(/[^a-z0-9]+/).filter(x=>x.length>2);const nt=tokens(n);return prices.find(x=>{const pt=tokens(x.name);const common=pt.filter(t=>nt.includes(t));return common.length>=Math.min(2,pt.length)});};
-        document.querySelectorAll(".training-page .training-category li,.training-page .training-category h4").forEach(el=>{
-            if(el.dataset.aprilsPriceBound)return;
-            const label=el.textContent.trim();const p=priceFor(label);if(!p)return;
-            if(el.querySelector(".service-public-price"))return;
-            const span=document.createElement("span");span.className="service-public-price";span.style.display="block";span.style.marginTop="5px";span.style.fontWeight="700";span.textContent=`Price: GHS ${Number(p.price).toFixed(2)}`;el.appendChild(span);el.dataset.aprilsPriceBound="1";
-        });
-    }catch(e){console.warn("Public specialty training prices unavailable:",e)}
-}
-
 async function loadPublicTrainingRegistrationOptions(){
     const select=document.getElementById("courseInterested"); if(!select)return;
     try{
@@ -1946,7 +1927,6 @@ function start() {
     loadPublicStreetwearProducts();
     loadPublicLadiesWearProducts();
     loadPublicTrainingRegistrationOptions();
-    loadPublicTrainingSpecialtyPrices();
     setupEmbellishmentCatalogue();
     loadPublicFeaturedCollection();
 
@@ -1983,83 +1963,4 @@ if (
         if(/email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||"")))return;
         el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
     },true);
-})();
-
-/* APRILS SIGNATURE — GLOBAL DATE/GMT + STABLE ADMIN-SHARED DATA */
-(function(){
-'use strict';
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-const normal=v=>String(v??'').trim().toLowerCase().replace(/[’']/g,"'").replace(/\s+/g,' ');
-function gmtDate(v){
-  if(!v)return '';
-  const x=new Date(v);
-  if(Number.isNaN(x.getTime())){const m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1]}`:String(v)}
-  return new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric'}).format(x);
-}
-function publicDMY(){
-  document.querySelectorAll('input[type="date"]').forEach(el=>{
-    if(el.dataset.publicDmy)return; el.dataset.publicDmy='1';
-    const wrap=document.createElement('div'); wrap.style.cssText='display:flex;gap:6px;align-items:center;width:100%;';
-    const text=document.createElement('input'); text.type='text'; text.className=el.className; text.placeholder='DD/MM/YYYY'; text.inputMode='numeric'; text.autocomplete='off'; text.required=el.required; text.value=el.value?gmtDate(el.value):'';
-    el.required=false; el.style.display='none'; el.parentNode.insertBefore(wrap,el); wrap.appendChild(text); wrap.appendChild(el);
-    const b=document.createElement('button'); b.type='button'; b.className='button'; b.textContent='📅'; b.title='Choose date'; b.style.cssText='flex:0 0 auto;padding:8px 10px;';
-    const sync=()=>{const m=text.value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(!m){if(!text.value){el.value='';text.setCustomValidity('')}else text.setCustomValidity('Enter date as DD/MM/YYYY.');return false} const day=+m[1],mon=+m[2],yr=+m[3],dt=new Date(Date.UTC(yr,mon-1,day)); if(dt.getUTCFullYear()!==yr||dt.getUTCMonth()!==mon-1||dt.getUTCDate()!==day){text.setCustomValidity('Enter a valid date as DD/MM/YYYY.');return false} text.setCustomValidity('');el.value=`${yr}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;el.dispatchEvent(new Event('change',{bubbles:true}));return true};
-    text.addEventListener('input',()=>text.value=text.value.replace(/[^0-9/]/g,'').slice(0,10)); text.addEventListener('blur',sync); text.addEventListener('change',sync); el.addEventListener('change',()=>{if(el.value)text.value=gmtDate(el.value)}); b.onclick=()=>{try{el.showPicker?.()}catch(_){el.click()}}; wrap.appendChild(b);
-  });
-  document.querySelectorAll('label').forEach(l=>{if(/\btime\b/i.test(l.textContent)&&!/\(GMT\)/i.test(l.textContent))l.append(' (GMT)')});
-}
-async function paymentModal(){
-  const params=new URLSearchParams(location.search); if(params.get('payment')!=='1'||document.getElementById('aprilsPaymentShare'))return;
-  let accounts=[]; try{const db=window.aprilsSupabase;if(db){const r=await db.from('settings').select('setting_value').eq('setting_key','invoice_payment_accounts').maybeSingle();if(!r.error&&r.data?.setting_value)accounts=JSON.parse(r.data.setting_value||'[]')}}catch(_){ }
-  const modal=document.createElement('div'); modal.id='aprilsPaymentShare'; modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  if(!Array.isArray(accounts)||!accounts.length){modal.innerHTML='<div style="background:#fff;max-width:560px;width:100%;border-radius:12px;padding:24px;text-align:center"><h2>Aprils Signature</h2><p>Payment details are currently unavailable.</p><button type="button" id="aprilsPaymentClose">Close</button></div>';}else{modal.innerHTML=`<div style="background:#fff;max-width:620px;width:100%;max-height:90vh;overflow:auto;border-radius:12px;padding:24px;box-shadow:0 18px 60px rgba(0,0,0,.35)"><div style="display:flex;justify-content:space-between;align-items:center"><div><h2 style="margin:0">Aprils Signature</h2><p style="margin:4px 0">Payment Details</p></div><button type="button" id="aprilsPaymentClose" style="font-size:24px;border:0;background:none;cursor:pointer">×</button></div><div style="margin-top:18px;display:grid;gap:12px">${accounts.map(a=>`<div style="border:1px solid #ccc;border-radius:8px;padding:14px"><h3 style="margin:0 0 8px">${esc(a.network||'Payment Method')}</h3><p><strong>Account / Number:</strong> ${esc(a.number||'')}</p><p><strong>Name:</strong> ${esc(a.name||'')}</p>${a.branch?`<p><strong>Bank Branch:</strong> ${esc(a.branch)}</p>`:''}${a.note?`<p><strong>Payment Note:</strong> ${esc(a.note)}</p>`:''}</div>`).join('')}</div><p style="margin-top:18px;font-size:13px">Please use the payment details above for your Aprils Signature payment.</p></div>`;}
-  document.body.appendChild(modal); modal.querySelector('#aprilsPaymentClose').onclick=()=>modal.remove(); modal.addEventListener('click',e=>{if(e.target===modal)modal.remove()});
-}
-async function syncManagedPublicContent(){
-  const db=window.aprilsSupabase;
-  if(!db)return;
-  if(document.body.classList.contains('services-page')){
-    try{
-      const r=await db.from('admin_services').select('*').eq('active',true).order('display_order',{ascending:true}).order('title');
-      if(!r.error&&r.data?.length){
-        const main=document.querySelector('.services-page main'); const intro=main?.querySelector('.page-intro');
-        if(main&&intro){
-          main.querySelectorAll('.managed-service-section').forEach(x=>x.remove());
-          [...r.data].reverse().forEach(x=>{const sec=document.createElement('section');sec.className='service-section managed-service-section';sec.innerHTML=`<div class="container"><h2>${esc(x.title)}</h2>${x.category?`<p class="eyebrow">${esc(x.category)}</p>`:''}<p>${esc(x.description||'')}</p><a href="quotes.html" class="button">Order / Request a Quote</a></div>`;intro.after(sec);});
-        }
-      }
-    }catch(_){ }
-  }
-  if(document.body.classList.contains('training-page')){
-    try{
-      const [pr,ps]=await Promise.all([
-        db.from('training_programs').select('*').eq('active',true).order('display_order',{ascending:true}).order('title'),
-        db.from('settings').select('setting_value').like('setting_key','public_training_price_%')
-      ]);
-      if(pr.error||!pr.data?.length)return;
-      const prices=(ps.data||[]).map(x=>{try{return JSON.parse(x.setting_value||'{}')}catch(_){return null}}).filter(Boolean);
-      const priceFor=t=>prices.find(x=>normal(x.name)===normal(t));
-      const topAliases=[
-        'three months beginners fashion training','3 months beginners fashion training','six months fashion training','6 months fashion training',
-        'one year fashion training','1 year fashion training','three years apprenticeship training','3 years apprenticeship training',
-        '1 month streetwear class','3 months advanced streetwear class','3 months advanced streetwear','6 months beginners streetwear class',"6 months beginners' streetwear class"
-      ];
-      const aliasSet=new Set(topAliases.map(normal));
-      const top=[...pr.data].filter(x=>aliasSet.has(normal(x.title))).slice(0,7);
-      const grid=document.querySelector('.training-section .training-grid');
-      if(grid){grid.innerHTML=top.length?top.map(x=>{const p=priceFor(x.title);return `<article class="training-card"><h3>${esc(x.title)}</h3>${p?.price!==undefined?`<p class="service-public-price"><strong>Price:</strong> GHS ${Number(p.price).toFixed(2)}</p>`:''}<p>${esc(x.description||'')}</p></article>`}).join(''):'<article class="training-card"><p>Training programmes are currently being updated.</p></article>'; }
-      const specialty=[...document.querySelectorAll('.training-page .training-section')].find(x=>/specialty classes/i.test(x.querySelector('h2')?.textContent||''));
-      const rest=pr.data.filter(x=>!aliasSet.has(normal(x.title)));
-      if(specialty){
-        const container=specialty.querySelector('.container');
-        if(container){
-          const grouped=new Map(); rest.forEach(x=>{const c=x.category||'Specialty Classes';if(!grouped.has(c))grouped.set(c,[]);grouped.get(c).push(x)});
-          container.innerHTML='<h2>Specialty Classes</h2>'+([...grouped].length?[...grouped].map(([cat,items])=>`<div class="training-category"><h3>${esc(cat)}</h3><ul>${items.map(x=>{const p=priceFor(x.title);return `<li>${esc(x.title)}${x.duration?` — ${esc(x.duration)}`:''}${p?.price!==undefined?` <span class="service-public-price">Price: GHS ${Number(p.price).toFixed(2)}</span>`:''}${x.description?`<div>${esc(x.description)}</div>`:''}</li>`}).join('')}</ul></div>`).join(''):'<p>No specialty classes are currently listed.</p>');
-        }
-      }
-    }catch(_){ }
-  }
-}
-async function boot(){publicDMY();await paymentModal();await syncManagedPublicContent();setInterval(publicDMY,2000);setInterval(syncManagedPublicContent,15000)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
