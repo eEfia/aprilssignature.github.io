@@ -6,7 +6,7 @@
 DO $$
 BEGIN
   IF to_regclass('public.gallery_items') IS NOT NULL THEN
-    EXECUTE 'ALTER TABLE public.gallery_items ENABLE ROW LEVEL SECURITY
+    EXECUTE 'ALTER TABLE public.gallery_items ENABLE ROW LEVECURITY
     EXECUTE 'DROP POLICY IF EXISTS "public_gallery_items_read_active" ON public.gallery_items';
     EXECUTE 'CREATE POLICY "public_gallery_items_read_active" Opublic.gallery_items FOR SELECT TO anon, authenticated USING (active = true)';
   END IF;
