@@ -5,7 +5,7 @@
  */
 (function(){
   'use strict';
-  const esc=window.escapeHTML||((v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])));
+  const esc=window.escapeHTML||((v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'','>':'&gt;','"':'&quot;',"'":'&#039;'}[c])));
   const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
   const iso=()=>new Date().toISOString();
   const slug=v=>String(v??'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,90);
