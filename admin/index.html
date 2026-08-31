@@ -612,7 +612,6 @@ Order / Quote Requests
 
 <button data-section="orderTracking">Order Tracking</button>
 <button data-section="trainees">Trainees</button>
-<button data-section="refund">Refund</button>
 
 <button
 data-section="invoice"
@@ -1596,7 +1595,6 @@ USERS INVOICE
 <div class="form-group"><label for="usersInvoiceAddress">Location / Address</label><input id="usersInvoiceAddress"></div>
 </div>
 <div class="form-group"><label for="usersInvoiceNotes">Invoice Notes</label><textarea id="usersInvoiceNotes">Thank you for choosing Aprils Signature.</textarea></div>
-<div class="form-group"><label for="usersInvoiceAttachments">Attach Customer Image(s)</label><input id="usersInvoiceAttachments" type="file" accept="image/*" multiple><small>Attach garment/mockup/reference images. These are saved with the generated invoice/receipt.</small></div>
 <h3 style="color:#008c95;margin:12px 0;">Invoice Items</h3>
 <div id="usersInvoiceLines"></div>
 <div class="admin-actions"><button type="button" class="secondary" id="usersInvoiceAddLine">+ Add Item</button><button type="submit" class="primary">Generate Invoice</button><button type="button" class="secondary" id="usersInvoiceReset">Clear</button></div>
@@ -1619,8 +1617,8 @@ DELIVERY/PICKUP FORM
 <form id="collectionForm" onsubmit="return false;">
 <div class="form-grid">
 <div class="form-group"><label for="collectionInvoiceSelect">Saved Invoice</label><select id="collectionInvoiceSelect"><option value="">Select saved invoice</option></select></div>
-<div class="form-group"><label for="collectionDate">Collection / Delivery Date</label><input id="collectionDate" type="date"></div>
-<div class="form-group"><label for="collectionTime">Collection / Delivery Time</label><input id="collectionTime" type="time"></div>
+<div class="form-group"><label for="collectionDate">Collection / Delivery Date (DD/MM/YYYY)</label><input id="collectionDate" type="date"></div>
+<div class="form-group"><label for="collectionTime">Collection / Delivery Time (GMT)</label><input id="collectionTime" type="time"></div>
 <div class="form-group"><label for="collectionLocation">Collection / Delivery Location</label><input id="collectionLocation" placeholder="Enter the location for this collection / delivery"></div>
 </div>
 <div id="collectionPreview"></div>
@@ -1747,27 +1745,6 @@ NOTIFICATIONS
     <div id="notificationSettingsMessage" class="status" style="display:none;margin-top:10px;"></div>
 </div>
 <div id="notificationList" class="table-wrap" style="margin-top:18px;"></div>
-</section>
-
-<!-- =====================================================
-REFUNDS
-===================================================== -->
-<section id="refund" class="section">
-<h2>Refund</h2>
-<p class="intro">Record money actually refunded to a customer. Paid refunds are automatically deducted from Money Received and Total Sales in Sales &amp; Accounting.</p>
-<div class="form-card">
-<form id="refundForm">
-<div class="form-grid">
-<div class="form-group"><label for="refundInvoice">Invoice Number</label><input id="refundInvoice" required placeholder="Select or enter invoice number"></div>
-<div class="form-group"><label for="refundDate">Refund Date</label><input type="date" id="refundDate" required></div>
-<div class="form-group"><label for="refundAmount">Refund Amount (GHS)</label><input type="number" id="refundAmount" min="0.01" step="0.01" required></div>
-<div class="form-group"><label for="refundReference">Refund Reference</label><input id="refundReference" placeholder="Transaction/reference number"></div>
-</div>
-<div class="form-group"><label for="refundReason">Reason / Notes</label><textarea id="refundReason" required placeholder="Reason for the refund"></textarea></div>
-<div class="admin-actions"><button type="submit" class="primary">Record Refund</button><button type="button" class="secondary" id="refundClear">Clear</button></div>
-</form>
-</div>
-<div class="form-card"><div class="toolbar"><button type="button" class="secondary" id="refundRefresh">Refresh</button></div><div id="refundList" class="table-wrap"></div></div>
 </section>
 
 <!-- =====================================================
@@ -2032,7 +2009,7 @@ You can also remove the current public logo without deleting the original projec
 <script src="admin.js?v=20260828-final" defer></script>
 <script src="Admin-fixes.js?v=20260828-final" defer></script>
 <script src="commerce-admin.js?v=20260828-final" defer></script>
-<script src="final-fixes.js?v=20260829-final" defer></script><script src="final-fixes-v2.js?v=20260830-strict" defer></script><script src="strict-corrections-v3.js?v=20260831-final" defer></script><script src="strict-corrections-v4.js?v=20260831-final" defer></script>
+<script src="final-fixes.js?v=20260829-final"></script><script src="final-fixes-v2.js?v=20260830-strict"></script>
 
 
 <style>
@@ -2165,7 +2142,7 @@ button.button-working{opacity:.78;cursor:wait;transform:translateY(1px);box-shad
 @media(max-width:900px){.submission-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:600px){.submission-card-grid{grid-template-columns:1fr;}.submission-card-gridline{grid-template-columns:1fr;}.submission-card-gridline .wide{grid-column:auto;}.submission-status-strip{grid-template-columns:1fr;}}
 </style>
-<script src="../js/pwa-register.js"></script></body>
+<script src="../js/pwa-register.js"></script><script src="final-corrections-v3.js?v=20260831-full"></script></body>
 </html>
 
 <style>
