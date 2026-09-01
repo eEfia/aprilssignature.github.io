@@ -9,7 +9,7 @@
   const money=v=>`GHS ${Number(v||0).toFixed(2)}`;
   const msg=(t,type="success")=>window.message&&window.message(t,type);
   const now=()=>new Date().toISOString();
-  const rows=async table=>{const d=db();if(!d)throw new Error("Supabase is unavailable.");const r=await d.from(table).select("*");if(r.error)throw r.error;return r.data||[]};
+  const rows=async table=>{const d=db();if(!d)throw new Error("Supabase is u r=await d.from(table).select("*");if(r.error)throw r.error;return r.data||[]};
   const settings=()=>rows("settings");
   const parse=v=>{try{return JSON.parse(v||"{}")}catch(_){return{}}};
 
