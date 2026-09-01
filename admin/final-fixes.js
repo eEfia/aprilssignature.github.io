@@ -12,7 +12,7 @@ replacing the existing Supabase structure.
     const STATUS_ORDER = [
         ["under_review","New Customer — Under Review"],
         ["invoice_generated","Invoice Generated"],
-        ["deposit_paid","Deposit Paihb"],
+        ["deposit_paid","Deposit Paid"],
         ["part_paid","Part Paid"],
         ["order_taken","Confirmed / Order Taken"],
         ["in_production","In Production"],
