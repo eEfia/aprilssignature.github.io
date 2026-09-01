@@ -5,7 +5,7 @@
     if (!window.APRILS_SUPABASE_CONFIG) {
 
         console.error(
-            "Suption was not found."
+            "Supabase configuration was not found."
         );
 
         return;
@@ -13,7 +13,7 @@
     }
 
     const url =
-        window.APR;
+        window.APRILS_SUPABASE_CONFIG.url;
 
     const key =
         window.APRILS_SUPABASE_CONFIG.publishableKey;

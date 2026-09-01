@@ -15,7 +15,7 @@
 
 function escapeHTML(value) {
     return String(value ?? "")
-        .replace( "&amp;")
+        .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
