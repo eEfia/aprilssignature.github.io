@@ -4,7 +4,7 @@
 (function(){
   const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
   const wait=()=>new Promise(resolve=>{let n=0;const t=setInterval(()=>{const d=window.aprilsSupabase;if(d||++n>120){clearInterval(t);resolve(d||null)}},100)});
-  function render(a){const box=document.getElementById("paymentDetails");if(!box)return;if(!Array.isArray(a)||!a.length){box.innerHTML='<div class="empty">Payment details have not been saved yet.</div>';return}box.innerHTML=a.map(x=>'<article class="service-card"><h3>'+esc(x.network||"Payment Method")+'</h3><p><strong>Account / Number:</strong> '+esc(x.number||"")+'</p><p><strong>Name:</strong> '+esc(x.name||"")+'</p>'+(x.branch?'<p><strong>Bank Branch:</strong> '+esc(x.branch)+'</p>':'')+'</article>').join("")}
+  function render(a){const box=document.getElementById("paymentDetaf(!box)return;if(!Array.isArray(a)||!a.length){box.innerHTML='<div class="empty">Payment details have not been saved yet.</div>';return}box.innerHTML=a.map(x=>'<article class="service-card"><h3>'+esc(x.network||"Payment Method")+'</h3><p><strong>Account / Number:</strong> '+esc(x.number||"")+'</p><p><strong>Name:</strong> '+esc(x.name||"")+'</p>'+(x.branch?'<p><strong>Bank Branch:</strong> '+esc(x.branch)+'</p>':'')+'</article>').join("")}
   async function load(){
     const box=document.getElementById("paymentDetails"); if(!box)return;
     const d=await wait();if(!d){box.innerHTML='<div class="empty">Payment details are temporarily unavailable.</div>';return}
