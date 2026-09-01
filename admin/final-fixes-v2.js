@@ -71,9 +71,14 @@ function addStaffSection(){
         <input type="hidden" id="staffHRId"><input type="hidden" id="staffHRStaffId">
         <div class="form-grid">
           <div class="form-group"><label>Staff ID</label><input id="staffHRStaffIdDisplay" readonly placeholder="Generated automatically"></div>
-          <div class="form-group"><label>Full Name *</label><input id="staffHRName" required></div>
+          <div class="form-group"><label>Full Name *</label><input id="staffHRName" required placeholder="Firstname Middlename Surname"></div>
           <div class="form-group"><label>Email</label><input id="staffHREmail" type="email"></div>
           <div class="form-group"><label>Phone</label><input id="staffHRPhone" type="tel"></div>
+          <div class="form-group"><label>ID Card Type</label><input id="staffHRIdCardType" placeholder="e.g. Ghana Card, Passport"></div>
+          <div class="form-group"><label>ID Card Number</label><input id="staffHRIdCardNumber" placeholder="Enter ID card number"></div>
+          <div class="form-group"><label>ID Card Registration / Issue Date</label><input id="staffHRIdCardStartDate" type="date"></div>
+          <div class="form-group"><label>ID Card Expiry Date</label><input id="staffHRIdCardExpiryDate" type="date"></div>
+          <div class="form-group full-width"><label>Attach Staff / ID Card Image</label><input id="staffHRIdCardImage" type="file" accept="image/jpeg,image/png,image/webp"></div>
           <div class="form-group"><label>Job Title / Position</label><input id="staffHRPosition" placeholder="e.g. Seamstress, Sales Assistant"></div>
           <div class="form-group"><label>Employment Status</label><select id="staffHREmployment"><option>Active</option><option>On Leave</option><option>Inactive</option></select></div>
           <div class="form-group"><label>Start Date</label><input id="staffHRStartDate" type="date"></div>
@@ -113,7 +118,7 @@ async function loadStaff(){
   const list=document.getElementById("staffHRList"); if(!list)return;
   try{
     const rows=await staffRecords();
-    list.innerHTML=rows.length?`<table><thead><tr><th>Staff ID</th><th>Name</th><th>Position</th><th>Phone</th><th>Status</th><th>Salary</th><th>Bonus</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.staffId||"")}</td><td>${esc(r.name||"")}</td><td>${esc(r.position||"")}</td><td>${esc(r.phone||"")}</td><td>${esc(r.employment||"")}</td><td>${money(r.salary)}</td><td>${money(r.bonus)}</td><td><button class="secondary" type="button" data-staff-edit="${esc(r._key)}">Edit</button> <button class="secondary" type="button" data-staff-pay="${esc(r._key)}">Record Salary / Bonus Expense</button> <button class="danger" type="button" data-staff-delete="${esc(r._id)}" data-staff-key="${esc(r._key)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff records have been added yet.</div>`;
+    list.innerHTML=rows.length?`<table><thead><tr><th>Staff ID</th><th>Name</th><th>ID Card</th><th>Position</th><th>Phone</th><th>Status</th><th>Salary</th><th>Bonus</th><th>Actions</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.staffId||"")}</td><td>${esc(r.name||"")}</td><td>${esc([r.idCardType,r.idCardNumber].filter(Boolean).join(" — ")||"—")}</td><td>${esc(r.position||"")}</td><td>${esc(r.phone||"")}</td><td>${esc(r.employment||"")}</td><td>${money(r.salary)}</td><td>${money(r.bonus)}</td><td><button class="secondary" type="button" data-staff-edit="${esc(r._key)}">Edit</button> <button class="secondary" type="button" data-staff-pay="${esc(r._key)}">Record Salary / Bonus Expense</button> <button class="danger" type="button" data-staff-delete="${esc(r._id)}" data-staff-key="${esc(r._key)}">Delete</button></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No staff records have been added yet.</div>`;
     list.querySelectorAll("[data-staff-edit]").forEach(b=>b.onclick=async()=>{
       const r=rows.find(x=>x._key===b.dataset.staffEdit);if(!r)return; fillStaff(r);
     });
@@ -132,7 +137,7 @@ async function loadStaff(){
   }catch(e){list.innerHTML=`<div class="empty">Staff records could not be loaded: ${esc(e.message||"")}</div>`}
 }
 function fillStaff(r){
-  const map={staffHRId:r._id,staffHRStaffId:r.staffId,staffHRStaffIdDisplay:r.staffId,staffHRIdCardType:r.idCardType,staffHRIdCardNumber:r.idCardNumber,staffHRIdCardRegistered:r.idCardRegistered,staffHRIdCardExpiry:r.idCardExpiry,staffHRName:r.name,staffHREmail:r.email,staffHRPhone:r.phone,staffHRPosition:r.position,staffHREmployment:r.employment||"Active",staffHRStartDate:r.startDate,staffHRAddress:r.address,staffHREmergencyName:r.emergencyName,staffHREmergencyPhone:r.emergencyPhone,staffHREducation:r.education,staffHREducationBackground:r.educationBackground,staffHRSkills:r.skills,staffHRSalary:r.salary,staffHRBonus:r.bonus,staffHRPayNotes:r.payNotes,staffHRNotes:r.notes};
+  const map={staffHRId:r._id,staffHRStaffId:r.staffId,staffHRStaffIdDisplay:r.staffId,staffHRName:r.name,staffHREmail:r.email,staffHRPhone:r.phone,staffHRIdCardType:r.idCardType,staffHRIdCardNumber:r.idCardNumber,staffHRIdCardStartDate:r.idCardStartDate,staffHRIdCardExpiryDate:r.idCardExpiryDate,staffHRPosition:r.position,staffHREmployment:r.employment||"Active",staffHRStartDate:r.startDate,staffHRAddress:r.address,staffHREmergencyName:r.emergencyName,staffHREmergencyPhone:r.emergencyPhone,staffHREducation:r.education,staffHREducationBackground:r.educationBackground,staffHRSkills:r.skills,staffHRSalary:r.salary,staffHRBonus:r.bonus,staffHRPayNotes:r.payNotes,staffHRNotes:r.notes};
   Object.entries(map).forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.value=v??""}); document.getElementById("staffHRForm")?.scrollIntoView({behavior:"smooth",block:"start"});
 }
 function setupStaffForm(){
@@ -143,7 +148,12 @@ function setupStaffForm(){
   f.addEventListener("submit",async e=>{
     e.preventDefault();const id=document.getElementById("staffHRId").value.trim();
     const staffId=document.getElementById("staffHRStaffId").value.trim()||("AS-STF-"+Date.now().toString(36).toUpperCase());
-    const payload={staffId,name:document.getElementById("staffHRName").value.trim(),email:document.getElementById("staffHREmail").value.trim(),phone:document.getElementById("staffHRPhone").value.trim(),position:document.getElementById("staffHRPosition").value.trim(),employment:document.getElementById("staffHREmployment").value,startDate:document.getElementById("staffHRStartDate").value,address:document.getElementById("staffHRAddress").value.trim(),emergencyName:document.getElementById("staffHREmergencyName").value.trim(),emergencyPhone:document.getElementById("staffHREmergencyPhone").value.trim(),education:document.getElementById("staffHREducation").value.trim(),educationBackground:document.getElementById("staffHREducationBackground").value.trim(),skills:document.getElementById("staffHRSkills").value.trim(),salary:Number(document.getElementById("staffHRSalary").value||0),bonus:Number(document.getElementById("staffHRBonus").value||0),payNotes:document.getElementById("staffHRPayNotes").value.trim(),notes:document.getElementById("staffHRNotes").value.trim(),updatedAt:new Date().toISOString()};
+    let idCardImage="";
+    const imageFile=document.getElementById("staffHRIdCardImage")?.files?.[0];
+    if(imageFile){ if(imageFile.size>3*1024*1024) throw new Error("Staff / ID card image must be 3 MB or smaller."); idCardImage=await fileToDataUrl(imageFile); }
+    const existingRecord=id?((await staffRecords()).find(x=>String(x._id)===String(id))||{}):{};
+    if(!idCardImage) idCardImage=existingRecord.idCardImage||"";
+    const payload={staffId,name:document.getElementById("staffHRName").value.trim(),email:document.getElementById("staffHREmail").value.trim(),phone:document.getElementById("staffHRPhone").value.trim(),idCardType:document.getElementById("staffHRIdCardType").value.trim(),idCardNumber:document.getElementById("staffHRIdCardNumber").value.trim(),idCardStartDate:document.getElementById("staffHRIdCardStartDate").value,idCardExpiryDate:document.getElementById("staffHRIdCardExpiryDate").value,idCardImage,position:document.getElementById("staffHRPosition").value.trim(),employment:document.getElementById("staffHREmployment").value,startDate:document.getElementById("staffHRStartDate").value,address:document.getElementById("staffHRAddress").value.trim(),emergencyName:document.getElementById("staffHREmergencyName").value.trim(),emergencyPhone:document.getElementById("staffHREmergencyPhone").value.trim(),education:document.getElementById("staffHREducation").value.trim(),educationBackground:document.getElementById("staffHREducationBackground").value.trim(),skills:document.getElementById("staffHRSkills").value.trim(),salary:Number(document.getElementById("staffHRSalary").value||0),bonus:Number(document.getElementById("staffHRBonus").value||0),payNotes:document.getElementById("staffHRPayNotes").value.trim(),notes:document.getElementById("staffHRNotes").value.trim(),updatedAt:new Date().toISOString()};
     try{
       const key=`staff_hr_${slug(staffId)}`; await saveSetting(key,JSON.stringify(payload));await audit("staff_hr",staffId,id?"updated":"created",payload);msg("Staff HR record saved.");staffFormReset();await loadStaff();
     }catch(err){msg("Staff HR record could not be saved: "+err.message,"error")}
@@ -263,12 +273,13 @@ function patchAccounting(){
       const staffRows=await settingsRows();
       const staffExpenses=staffRows.filter(r=>String(r.setting_key||"").startsWith("staff_expense_")).map(r=>{try{return{...JSON.parse(r.setting_value||"{}"),_id:r.id}}catch(_){return null}}).filter(Boolean);
       const staffTotal=staffExpenses.reduce((a,r)=>a+Number(r.amount||0),0);
-      const expEl=document.getElementById("accountingExpenses"),netEl=document.getElementById("accountingNetCash");
-      const currentExp=Number(String(expEl?.textContent||"").replace(/[^\d.-]/g,""))||0;
-      const currentNet=Number(String(netEl?.textContent||"").replace(/[^\d.-]/g,""))||0;
-      if(expEl)expEl.textContent=money(currentExp+staffTotal);
-      if(netEl)netEl.textContent=money(currentNet-staffTotal);
+      // Staff salary/bonus is tracked separately and MUST NOT change Business Expenses or Net Cash.
       const accounting=document.getElementById("accounting");
+      const cardsSummary=document.getElementById("accountingSummaryCards");
+      if(cardsSummary&&!document.getElementById("accountingSalaryCard")){
+        cardsSummary.insertAdjacentHTML("beforeend",`<div class="card" id="accountingSalaryCard"><h3>Salary</h3><div class="number" id="accountingSalary">GHS 0.00</div><p>Staff salary / bonus paid</p></div>`);
+      }
+      if(document.getElementById("accountingSalary"))document.getElementById("accountingSalary").textContent=money(staffTotal);
       let card=document.getElementById("refundAccountingList");
       if(!card&&accounting){card=document.createElement("div");card.className="form-card";card.id="refundAccountingList";card.innerHTML="<h3>Refunds</h3><div class='table-wrap'></div>";accounting.appendChild(card)}
       const list=card?.querySelector(".table-wrap");
@@ -291,29 +302,40 @@ async function loadTraineesEnhanced(){
   const list=document.getElementById("traineesList");if(!list)return;
   const d=db();if(!d){list.innerHTML="<div class='empty'>Supabase is unavailable.</div>";return}
   try{
-    const [tr,settings]=await Promise.all([d.from("training_registrations").select("*").order("created_at",{ascending:false}),settingsRows()]);
+    const [tr,settings]=await Promise.all([
+      d.from("training_registrations").select("*").order("created_at",{ascending:false}),
+      settingsRows()
+    ]);
     if(tr.error)throw tr.error;
     const rows=tr.data||[], sm=new Map();
     settings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>sm.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"under_review")));
-    const inv=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
-    const pay=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const invoices=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+    const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
     const records=rows.map(row=>{
-      const invoice=inv.filter(x=>String(x.sourceId||"")===String(row.id)||normal(x.customer)===normal(row.full_name)).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
-      const paid=pay.filter(p=>String(p.invoiceNumber||"")===String(invoice?.invoiceNumber||"")).reduce((a,p)=>a+Number(p.amount||0),0);
-      const total=Number(invoice?.total||0), balance=Math.max(0,total-paid);
+      const invoice=invoices.filter(x=>String(x.sourceId||"")===String(row.id)||normal(x.customer)===normal(row.full_name)).sort((a,b)=>String(b.savedAt||b.updatedAt||"").localeCompare(String(a.savedAt||a.updatedAt||"")))[0];
+      const invoiceNumber=String(invoice?.invoiceNumber||"");
+      const paid=payments.filter(p=>String(p.invoiceNumber||"")===invoiceNumber).reduce((a,p)=>a+Number(p.amount||0),0);
+      const total=Number(invoice?.total||0),balance=Math.max(0,total-paid);
       let status=sm.get(String(row.id))||"under_review";
       if(!sm.has(String(row.id))){if(total>0&&balance<=0)status="fully_paid";else if(paid>0)status="part_paid";else if(invoice)status="invoice_generated";}
-      return {row,invoice,paid,total,balance,status};
-    }).sort((a,b)=>String(b.row.created_at||"").localeCompare(String(a.row.created_at||"")));
-    const tabs=TRAINING_STATUSES;
-    const tabButtons=`<div class="final-tracking-tabs">${tabs.map(([k,l])=>`<button type="button" class="final-status-tab" data-trainee-tab="${k}">${esc(l)} <span>${records.filter(x=>x.status===k).length}</span></button>`).join("")}</div>`;
-    const card=x=>`<article class="tracking-order-card trainee-enhanced-card" data-trainee-status="${esc(x.status)}"><div class="tracking-card-head"><div><strong>${esc(x.row.full_name||"Trainee")}</strong><small>${esc(x.row.course||"Training")}</small></div><time>${esc(gmtDate(x.row.created_at))}</time></div><div class="tracking-card-data"><span><b>Phone</b>${esc(x.row.phone||"—")}</span><span><b>Invoice</b>${esc(x.invoice?.invoiceNumber||"—")}</span><span><b>Paid</b>${money(x.paid)}</span><span><b>Balance</b>${money(x.balance)}</span></div><div class="tracking-card-status"><select class="admin-status-select" data-trainee-status-id="${esc(x.row.id)}">${TRAINING_STATUSES.map(([k,l])=>`<option value="${k}" ${k===x.status?"selected":""}>${esc(l)}</option>`).join("")}</select><button type="button" class="secondary" data-trainee-save="${esc(x.row.id)}">Save</button></div><button type="button" class="secondary" data-view-trainee="${esc(x.row.id)}">View Full Details</button></article>`;
-    list.innerHTML=tabButtons+`<div class="tracking-board trainee-board">${tabs.map(([k,l])=>`<section class="tracking-column" data-trainee-column="${k}"><header><h3>${esc(l)}</h3><strong>${records.filter(x=>x.status===k).length}</strong></header><div class="tracking-column-body">${records.filter(x=>x.status===k).map(card).join("")||`<div class="tracking-empty">No trainees</div>`}</div></section>`).join("")}</div>`;
-    const filter=k=>{list.querySelectorAll("[data-trainee-column]").forEach(c=>c.style.display=(k==="all"||c.dataset.traineeColumn===k)?"":"none");list.querySelectorAll(".final-status-tab").forEach(b=>b.classList.toggle("active",b.dataset.traineeTab===k));};
-    list.querySelectorAll("[data-trainee-tab]").forEach(b=>b.onclick=()=>filter(b.dataset.traineeTab));filter("under_review");
-    list.querySelectorAll("[data-trainee-save]").forEach(b=>b.onclick=async()=>{const sel=b.parentElement.querySelector("select");try{if(typeof window.setAdminRecordStatus==="function")await window.setAdminRecordStatus("training_status",b.dataset.traineeSave,sel.value);else await saveSetting("training_status_"+b.dataset.traineeSave,sel.value);await audit("training_registration",b.dataset.traineeSave,"status_updated",{status:sel.value});msg("Trainee status updated.");await loadTraineesEnhanced()}catch(e){msg("Trainee status could not be updated: "+e.message,"error")}});
-    list.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=records.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(x&&typeof window.aprilsShowSubmissionDetails==="function")window.aprilsShowSubmissionDetails("Trainee Details",x.row,x.row.message||x.row.request_details||x.row.details||"");});
-  }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${esc(e.message||"")}</div>`}
+      let journey={};try{journey=JSON.parse(row.journey||"{}")}catch(_){}
+      const quantity=Number(journey.quantity||journey.trainingQuantity||row.quantity||1)||1;
+      const paymentStatus=total>0&&paid>=total?"fully_paid":paid>0?"part_paid":"unpaid";
+      return {row,invoice,invoiceNumber,paid,total,balance,status,quantity,paymentStatus,journey};
+    });
+    const tabs=TRAINING_STATUSES.map(([k,l])=>`<button type="button" class="final-status-tab" data-trainee-tab="${esc(k)}">${esc(l)} <span>${records.filter(x=>x.status===k).length}</span></button>`).join("");
+    list.innerHTML=`<div class="final-tracking-tabs">${tabs}</div><div class="final-training-panel"></div>`;
+    const panel=list.querySelector(".final-training-panel");
+    function render(key){
+      const chosen=records.filter(x=>x.status===key).sort((a,b)=>String(b.row.created_at||b.row.updated_at||"").localeCompare(String(a.row.created_at||a.row.updated_at||"")));
+      panel.innerHTML=chosen.length?`<div class="final-spreadsheet"><table><thead><tr><th>Date</th><th>Trainee</th><th>Course / Programme</th><th>Phone / WhatsApp</th><th>Details</th><th>Quantity</th><th>Invoice</th><th>Total</th><th>Paid</th><th>Balance</th><th>Payment Status</th><th>Training Status</th><th>Action</th></tr></thead><tbody>${chosen.map(x=>`<tr><td>${esc(gmtDate(x.row.created_at||x.row.updated_at))}</td><td>${esc(x.row.full_name||"")}</td><td>${esc(x.row.course||"")}</td><td>${esc([x.row.phone,x.row.whatsapp].filter(Boolean).join(" • ")||"—")}</td><td>${esc(x.row.message||x.row.request_details||x.row.details||"—")}</td><td>Quantity ${esc(x.quantity)}</td><td>${esc(x.invoiceNumber||"—")}</td><td>${money(x.total)}</td><td>${money(x.paid)}</td><td>${money(x.balance)}</td><td>${esc(x.paymentStatus==="fully_paid"?"Fully Paid":x.paymentStatus==="part_paid"?"Part Paid":"Unpaid")}</td><td><div class="status-control"><select class="admin-status-select">${TRAINING_STATUSES.map(([k,l])=>`<option value="${k}" ${k===x.status?"selected":""}>${esc(l)}</option>`).join("")}</select><button type="button" class="secondary" data-trainee-save="${esc(x.row.id)}">Save</button></div></td><td><button type="button" class="secondary" data-view-trainee="${esc(x.row.id)}">View Full Details</button><button type="button" class="secondary" data-trainee-share="${esc(x.row.id)}">Share</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="empty">No trainees are currently in this status.</div>`;
+      panel.querySelectorAll("[data-trainee-save]").forEach(b=>b.onclick=async()=>{const sel=b.closest(".status-control")?.querySelector("select");try{b.disabled=true;if(typeof window.setAdminRecordStatus==="function")await window.setAdminRecordStatus("training_status",b.dataset.traineeSave,sel?.value||"under_review");else await saveSetting("training_status_"+b.dataset.traineeSave,sel?.value||"under_review");await audit("training_registration",b.dataset.traineeSave,"status_updated",{status:sel?.value||"under_review"});msg("Trainee status updated.");await loadTraineesEnhanced()}catch(e){msg("Trainee status could not be updated: "+e.message,"error")}finally{b.disabled=false}});
+      panel.querySelectorAll("[data-view-trainee]").forEach(b=>b.onclick=()=>{const x=records.find(v=>String(v.row.id)===String(b.dataset.viewTrainee));if(!x)return;const details=`Date: ${gmtDate(x.row.created_at||x.row.updated_at)}\nTrainee: ${x.row.full_name||""}\nCourse / Programme: ${x.row.course||""}\nPhone / WhatsApp: ${[x.row.phone,x.row.whatsapp].filter(Boolean).join(" • ")}\nEmail: ${x.row.email||""}\nLocation: ${x.row.location||""}\nDetails: ${x.row.message||x.row.request_details||x.row.details||""}\nQuantity: ${x.quantity}\nInvoice: ${x.invoiceNumber||"—"}\nTotal: ${money(x.total)}\nPaid: ${money(x.paid)}\nBalance: ${money(x.balance)}\nPayment Status: ${x.paymentStatus==="fully_paid"?"Fully Paid":x.paymentStatus==="part_paid"?"Part Paid":"Unpaid"}\nTraining Status: ${(TRAINING_STATUSES.find(s=>s[0]===x.status)||[])[1]||x.status}`;if(typeof window.aprilsShowSubmissionDetails==="function")window.aprilsShowSubmissionDetails("Trainee Details",x.row,details,[]);else alert(details)});
+      panel.querySelectorAll("[data-trainee-share]").forEach(b=>b.onclick=async()=>{const x=records.find(v=>String(v.row.id)===String(b.dataset.traineeShare));if(!x)return;const text=`Aprils Signature — Trainee\nTrainee: ${x.row.full_name||""}\nCourse / Programme: ${x.row.course||""}\nTraining Status: ${(TRAINING_STATUSES.find(s=>s[0]===x.status)||[])[1]||x.status}\nPayment Status: ${x.paymentStatus==="fully_paid"?"Fully Paid":x.paymentStatus==="part_paid"?"Part Paid":"Unpaid"}\nInvoice: ${x.invoiceNumber||"—"}`;try{if(navigator.share)await navigator.share({title:"Aprils Signature — Trainee",text});else{await navigator.clipboard?.writeText(text);msg("Sharing is unavailable on this browser; the trainee details were copied to the clipboard.")}}catch(e){if(e?.name!=="AbortError")msg("The trainee details could not be shared.","error")}});
+    }
+    list.querySelectorAll("[data-trainee-tab]").forEach(b=>b.onclick=()=>{list.querySelectorAll(".final-status-tab").forEach(x=>x.classList.toggle("active",x===b));render(b.dataset.traineeTab)});
+    const first=list.querySelector("[data-trainee-tab]");if(first){first.classList.add("active");render(first.dataset.traineeTab)}
+  }catch(e){list.innerHTML=`<div class='empty'>Trainees could not be loaded: ${esc(e.message||"")}</div>`}
 }
 
 /* ---------- Generic search: saved items + text + date/month/year + export ---------- */
@@ -665,10 +687,9 @@ function boot(){
   setTimeout(()=>setupAccountingPeriod(),500);
   addTopArrows();
   enhanceAllSearches();
-  setInterval(()=>{enhanceAllSearches();refreshSavedSearchOptions();addTopArrows();patchAdminDateStrings();strictGlobalSync()},1500);
   document.querySelectorAll('.sidebar button[data-section="refund"]').forEach(b=>b.addEventListener("click",()=>setTimeout(()=>renderRefundList(),250)));
-  // Re-render refund list after the existing final-fixes boot has created its section.
-  setTimeout(async()=>{try{enhanceRefundForm();await renderRefundList()}catch(_){}try{if(document.getElementById("staffHR"))await loadStaff()}catch(_){}},1200);
+  // Refunds are rendered when their section is opened; do not load staff/refund data
+  // in the background during dashboard startup.
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);else boot();
 })();

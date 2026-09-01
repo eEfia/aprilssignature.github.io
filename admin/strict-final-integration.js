@@ -37,7 +37,9 @@
       const invoices=parse("invoice_record_");
       const payments=parse("invoice_payment_record_");
       const refunds=parse("refund_record_").filter(r=>String(r.status||"").toLowerCase()==="paid"||String(r.status||"").toLowerCase()==="refund recorded");
-      const expenses=[...parse("accounting_expense_"),...parse("staff_expense_")];
+      const businessExpenses=parse("accounting_expense_");
+      const staffExpenses=parse("staff_expense_");
+      const expenses=[...businessExpenses,...staffExpenses];
       const invMap=new Map(invoices.filter(x=>x.invoiceNumber).map(x=>[String(x.invoiceNumber),x]));
       const payMap=new Map(); payments.forEach(p=>{const k=String(p.invoiceNumber||"");if(!k)return;if(!payMap.has(k))payMap.set(k,[]);payMap.get(k).push(p)});
       const refMap=new Map(); refunds.forEach(r=>{const k=String(r.invoiceNumber||"");refMap.set(k,(refMap.get(k)||0)+Number(r.refundAmount||0))});
@@ -52,10 +54,13 @@
       const netReceived=Math.max(0,totalReceived-totalRefunded);
       const totalOutstanding=records.reduce((a,x)=>a+x._balance,0);
       const totalDiscounts=records.reduce((a,x)=>a+Number(x.discount||0),0);
-      const totalExpenses=expenses.reduce((a,x)=>a+Number(x.amount||0),0);
+      const totalExpenses=businessExpenses.reduce((a,x)=>a+Number(x.amount||0),0);
+      const totalSalary=staffExpenses.reduce((a,x)=>a+Number(x.amount||0),0);
       list.innerHTML=records.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Customer</th><th>Total Received</th><th>Refunded</th><th>Net Sales</th><th>Balance</th><th>Status</th></tr></thead><tbody>${records.map(x=>`<tr><td>${esc(dateDMY(x.date||x.savedAt))}</td><td>${esc(x.invoiceNumber||"")}</td><td>${esc(x.training?"Training":"Order / Quote")}</td><td>${esc(x.customer||"")}</td><td>${money(x._received)}</td><td>${money(x._refunded)}</td><td>${money(x._net)}</td><td>${money(x._balance)}</td><td>${x._balance<=0?"Paid in full":"Part payment"}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No payments received have been recorded yet. Invoices alone are not counted as sales.</div>`;
+      const cards=document.getElementById("accountingSummaryCards");
+      if(cards&&!document.getElementById("accountingSalaryCard"))cards.insertAdjacentHTML("beforeend",`<div class="card" id="accountingSalaryCard"><h3>Salary</h3><div class="number" id="accountingSalary">GHS 0.00</div><p>Staff salary / bonus paid — separate from business balance</p></div>`);
       const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=money(v)};
-      set("accountingSales",netReceived);set("accountingReceived",netReceived);set("accountingOutstanding",totalOutstanding);set("accountingDiscounts",totalDiscounts);set("accountingExpenses",totalExpenses);set("accountingNetCash",netReceived-totalExpenses);set("accountingRefunds",totalRefunded);
+      set("accountingSales",netReceived);set("accountingReceived",netReceived);set("accountingOutstanding",totalOutstanding);set("accountingDiscounts",totalDiscounts);set("accountingExpenses",totalExpenses);set("accountingNetCash",netReceived-totalExpenses);set("accountingRefunds",totalRefunded);set("accountingSalary",totalSalary);
       let card=document.getElementById("refundAccountingList");const accounting=document.getElementById("accounting");
       if(!card&&accounting){card=document.createElement("div");card.id="refundAccountingList";card.className="form-card";card.innerHTML="<h3>Refunds</h3><div class='table-wrap'></div>";accounting.appendChild(card)}
       const rl=card?.querySelector(".table-wrap");if(rl)rl.innerHTML=refunds.length?`<table><thead><tr><th>Date</th><th>Refund</th><th>Invoice</th><th>Customer</th><th>Amount</th></tr></thead><tbody>${refunds.map(r=>`<tr><td>${esc(dateTimeGMT(r.date||r.updatedAt))}</td><td>${esc(r.refundNumber||"")}</td><td>${esc(r.invoiceNumber||"")}</td><td>${esc(r.customer||"")}</td><td>${money(r.refundAmount)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No refunds recorded.</div>`;
@@ -89,7 +94,7 @@
         let status=statusMap.get(String(row.id)); if(!status){status=paid>0?(total>0&&paid>=total?"fully_paid":"part_paid"):inv?"invoice_generated":"under_review"}
         const receipt=receipts.find(r=>String(r.invoiceNumber||"")===String(inv?.invoiceNumber||""));
         return {row,inv,paid,total,balance,status,receipt};
-      }).sort((a,b)=>String(b.row.created_at||"").localeCompare(String(a.row.created_at||"")));
+      });
       const tabs=TRAINING.map(([k,l])=>`<button type="button" class="final-status-tab" data-registration-tab="${k}">${esc(l)} <span>${records.filter(r=>r.status===k).length}</span></button>`).join("");
       list.innerHTML=records.length?`<div class="submission-card-grid"><div class="final-tracking-tabs" style="grid-column:1/-1">${tabs}</div>${records.map(r=>`<article class="submission-card" data-registration-card="${esc(r.status)}"><div class="submission-card-top"><div><strong>${esc(r.row.full_name||"Customer")}</strong><span>${esc(r.row.course||"Training Registration")}</span></div><time>${esc(dateTimeGMT(r.row.created_at))}</time></div><div class="submission-card-gridline"><span><b>Phone / WhatsApp</b>${esc([r.row.phone,r.row.whatsapp].filter(Boolean).join(" • ")||"—")}</span><span><b>Location</b>${esc(r.row.location||"—")}</span><span><b>Quantity</b>${esc(trainingQuantity(r.row))}</span><span><b>Training Programme</b>${esc(r.row.course||"—")}</span><span class="wide"><b>Details</b>${esc(r.row.message||r.row.request_details||r.row.details||"—")}</span></div><div class="submission-status-strip"><span><b>Training Status</b>${trainingStatusSelect(r.row.id,r.status)}</span><span><b>Payment Status</b>${esc(r.paid>=r.total&&r.total>0?"Fully Paid":r.paid>0?"Part Paid":"Unpaid")}</span><span><b>Invoice</b>${esc(r.inv?.invoiceNumber||"—")}</span><span><b>Receipt</b>${esc(r.receipt?.receiptNumber||"—")}</span><span><b>Amount</b>${money(r.total)}</span><span><b>Paid</b>${money(r.paid)}</span><span><b>Balance</b>${money(r.balance)}</span></div><div class="submission-card-actions"><button type="button" class="secondary" data-view-registration-final="${esc(r.row.id)}">View Full Details</button><button type="button" class="primary" data-generate-registration-invoice="${esc(r.row.id)}">Generate Invoice</button><button type="button" class="danger" data-delete-registration-final="${esc(r.row.id)}">Delete</button></div></article>`).join("")}</div>`:`<div class="empty">No training registrations received.</div>`;
       const filter=k=>{list.querySelectorAll("[data-registration-card]").forEach(c=>c.style.display=c.dataset.registrationCard===k?"":"none");list.querySelectorAll("[data-registration-tab]").forEach(b=>b.classList.toggle("active",b.dataset.registrationTab===k))};
@@ -180,5 +185,4 @@
     const active=document.querySelector(".sidebar button.active")?.dataset.section;if(active==="registrations")finalLoadRegistrations();
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",attach);else attach();
-  setInterval(()=>{try{strictDateTimeEverywhere();enhanceAllSearches();bindCollectionSync();bindTypeAheadSelectors()}catch(_){}},2000);
 })();

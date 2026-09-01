@@ -793,6 +793,7 @@ function newGalleryItem() {
     const form = document.getElementById("galleryForm");
     if (!form) return;
     form.reset();
+    resetMediaFileInput("galleryImageFile");
     document.getElementById("galleryId").value = "";
     document.getElementById("galleryActive").checked = true;
     document.getElementById("galleryOrder").value = 1;
@@ -801,6 +802,7 @@ function newGalleryItem() {
 }
 
 function editGallery(row) {
+    resetMediaFileInput("galleryImageFile");
     document.getElementById("galleryId").value = row.id;
     document.getElementById("galleryTitle").value = row.title || "";
     renderGalleryCategorySelect(row.category || "");
@@ -831,6 +833,30 @@ async function deleteGallery(id) {
     await loadDashboard();
 }
 
+async function uploadAdminMediaFile(file, folder) {
+    if (!file) return "";
+    if (!db) throw new Error("Supabase is not available.");
+    const allowed = file.type.startsWith("image/") || file.type.startsWith("video/");
+    if (!allowed) throw new Error("Please choose an image or video file.");
+    const safeName = String(file.name || "media").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "media";
+    const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2,9)}-${safeName}`;
+    const upload = await db.storage.from("site-media").upload(path, file, {
+        cacheControl: "31536000",
+        upsert: false,
+        contentType: file.type || undefined
+    });
+    if (upload.error) throw upload.error;
+    const publicResult = db.storage.from("site-media").getPublicUrl(path);
+    const url = publicResult?.data?.publicUrl || "";
+    if (!url) throw new Error("The uploaded media URL could not be created.");
+    return url;
+}
+
+function resetMediaFileInput(id) {
+    const input = document.getElementById(id);
+    if (input) input.value = "";
+}
+
 function setupGalleryForm() {
     const form = document.getElementById("galleryForm");
     if (!form || form.dataset.bound) return;
@@ -840,10 +866,27 @@ function setupGalleryForm() {
         event.preventDefault();
 
         const id = document.getElementById("galleryId").value.trim();
+        const attachedFile = document.getElementById("galleryImageFile")?.files?.[0] || null;
+        const existingMediaUrl = document.getElementById("galleryImage").value.trim();
+        let mediaUrl = existingMediaUrl;
+        if (attachedFile) {
+            try {
+                mediaUrl = await uploadAdminMediaFile(attachedFile, "gallery");
+                document.getElementById("galleryImage").value = mediaUrl;
+            } catch (uploadError) {
+                console.error(uploadError);
+                message("The new gallery image/video could not be uploaded: " + uploadError.message, "error");
+                return;
+            }
+        }
+        if (!mediaUrl) {
+            message("Please attach an image/video or enter an existing media URL.", "error");
+            return;
+        }
         const data = {
             title: document.getElementById("galleryTitle").value.trim(),
             category: document.getElementById("galleryCategory").value.trim(),
-            image_url: document.getElementById("galleryImage").value.trim(),
+            image_url: mediaUrl,
             description: document.getElementById("galleryDescription").value.trim(),
             price: document.getElementById("galleryPrice").value === "" ? null : Number(document.getElementById("galleryPrice").value),
             display_order: Number(document.getElementById("galleryOrder").value) || 1,
@@ -922,6 +965,7 @@ function setupGalleryForm() {
             }
 
             form.reset();
+            resetMediaFileInput("galleryImageFile");
             document.getElementById("galleryId").value = "";
             document.getElementById("galleryActive").checked = true;
 
@@ -1559,6 +1603,7 @@ async function loadHomepageMedia() {
 
     list.querySelectorAll("[data-edit-homepage]").forEach(button => {
         button.onclick = () => {
+            resetMediaFileInput("homepageMediaFile");
             const row = rows.find(r => String(r.id) === String(button.dataset.editHomepage));
             if (!row) return;
             document.getElementById("homepageMediaId").value = row.id || "";
@@ -1595,13 +1640,24 @@ function setupHomepageMediaForm() {
 
         const id = document.getElementById("homepageMediaId").value.trim();
         const title = document.getElementById("homepageMediaTitle").value.trim();
-        const url = document.getElementById("homepageMediaUrl").value.trim();
+        const attachedFile = document.getElementById("homepageMediaFile")?.files?.[0] || null;
+        let url = document.getElementById("homepageMediaUrl").value.trim();
+        if (attachedFile) {
+            try {
+                url = await uploadAdminMediaFile(attachedFile, "homepage");
+                document.getElementById("homepageMediaUrl").value = url;
+            } catch (uploadError) {
+                console.error(uploadError);
+                message("The new homepage image/video could not be uploaded: " + uploadError.message, "error");
+                return;
+            }
+        }
         const order = Number(document.getElementById("homepageMediaOrder").value) || 1;
         const description = document.getElementById("homepageMediaDescription").value.trim();
         const active = document.getElementById("homepageMediaActive").checked;
 
         if (!title || !url) {
-            message("Please enter a title and image/video URL.", "error");
+            message("Please enter a title and attach an image/video or provide an existing media URL.", "error");
             return;
         }
 
@@ -1617,6 +1673,7 @@ function setupHomepageMediaForm() {
             }
 
             form.reset();
+            resetMediaFileInput("homepageMediaFile");
             document.getElementById("homepageMediaId").value = "";
             document.getElementById("homepageMediaOrder").value = 1;
             document.getElementById("homepageMediaActive").checked = true;
@@ -1629,6 +1686,7 @@ function setupHomepageMediaForm() {
 
     document.getElementById("homepageMediaCancel")?.addEventListener("click", () => {
         form.reset();
+        resetMediaFileInput("homepageMediaFile");
         document.getElementById("homepageMediaId").value = "";
         document.getElementById("homepageMediaOrder").value = 1;
         document.getElementById("homepageMediaActive").checked = true;
@@ -1794,13 +1852,6 @@ function invoicePriceFor(map, name) {
     return 0;
 }
 
-function quantityInWords(value) {
-    const n=Math.max(0,Math.floor(Number(value)||0));
-    const ones=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
-    const tens=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
-    if(n<20)return ones[n]; if(n<100)return tens[Math.floor(n/10)]+(n%10?"-"+ones[n%10]:""); if(n<1000)return ones[Math.floor(n/100)]+" hundred"+(n%100?" "+quantityInWords(n%100):""); if(n<1000000)return quantityInWords(Math.floor(n/1000))+" thousand"+(n%1000?" "+quantityInWords(n%1000):""); return String(n);
-}
-
 function buildInvoiceLinesFromQuote(row, details, priceMap) {
     if (Array.isArray(details?.manualLines)) {
         return details.manualLines.map(line => ({
@@ -1813,15 +1864,6 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
 
     const lines = [];
 
-    if (details?.checkout && Array.isArray(details.items)) {
-        details.items.forEach(item => {
-            const quantity=Math.max(1,Number(item?.quantity||1));
-            const product=String(item?.name||item?.product||"Item").trim();
-            if(!product)return;
-            lines.push({description:product,quantity,unitPrice:Number(item?.unitPrice||invoicePriceFor(priceMap,product)||0),details:[`Quantity in words: ${quantityInWords(quantity)}`,item?.size,item?.colour,item?.details].filter(Boolean).join(" • ")});
-        });
-    }
-
     if (details?.streetwear && typeof details.streetwear === "object") {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
@@ -1832,7 +1874,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [`Quantity in words: ${quantityInWords(quantity)}`, item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")
+                details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1842,7 +1884,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             if (!item) return;
             const product = item.product || "Ladies Wear";
             const quantity = Math.max(1, Number(item.quantity || 1));
-            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [`Quantity in words: ${quantityInWords(quantity)}`, item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour, item.details].filter(Boolean).join(" • ")});
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour, item.details].filter(Boolean).join(" • ")});
         });
     }
 
@@ -2580,7 +2622,7 @@ async function openInvoiceGenerator(row, details) {
                 </div>
                 <div class="invoice-customer"><div><strong>Bill To</strong><br>${escapeHTML(document.getElementById("generatedInvoiceCustomer").value)}<br>${escapeHTML(document.getElementById("generatedInvoicePhone").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceEmail").value)}<br>${escapeHTML(document.getElementById("generatedInvoiceAddress").value)}</div></div>
                 <table class="invoice-lines"><thead><tr><th>#</th><th>Item / Description</th><th>Details</th><th>Qty</th><th>Unit Price (GHS)</th><th>Total (GHS)</th></tr></thead>
-                <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${i+1}</td><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
+                <tbody>${lines.map((l,i)=>`<tr data-invoice-line="${i}"><td>${i+1}</td><td>${escapeHTML(l.description)}</td><td>${escapeHTML(l.details)}</td><td>Quantity ${l.quantity}</td><td>${l.unitPrice.toFixed(2)}</td><td>${(l.quantity*l.unitPrice).toFixed(2)}</td></tr>`).join("")}</tbody></table>
                 <div class="invoice-summary">
                     <p>Subtotal: <strong>GHS ${subtotal.toFixed(2)}</strong></p>
                     <p>Discount ${discountOffer?.code ? `(${escapeHTML(discountOffer.code)} — ${discountPercent.toFixed(2)}%)` : `(${discountPercent.toFixed(2)}%)`}: <strong>GHS ${discount.toFixed(2)}</strong></p>
@@ -3527,7 +3569,7 @@ function buildQuoteDetailRows(row, details) {
         if (details.ladiesWearProducts && typeof details.ladiesWearProducts === "object") {
             Object.entries(details.ladiesWearProducts).forEach(([name,item]) => {
                 if (!item) return;
-                add("Ladies Wear — " + name, [item.quantity ? `Quantity: ${item.quantity}` : "", item.size ? `Size: ${item.size}` : "", item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : "", item.details ? `Details: ${item.details}` : ""].filter(Boolean).join(" • "));
+                add("Ladies Wear — " + name, [item.quantity ? `Quantity ${aprilsQuantityLabel(item.quantity)}` : "", item.size ? `Size: ${item.size}` : "", item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? `Measurements: ${item.measurements}` : "", item.colour ? `Colour: ${item.colour}` : "", item.details ? `Details: ${item.details}` : ""].filter(Boolean).join(" • "));
             });
         }
         add("Ladies Wear Other Request", details.ladiesWearOther);
@@ -3941,6 +3983,18 @@ async function loadRegistrations() {
 }
 
 
+function aprilsQuantityInWords(value){
+    const n=Math.max(0,Math.floor(Number(value)||0));
+    const ones=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    if(n<20)return ones[n];
+    if(n<100)return tens[Math.floor(n/10)]+(n%10?"-"+ones[n%10]:"");
+    if(n<1000)return ones[Math.floor(n/100)]+" hundred"+(n%100?" and "+aprilsQuantityInWords(n%100):"");
+    if(n<1000000)return aprilsQuantityInWords(Math.floor(n/1000))+" thousand"+(n%1000?" "+aprilsQuantityInWords(n%1000):"");
+    return String(n);
+}
+function aprilsQuantityLabel(value){return String(Number(value)||0);}
+
 function summarizeQuoteQuantities(row) {
     const details = parseSubmissionDetails(row?.journey || row?.request_details || row?.details || row?.message || "");
     const quantities = [];
@@ -3950,16 +4004,16 @@ function summarizeQuoteQuantities(row) {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
             const quantity = typeof item === "object" ? item.quantity : item;
-            if (product && quantity) quantities.push(`${product}: Quantity: ${quantityInWords(quantity)} (${quantity})`);
+            if (product && quantity) quantities.push(`${product}: Quantity: ${aprilsQuantityLabel(quantity)}`);
         });
     }
     if (details?.ladiesWearProducts && typeof details.ladiesWearProducts === "object" && Object.keys(details.ladiesWearProducts).length) {
-        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})`); });
-    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: Quantity: ${quantityInWords(details.ladiesWearQuantity)} (${details.ladiesWearQuantity})`);
-    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: Quantity: ${quantityInWords(details.kidsWearQuantity)} (${details.kidsWearQuantity})`);
+        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: Quantity: ${aprilsQuantityLabel(item.quantity)}`); });
+    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: Quantity ${aprilsQuantityLabel(details.ladiesWearQuantity)}`);
+    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: Quantity ${aprilsQuantityLabel(details.kidsWearQuantity)}`);
     if (details?.embellishmentDetails) {
         Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
-            if (item?.quantity) quantities.push(`${name}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})`);
+            if (item?.quantity) quantities.push(`${name}: Quantity: ${aprilsQuantityLabel(item.quantity)}`);
         });
     }
     return quantities.join(" • ") || "—";
@@ -3985,7 +4039,7 @@ function summarizeQuoteDetails(row) {
             const size = typeof item === "object" ? String(item.size || "").trim() : "";
             const measurements = typeof item === "object" ? String(item.measurements || "").trim() : "";
             const detailText = typeof item === "object" ? [size || measurements, item.colour].filter(Boolean).join(" • ") : "";
-            if (product) parts.push(`${product}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})${detailText ? " • "+detailText : ""}`);
+            if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
     if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
@@ -4248,7 +4302,7 @@ async function loadTrainees(){
  }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
 async function loadEnquiries() {
-    const rows = (await getRows("enquiries")).sort((a,b)=>String(b.created_at||b.updated_at||"").localeCompare(String(a.created_at||a.updated_at||"")));
+    const rows = await getRows("enquiries");
     const list = document.getElementById("enquiryList");
     if (!list) return;
 
@@ -4936,7 +4990,8 @@ function renderInvoicePaymentRows(accounts) {
 
 async function loadInvoicePaymentDetails() {
     const accounts = await getInvoicePaymentAccounts();
-    renderInvoicePaymentRows(accounts);
+    // Entry fields are intentionally blank; saved payment details are shown separately below.
+    renderInvoicePaymentRows([]);
 
     const saved = document.getElementById("invoicePaymentSaved");
     if (saved) {
@@ -5031,24 +5086,9 @@ function setupInvoicePaymentForm(){
             renderInvoicePaymentRowsFromCurrentDom();
             message("Invoice payment details saved.", "success");
             // Keep the saved records visible below, but leave the entry fields blank for the next record.
-            // Keep the entry area blank after saving. Do not reload saved values into the entry form.
             renderInvoicePaymentRows([{}]);
-            const saved = document.getElementById("invoicePaymentSaved");
-            if (saved) {
-                const freshAccounts = accounts;
-                saved.innerHTML = freshAccounts.length ? `
-                    <div class="payment-details-list">
-                        ${freshAccounts.map((item,index) => `
-                            <div style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:10px;">
-                                <strong>Payment Detail ${index+1}</strong><br>
-                                ${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}<br>
-                                ${escapeHTML(item.name || "")}${item.branch ? `<br>Branch: ${escapeHTML(item.branch)}` : ""}<br>
-                                <div style="margin-top:8px;font-weight:700;border-left:4px solid #c9a227;padding:8px 10px;">
-                                    <strong>*** Payment Note ***</strong><br>${escapeHTML(item.note || "No payment note saved.")}
-                                </div>
-                            </div>`).join("")}
-                    </div>` : `<div class="empty">No invoice payment details have been saved yet. Add your first payment detail above.</div>`;
-            }
+            await loadInvoicePaymentDetails();
+            renderInvoicePaymentRows([{}]);
         } catch (error) {
             message("Invoice payment details could not be saved: " + error.message, "error");
         }
@@ -6533,6 +6573,27 @@ function setupUserAccess(){
 // remains unchanged; checkout/inventory can open the exact same generator.
 window.aprilsOpenInvoiceGenerator = openInvoiceGenerator;
 window.aprilsShowSubmissionDetails = showSubmissionDetails;
+// Public module bridge: correction layers and dynamic admin sections use these functions.
+window.openInvoiceGenerator = openInvoiceGenerator;
+window.closeInvoiceGenerator = closeInvoiceGenerator;
+window.statefulSaveGeneratedInvoice = statefulSaveGeneratedInvoice;
+window.ensureHtml2Pdf = ensureHtml2Pdf;
+window.pdfFromVisibleElement = pdfFromVisibleElement;
+window.generateInvoicePdf = generateInvoicePdf;
+window.sharePdfToWhatsApp = sharePdfToWhatsApp;
+window.printGeneratedInvoice = printGeneratedInvoice;
+window.openReceiptGenerator = openReceiptGenerator;
+window.closeReceiptGenerator = closeReceiptGenerator;
+window.generateReceiptPdf = generateReceiptPdf;
+window.printGeneratedReceipt = printGeneratedReceipt;
+window.shareGeneratedReceiptWhatsApp = shareGeneratedReceiptWhatsApp;
+window.shareGeneratedReceiptEmail = shareGeneratedReceiptEmail;
+window.getInvoicePriceMap = getInvoicePriceMap;
+window.invoicePriceFor = invoicePriceFor;
+window.saveInvoiceRecord = saveInvoiceRecord;
+window.getInvoicePaymentAccounts = getInvoicePaymentAccounts;
+window.getInvoicePayments = getInvoicePayments;
+window.saveInvoicePayment = saveInvoicePayment;
 
 /* =========================================================
    STARTUP

@@ -54,8 +54,14 @@ replacing the existing Supabase structure.
         const p=new Intl.DateTimeFormat("en-GB",{timeZone:"UTC",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(d);const g=t=>p.find(x=>x.type===t)?.value||"";return `${g("day")}/${g("month")}/${g("year")} ${g("hour")}:${g("minute")} GMT`;
     }
     function normal(s){return String(s||"").trim().toLowerCase().replace(/&/g,"and").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();}
-    function getRowsSafe(table){
-        return typeof window.getRows==="function" ? window.getRows(table) : Promise.resolve([]);
+    async function getRowsSafe(table){
+        const d=supabase();
+        if(!d) return [];
+        const r=await d.from(table).select("*");
+        if(r.error) throw r.error;
+        const rows=r.data||[];
+        rows.sort((a,b)=>String(b.updated_at||b.updatedAt||b.created_at||b.createdAt||"").localeCompare(String(a.updated_at||a.updatedAt||a.created_at||a.createdAt||"")));
+        return rows;
     }
     async function settingValue(key){
         const rows=await getRowsSafe("settings");
@@ -191,11 +197,11 @@ replacing the existing Supabase structure.
                 const paid=allPayments.filter(p=>String(p.invoiceNumber||"")===String(invoiceNumber)).reduce((a,p)=>a+Number(p.amount||0),0);
                 const refunded=refunds.filter(r=>String(r.invoiceNumber||"")===String(invoiceNumber)).reduce((a,r)=>a+Number(r.refundAmount||0),0);
                 const total=Number(inv?.total??j.total??0);
-                let status=await getStatus("quote_status",row.id); status=status||j.orderStatus||"under_review";
+                let status=orderStatusMap.get(String(row.id))||j.orderStatus||"under_review";
                 const legacy={request_received:"under_review",reviewed:"under_review",invoice_sent:"under_review",payment_received:"order_taken",work_in_progress:"in_production",delivered:"received",fully_paid:"order_taken"};
                 status=legacy[status]||status;
                 if(refunded>=paid && refunded>0) status="cancelled";
-                const payKey=await settingValue("payment_status_quote_"+row.id);
+                const payKey=orderPaymentStatusMap.get(String(row.id));
                 const payStatus=payKey||paymentState(total,paid,refunded);
                 const delivery=deliveryMap.get(String(row.id))||{};
                 if(delivery.date)j.deliveryDate=delivery.date;
@@ -212,14 +218,14 @@ replacing the existing Supabase structure.
             const panel=list.querySelector(".final-tracking-panel");
             function render(key){
                 const chosen=records.filter(r=>r.status===key);
-                panel.innerHTML=chosen.length?`<div class="final-spreadsheet"><table><thead><tr><th>Customer</th><th>Service</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Invoice</th><th>Total</th><th>Paid</th><th>Balance</th><th>Payment Status</th><th>Order Status</th><th>Collection / Delivery</th><th>Action</th></tr></thead><tbody>${chosen.map(r=>{
+                panel.innerHTML=chosen.length?`<div class="final-spreadsheet"><table><thead><tr><th>Date</th><th>Customer</th><th>Service</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Invoice</th><th>Total</th><th>Paid</th><th>Balance</th><th>Payment Status</th><th>Order Status</th><th>Collection / Delivery</th><th>Action</th></tr></thead><tbody>${chosen.map(r=>{
                     let j=r.j||{}; const dueDate=j.deliveryDate||j.collectionDate||"", dueTime=j.deliveryTime||j.collectionTime||"";
                     const service=r.row.service||j.selectedServices?.join(", ")||"Order / Request a Quote";
                     const itemText=r.lines.map(x=>x.description).join(" • ")||"—";
                     const detailText=r.lines.map(x=>x.details).filter(Boolean).join(" • ")||"—";
                     const qty=r.lines.reduce((a,x)=>a+Number(x.quantity||0),0);
                     const bal=Math.max(0,r.total-r.paid+r.refunded);
-                    return `<tr><td>${esc(r.row.full_name||"")}</td><td>${esc(service)}</td><td>${esc(itemText)}</td><td>${esc(detailText)}</td><td>${esc(qty)}</td><td>${esc(r.invoiceNumber||"—")}</td><td>${money(r.total)}</td><td>${money(r.paid)}</td><td>${money(bal)}</td><td>${esc(PAYMENT_STATUS.find(x=>x[0]===r.payStatus)?.[1]||r.payStatus)}</td><td>${esc(STATUS_ORDER.find(x=>x[0]===r.status)?.[1]||r.status)}</td><td>${esc(formatDate(dueDate))}${dueTime?" "+esc(dueTime):""}</td><td><button type="button" class="secondary" data-final-view="${esc(r.row.id)}">View Full Details</button><button type="button" class="secondary" data-final-share="${esc(r.row.id)}">Share</button></td></tr>`;
+                    return `<tr><td>${esc(formatDateTime(r.row.created_at||r.row.updated_at))}</td><td>${esc(r.row.full_name||"")}</td><td>${esc(service)}</td><td>${esc(itemText)}</td><td>${esc(detailText)}</td><td>Quantity ${esc(qty)}</td><td>${esc(r.invoiceNumber||"—")}</td><td>${money(r.total)}</td><td>${money(r.paid)}</td><td>${money(bal)}</td><td>${esc(PAYMENT_STATUS.find(x=>x[0]===r.payStatus)?.[1]||r.payStatus)}</td><td>${esc(STATUS_ORDER.find(x=>x[0]===r.status)?.[1]||r.status)}</td><td>${esc(formatDate(dueDate))}${dueTime?" "+esc(dueTime):""}</td><td><button type="button" class="secondary" data-final-view="${esc(r.row.id)}">View Full Details</button><button type="button" class="secondary" data-final-share="${esc(r.row.id)}">Share</button></td></tr>`;
                 }).join("")}</tbody></table></div>`:`<div class="empty">No orders are currently in this status.</div>`;
                 panel.querySelectorAll("[data-final-view]").forEach(b=>b.onclick=()=>{
                     const r=records.find(x=>String(x.row.id)===String(b.dataset.finalView)); if(!r)return;
@@ -251,14 +257,16 @@ replacing the existing Supabase structure.
             const rows=await getRowsSafe("training_registrations"), settings=await getRowsSafe("settings");
             const invoices=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
             const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
+            const trainingStatusMap=new Map(settings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).map(r=>[String(r.setting_key).replace("training_status_",""),String(r.setting_value||"")]));
+            const trainingPaymentStatusMap=new Map(settings.filter(r=>String(r.setting_key||"").startsWith("payment_status_training_")).map(r=>[String(r.setting_key).replace("payment_status_training_",""),String(r.setting_value||"")]));
             const rec=[];
             for(const row of rows){
                 const inv=invoices.filter(x=>String(x.sourceId||"")===String(row.id)||String(x.customer||"").trim().toLowerCase()===String(row.full_name||"").trim().toLowerCase()).sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")))[0];
                 const invoiceNumber=inv?.invoiceNumber||"", total=Number(inv?.total||0);
                 const paid=payments.filter(p=>String(p.invoiceNumber||"")===invoiceNumber).reduce((a,p)=>a+Number(p.amount||0),0);
-                let status=await getStatus("training_status",row.id); status=status||"under_review";
+                let status=trainingStatusMap.get(String(row.id))||"under_review";
                 if(!["in_class","stopped","completed"].includes(status)) status=paid>=total&&total>0?"fully_paid":paid>0?"part_paid":status;
-                const ps=await settingValue("payment_status_training_"+row.id)||paymentState(total,paid,0);
+                const ps=trainingPaymentStatusMap.get(String(row.id))||paymentState(total,paid,0);
                 rec.push({row,inv,invoiceNumber,total,paid,status,ps});
             }
             const tabs=TRAINING_STATUS_TABS(rec);
@@ -380,7 +388,7 @@ replacing the existing Supabase structure.
             const rows=await getRowsSafe("settings");
             const invoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return{type:"Invoice",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
             const receipts=rows.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return{type:"Receipt",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
-            const all=[...invoices,...receipts].sort((a,b)=>String(b.date||b.savedAt||b.generatedAt||"").localeCompare(String(a.date||a.savedAt||a.generatedAt||"")));
+            const all=[...invoices,...receipts];
             for(const r of invoices){const p=await paymentRows(r.invoiceNumber);r._paid=p.reduce((a,x)=>a+Number(x.amount||0),0)}
             userList.innerHTML=all.length?`<table><thead><tr><th>Type</th><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${all.map(r=>{
                 const amount=r.type==="Receipt"?Number(r.amount||0):Number(r.total||0);
@@ -422,7 +430,7 @@ replacing the existing Supabase structure.
         const entryId="COL-"+Date.now().toString(36).toUpperCase();
         const root=document.createElement("div");
         root.className="collection-form-paper final-collection-paper";
-        root.innerHTML=`<div class="collection-brand"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${esc(inv.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${esc(inv.customer||"")}</p><p><strong>Phone:</strong> ${esc(inv.phone||"")}</p></div><table class="collection-items"><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${lines.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description||"")}</td><td>${esc(l.details||"")}</td><td>${Number(l.quantity||1)}</td><td>${money(l.unitPrice)}</td><td>${money(Number(l.quantity||1)*Number(l.unitPrice||0))}</td></tr>`).join("")||`<tr><td>1</td><td>Order / Service</td><td>See invoice</td><td>1</td><td>${money(inv.total)}</td><td>${money(inv.total)}</td></tr>`}</tbody></table><div class="collection-summary"><p><strong>Total Cost:</strong> ${money(inv.total)}</p><p><strong>Payment Made:</strong> ${money(paid)}</p><p><strong>Balance:</strong> ${money(balance)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${esc(formatDate(date))}</p><p><strong>Time:</strong> ${esc(time)}</p><p><strong>Location:</strong> ${esc(location)}</p></div><p class="collection-id">Form ID: ${esc(entryId)}</p></div>`;
+        root.innerHTML=`<div class="collection-brand"><div><h1>Aprils Signature</h1><p>Elegance in Every Stitch</p></div><div class="collection-title"><strong>COLLECTION / DELIVERY FORM</strong><span>${esc(inv.invoiceNumber||"")}</span></div></div><div class="collection-customer"><p><strong>Customer:</strong> ${esc(inv.customer||"")}</p><p><strong>Phone:</strong> ${esc(inv.phone||"")}</p></div><table class="collection-items"><thead><tr><th>No.</th><th>Item / Description</th><th>Details</th><th>Quantity</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>${lines.map((l,i)=>`<tr><td>${i+1}</td><td>${esc(l.description||"")}</td><td>${esc(l.details||"")}</td><td>Quantity ${Number(l.quantity||1)}</td><td>${money(l.unitPrice)}</td><td>${money(Number(l.quantity||1)*Number(l.unitPrice||0))}</td></tr>`).join("")||`<tr><td>1</td><td>Order / Service</td><td>See invoice</td><td>Quantity 1</td><td>${money(inv.total)}</td><td>${money(inv.total)}</td></tr>`}</tbody></table><div class="collection-summary"><p><strong>Total Cost:</strong> ${money(inv.total)}</p><p><strong>Payment Made:</strong> ${money(paid)}</p><p><strong>Balance:</strong> ${money(balance)}</p></div><div class="collection-details"><h3>Collection / Delivery Details</h3><p><strong>Date:</strong> ${esc(formatDate(date))}</p><p><strong>Time:</strong> ${esc(time)}</p><p><strong>Location:</strong> ${esc(location)}</p></div><p class="collection-id">Form ID: ${esc(entryId)}</p></div>`;
         document.body.appendChild(root);
         try{
             const h2p=window.html2pdf;if(!h2p)throw new Error("PDF service unavailable. Refresh the admin page and try again.");
@@ -673,22 +681,10 @@ replacing the existing Supabase structure.
     function boot(){
         addCss(); addSections(); improveTextCapitalisation(); improveQuoteSubmission();
         patchGlobals(); addAuditClear(); attachSearchBoxes();
-        // Re-run corrected data views after the original admin startup has completed.
-        setTimeout(async()=>{
-            try{if(typeof window.loadOrderTracking==="function")await window.loadOrderTracking()}catch(_){}
-            try{if(typeof window.loadRegistrations==="function")await window.loadRegistrations()}catch(_){}
-            try{if(typeof window.loadSavedInvoiceReceiptRecords==="function")await window.loadSavedInvoiceReceiptRecords()}catch(_){}
-            try{addInvoiceImageAttachmentUI()}catch(_){}
-            attachSearchBoxes();
-            // Preserve the currently selected admin section across refreshes.
-            try{
-                const id=sessionStorage.getItem("aprils_admin_current_section");
-                if(id){
-                    const b=document.querySelector(`.sidebar button[data-section="${CSS.escape(id)}"]`);
-                    if(b)b.click();
-                }
-            }catch(_){}
-        },900);
+        // Do not reload sections automatically here. The core admin navigation already
+        // loads the active section; duplicate background reloads caused visible flicker
+        // and made the dashboard feel unnecessarily slow.
+        try{addInvoiceImageAttachmentUI()}catch(_){}
         // Invoice modals are created dynamically, so observe them for image attachment UI.
         const observer=new MutationObserver(()=>{try{addInvoiceImageAttachmentUI()}catch(_){}});
         observer.observe(document.body,{childList:true,subtree:true});

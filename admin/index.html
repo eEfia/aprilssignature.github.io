@@ -939,16 +939,15 @@ placeholder="e.g. 900.00"
 
 
 <div class="form-group">
+<label for="galleryImageFile">Attach New Image or Video</label>
+<input id="galleryImageFile" type="file" accept="image/*,video/mp4,video/webm,video/ogg,video/*">
+<small>Choose a new image or video from this device. It will be uploaded to the website and used for this gallery item.</small>
+</div>
 
-<label>
-Image URL
-</label>
-
-<input
-id="galleryImage"
-placeholder="images/photo.jpg or videos/video.mp4"
->
-
+<div class="form-group">
+<label for="galleryImage">Image / Video URL (optional)</label>
+<input id="galleryImage" placeholder="Existing website media path or URL">
+<small>Use this only when the media is already uploaded. A newly attached file takes priority.</small>
 </div>
 
 
@@ -1046,7 +1045,8 @@ SERVICES
 <input type="hidden" id="homepageMediaId">
 <div class="form-grid">
 <div class="form-group"><label for="homepageMediaTitle">Title</label><input id="homepageMediaTitle" required placeholder="e.g. New Featured Collection"></div>
-<div class="form-group"><label for="homepageMediaUrl">Image / Video URL</label><input id="homepageMediaUrl" required placeholder="https://... or videos/video.mp4"></div>
+<div class="form-group"><label for="homepageMediaFile">Attach New Image or Video</label><input id="homepageMediaFile" type="file" accept="image/*,video/mp4,video/webm,video/ogg,video/*"><small>Choose a new image or video from this device. It will be uploaded to the website and used for this homepage item.</small></div>
+<div class="form-group"><label for="homepageMediaUrl">Image / Video URL (optional)</label><input id="homepageMediaUrl" placeholder="Existing website media path or URL"><small>Use this only when the media is already uploaded. A newly attached file takes priority.</small></div>
 <div class="form-group"><label for="homepageMediaOrder">Display Order</label><input id="homepageMediaOrder" type="number" min="1" value="1"></div>
 </div>
 <div class="form-group"><label for="homepageMediaDescription">Description</label><textarea id="homepageMediaDescription" placeholder="Optional description to show on the homepage."></textarea></div>
@@ -2006,10 +2006,10 @@ You can also remove the current public logo without deleting the original projec
 <script src="../js/supabase-client.js?v=20260827-corrections"></script>
 <script src="../js/notification-dispatch.js?v=20260827-corrections"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-<script src="admin.js?v=20260831-final-all" defer></script>
+<script src="admin.js?v=20260901-final2" defer></script>
 <script src="Admin-fixes.js?v=20260831-final-all" defer></script>
-<script src="commerce-admin.js?v=20260831-final-all" defer></script>
-<script src="final-fixes.js?v=20260831-final-all"></script><script src="final-fixes-v2.js?v=20260831-final-all"></script>
+<script src="commerce-admin.js?v=20260901-final2" defer></script>
+<script src="final-fixes.js?v=20260901-final3" defer></script><script src="final-fixes-v2.js?v=20260901-final3" defer></script>
 
 
 <style>
@@ -2142,8 +2142,8 @@ button.button-working{opacity:.78;cursor:wait;transform:translateY(1px);box-shad
 @media(max-width:900px){.submission-status-strip{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:600px){.submission-card-grid{grid-template-columns:1fr;}.submission-card-gridline{grid-template-columns:1fr;}.submission-card-gridline .wide{grid-column:auto;}.submission-status-strip{grid-template-columns:1fr;}}
 </style>
-<script src="../js/pwa-register.js"></script><script src="strict-final-integration.js?v=20260901-final" defer></script><script src="final-correction-pass-20260901.js?v=20260901-final" defer></script>
-<script src="../js/text-input-normalizer.js"></script></body>
+<script src="../js/pwa-register.js"></script><script src="strict-final-integration.js?v=20260901-final3" defer></script><script src="ultimate-corrections.js?v=20260901-final3" defer></script>
+</body>
 </html>
 
 <style>
