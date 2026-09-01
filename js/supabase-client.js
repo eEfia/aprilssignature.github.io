@@ -5,7 +5,7 @@
     if (!window.APRILS_SUPABASE_CONFIG) {
 
         console.error(
-            "Supabase configuration was not found."
+            "Supabase configurat was not found."
         );
 
         return;
