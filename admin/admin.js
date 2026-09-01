@@ -292,7 +292,9 @@ async function checkSession() {
             window._aprilsAdminUser = result.data.session.user;
             login.style.display = "none";
             try { await seedInitialPublicContent(); } catch (_) {}
-            try { await cleanupExactDuplicates(); } catch (_) {}
+            // Duplicate cleanup is intentionally NOT run during every login. It was
+            // causing a long chain of database reads/deletes and making the admin flicker
+            // or appear frozen. Duplicate cleanup remains available from its own tools.
             await syncOfflineInvoiceRecords();
             await applyCurrentUserAccess(result.data.session.user);
             window._aprilsAuditReady = true;
@@ -405,27 +407,27 @@ async function loadDashboard() {
         }]
     };
 
-    for (const id in counters) {
+    await Promise.all(Object.entries(counters).map(async ([id, [table, keyFn]]) => {
         const element = document.getElementById(id);
-        if (!element) continue;
-        const [table, keyFn] = counters[id];
+        if (!element) return;
         element.textContent = await countUniqueRows(table, keyFn);
-    }
+    }));
 }
 
 async function loadSection(id) {
     try {
+        const globalLoader = (name, fallback) => (typeof window[name] === "function" ? window[name] : fallback);
         if (id === "dashboard") await loadDashboard();
         if (id === "gallery") await loadGallery();
         if (id === "homepage") await loadHomepageMedia();
         if (id === "training") await loadTraining();
-        if (id === "registrations") await loadRegistrations();
+        if (id === "registrations") await globalLoader("loadRegistrations", loadRegistrations)();
         if (id === "orders") await loadQuotes();
-        if (id === "orderTracking") await loadOrderTracking();
-        if (id === "trainees") await loadTrainees();
+        if (id === "orderTracking") await globalLoader("loadOrderTracking", loadOrderTracking)();
+        if (id === "trainees") await globalLoader("loadTrainees", loadTrainees)();
         if (id === "invoice") await loadInvoicePricing();
-        if (id === "manualInvoice") await loadSavedInvoiceReceiptRecords();
-        if (id === "usersInvoice") await loadSavedInvoiceReceiptRecords();
+        if (id === "manualInvoice") await globalLoader("loadSavedInvoiceReceiptRecords", loadSavedInvoiceReceiptRecords)();
+        if (id === "usersInvoice") await globalLoader("loadSavedInvoiceReceiptRecords", loadSavedInvoiceReceiptRecords)();
         if (id === "collectionForms") await loadCollectionInvoiceOptions();
         if (id === "inventory" && window.loadInventory) await window.loadInventory();
         if (id === "checkout" && window.loadCheckoutOrders) await window.loadCheckoutOrders();
@@ -6571,6 +6573,14 @@ function setupUserAccess(){
 
 // Public bridge for the commerce admin module. The invoice generator itself
 // remains unchanged; checkout/inventory can open the exact same generator.
+// Public API used by the correction layers. Keeping these functions on window prevents
+// the additive correction scripts from silently losing access to the core admin services.
+window.getRows = getRows;
+window.safeSettingUpsert = safeSettingUpsert;
+window.auditSystemEvent = auditSystemEvent;
+window.setAdminRecordStatus = setAdminRecordStatus;
+window.showSubmissionDetails = showSubmissionDetails;
+window.message = message;
 window.aprilsOpenInvoiceGenerator = openInvoiceGenerator;
 window.aprilsShowSubmissionDetails = showSubmissionDetails;
 // Public module bridge: correction layers and dynamic admin sections use these functions.

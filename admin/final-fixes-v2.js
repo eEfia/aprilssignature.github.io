@@ -303,11 +303,11 @@ async function loadTraineesEnhanced(){
   const d=db();if(!d){list.innerHTML="<div class='empty'>Supabase is unavailable.</div>";return}
   try{
     const [tr,settings]=await Promise.all([
-      d.from("training_registrations").select("*").order("created_at",{ascending:false}),
+      (typeof window.getRows === "function" ? window.getRows("training_registrations") : d.from("training_registrations").select("*")),
       settingsRows()
     ]);
     if(tr.error)throw tr.error;
-    const rows=tr.data||[], sm=new Map();
+    const rows=(tr.data||tr||[]).slice().sort((a,b)=>String(b.created_at||b.updated_at||b.createdAt||b.updatedAt||"").localeCompare(String(a.created_at||a.updated_at||a.createdAt||a.updatedAt||""))), sm=new Map();
     settings.filter(r=>String(r.setting_key||"").startsWith("training_status_")).forEach(r=>sm.set(String(r.setting_key).replace("training_status_",""),String(r.setting_value||"under_review")));
     const invoices=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
     const payments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
