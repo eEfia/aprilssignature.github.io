@@ -10,7 +10,7 @@
  function busy(btn,on,label){if(!btn)return;btn.disabled=on;btn.classList.toggle("button-working",!!on);btn.setAttribute("aria-busy",on?"true":"false");}
  async function renderShopPreview(){const box=document.getElementById("shopInventoryPreview");if(!box)return;try{const items=await getInventory();box.innerHTML=items.length?`<h4>Shop Items</h4><table><thead><tr><th>Image</th><th>Garment</th><th>Price</th><th>Qty</th><th>Public</th></tr></thead><tbody>${items.map(x=>`<tr><td>${x.image?`<img class="inventory-thumb" src="${esc(x.image)}" alt="">`:`—`}</td><td>${esc(x.name)}</td><td>GHS ${Number(x.price||0).toFixed(2)}</td><td>${Number(x.quantity||0)}</td><td>${x.active!==false?"Yes":"No"}</td></tr>`).join("")}</tbody></table>`:`<h4>Shop Items</h4><div class="empty">No inventory items have been added yet. Add garments in Inventory / Stock and they will appear here and on the public Shop.</div>`}catch(e){box.innerHTML=`<div class="empty">Shop items could not be loaded: ${esc(e.message)}</div>`}}
  async function renderInventoryCollectionOrder(items){
-    const box=document.getElementById("inventoryCollectionOrderList");if(!box)return;
+    const box=document.getElementById("inventoryCollectionOrderLisox)return;
     const names=[...new Set((items||[]).map(x=>String(x.collection||"").trim()).filter(Boolean))];
     const settings=await rows();
     const orderMap=new Map();
