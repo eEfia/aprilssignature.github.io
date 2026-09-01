@@ -12,16 +12,13 @@ const DEFAULT_GALLERY_COLLECTIONS = [
     "Rhinestone Embellishment",
     "Fashion Creations",
     "Featured Collection",
-    "Embellishment Projects"
+    "Embellishment Projs"
 ];
 
 const DEFAULT_SERVICE_CATEGORIES = [
     "Streetwear",
     "Ladies Wear",
-    "Kids Wear",
-    "Rhinestone Embellishment",
-    "T-Shirt Printing",
-    "Dressmaking Training",
+    "Kids Wear"",
     "Screen Painting",
     "Glitter Works",
     "Practical Fashion Training"
