@@ -9,7 +9,7 @@
    ========================================================= */
 
 * {
-    box-sizing: borderx;
+    box-sizing: border-box;
 }
 
 html {
