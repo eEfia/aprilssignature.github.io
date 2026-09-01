@@ -1794,6 +1794,13 @@ function invoicePriceFor(map, name) {
     return 0;
 }
 
+function quantityInWords(value) {
+    const n=Math.max(0,Math.floor(Number(value)||0));
+    const ones=["zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
+    const tens=["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+    if(n<20)return ones[n]; if(n<100)return tens[Math.floor(n/10)]+(n%10?"-"+ones[n%10]:""); if(n<1000)return ones[Math.floor(n/100)]+" hundred"+(n%100?" "+quantityInWords(n%100):""); if(n<1000000)return quantityInWords(Math.floor(n/1000))+" thousand"+(n%1000?" "+quantityInWords(n%1000):""); return String(n);
+}
+
 function buildInvoiceLinesFromQuote(row, details, priceMap) {
     if (Array.isArray(details?.manualLines)) {
         return details.manualLines.map(line => ({
@@ -1806,6 +1813,15 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
 
     const lines = [];
 
+    if (details?.checkout && Array.isArray(details.items)) {
+        details.items.forEach(item => {
+            const quantity=Math.max(1,Number(item?.quantity||1));
+            const product=String(item?.name||item?.product||"Item").trim();
+            if(!product)return;
+            lines.push({description:product,quantity,unitPrice:Number(item?.unitPrice||invoicePriceFor(priceMap,product)||0),details:[`Quantity in words: ${quantityInWords(quantity)}`,item?.size,item?.colour,item?.details].filter(Boolean).join(" • ")});
+        });
+    }
+
     if (details?.streetwear && typeof details.streetwear === "object") {
         Object.values(details.streetwear).forEach(item => {
             if (!item) return;
@@ -1816,7 +1832,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
                 description: product,
                 quantity,
                 unitPrice: invoicePriceFor(priceMap, product),
-                details: [item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")
+                details: [`Quantity in words: ${quantityInWords(quantity)}`, item.size, item.measurements, item.colour, item.details].filter(Boolean).join(" • ")
             });
         });
     }
@@ -1826,7 +1842,7 @@ function buildInvoiceLinesFromQuote(row, details, priceMap) {
             if (!item) return;
             const product = item.product || "Ladies Wear";
             const quantity = Math.max(1, Number(item.quantity || 1));
-            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour, item.details].filter(Boolean).join(" • ")});
+            lines.push({description: product, quantity, unitPrice: invoicePriceFor(priceMap, product), details: [`Quantity in words: ${quantityInWords(quantity)}`, item.size, (item.measurements && String(item.measurements).trim() !== String(item.size || "").trim() ? item.measurements : ""), item.colour, item.details].filter(Boolean).join(" • ")});
         });
     }
 
@@ -3934,16 +3950,16 @@ function summarizeQuoteQuantities(row) {
             if (!item) return;
             const product = typeof item === "object" ? item.product : "";
             const quantity = typeof item === "object" ? item.quantity : item;
-            if (product && quantity) quantities.push(`${product}: Quantity: ${quantity}`);
+            if (product && quantity) quantities.push(`${product}: Quantity: ${quantityInWords(quantity)} (${quantity})`);
         });
     }
     if (details?.ladiesWearProducts && typeof details.ladiesWearProducts === "object" && Object.keys(details.ladiesWearProducts).length) {
-        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: Quantity: ${item.quantity}`); });
-    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: Quantity: ${details.ladiesWearQuantity}`);
-    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: Quantity: ${details.kidsWearQuantity}`);
+        Object.values(details.ladiesWearProducts).forEach(item => { if (item?.product && item?.quantity) quantities.push(`${item.product}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})`); });
+    } else if (details?.ladiesWearQuantity) quantities.push(`Ladies Wear: Quantity: ${quantityInWords(details.ladiesWearQuantity)} (${details.ladiesWearQuantity})`);
+    if (details?.kidsWearQuantity) quantities.push(`Kids Wear: Quantity: ${quantityInWords(details.kidsWearQuantity)} (${details.kidsWearQuantity})`);
     if (details?.embellishmentDetails) {
         Object.entries(details.embellishmentDetails).forEach(([name,item]) => {
-            if (item?.quantity) quantities.push(`${name}: Quantity: ${item.quantity}`);
+            if (item?.quantity) quantities.push(`${name}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})`);
         });
     }
     return quantities.join(" • ") || "—";
@@ -3969,7 +3985,7 @@ function summarizeQuoteDetails(row) {
             const size = typeof item === "object" ? String(item.size || "").trim() : "";
             const measurements = typeof item === "object" ? String(item.measurements || "").trim() : "";
             const detailText = typeof item === "object" ? [size || measurements, item.colour].filter(Boolean).join(" • ") : "";
-            if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
+            if (product) parts.push(`${product}: Quantity: ${quantityInWords(item.quantity)} (${item.quantity})${detailText ? " • "+detailText : ""}`);
         });
     }
     if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
@@ -4232,7 +4248,7 @@ async function loadTrainees(){
  }catch(e){list.innerHTML=`<div class="empty">Trainees could not be loaded: ${escapeHTML(e.message||"")}</div>`}
 }
 async function loadEnquiries() {
-    const rows = await getRows("enquiries");
+    const rows = (await getRows("enquiries")).sort((a,b)=>String(b.created_at||b.updated_at||"").localeCompare(String(a.created_at||a.updated_at||"")));
     const list = document.getElementById("enquiryList");
     if (!list) return;
 
@@ -5015,9 +5031,24 @@ function setupInvoicePaymentForm(){
             renderInvoicePaymentRowsFromCurrentDom();
             message("Invoice payment details saved.", "success");
             // Keep the saved records visible below, but leave the entry fields blank for the next record.
+            // Keep the entry area blank after saving. Do not reload saved values into the entry form.
             renderInvoicePaymentRows([{}]);
-            await loadInvoicePaymentDetails();
-            renderInvoicePaymentRows([{}]);
+            const saved = document.getElementById("invoicePaymentSaved");
+            if (saved) {
+                const freshAccounts = accounts;
+                saved.innerHTML = freshAccounts.length ? `
+                    <div class="payment-details-list">
+                        ${freshAccounts.map((item,index) => `
+                            <div style="border:1px solid #aaa;border-radius:6px;padding:12px;margin-bottom:10px;">
+                                <strong>Payment Detail ${index+1}</strong><br>
+                                ${escapeHTML(item.network || "")} ${escapeHTML(item.number || "")}<br>
+                                ${escapeHTML(item.name || "")}${item.branch ? `<br>Branch: ${escapeHTML(item.branch)}` : ""}<br>
+                                <div style="margin-top:8px;font-weight:700;border-left:4px solid #c9a227;padding:8px 10px;">
+                                    <strong>*** Payment Note ***</strong><br>${escapeHTML(item.note || "No payment note saved.")}
+                                </div>
+                            </div>`).join("")}
+                    </div>` : `<div class="empty">No invoice payment details have been saved yet. Add your first payment detail above.</div>`;
+            }
         } catch (error) {
             message("Invoice payment details could not be saved: " + error.message, "error");
         }

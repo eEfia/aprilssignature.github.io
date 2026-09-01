@@ -132,7 +132,7 @@ async function loadStaff(){
   }catch(e){list.innerHTML=`<div class="empty">Staff records could not be loaded: ${esc(e.message||"")}</div>`}
 }
 function fillStaff(r){
-  const map={staffHRId:r._id,staffHRStaffId:r.staffId,staffHRStaffIdDisplay:r.staffId,staffHRName:r.name,staffHREmail:r.email,staffHRPhone:r.phone,staffHRPosition:r.position,staffHREmployment:r.employment||"Active",staffHRStartDate:r.startDate,staffHRAddress:r.address,staffHREmergencyName:r.emergencyName,staffHREmergencyPhone:r.emergencyPhone,staffHREducation:r.education,staffHREducationBackground:r.educationBackground,staffHRSkills:r.skills,staffHRSalary:r.salary,staffHRBonus:r.bonus,staffHRPayNotes:r.payNotes,staffHRNotes:r.notes};
+  const map={staffHRId:r._id,staffHRStaffId:r.staffId,staffHRStaffIdDisplay:r.staffId,staffHRIdCardType:r.idCardType,staffHRIdCardNumber:r.idCardNumber,staffHRIdCardRegistered:r.idCardRegistered,staffHRIdCardExpiry:r.idCardExpiry,staffHRName:r.name,staffHREmail:r.email,staffHRPhone:r.phone,staffHRPosition:r.position,staffHREmployment:r.employment||"Active",staffHRStartDate:r.startDate,staffHRAddress:r.address,staffHREmergencyName:r.emergencyName,staffHREmergencyPhone:r.emergencyPhone,staffHREducation:r.education,staffHREducationBackground:r.educationBackground,staffHRSkills:r.skills,staffHRSalary:r.salary,staffHRBonus:r.bonus,staffHRPayNotes:r.payNotes,staffHRNotes:r.notes};
   Object.entries(map).forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.value=v??""}); document.getElementById("staffHRForm")?.scrollIntoView({behavior:"smooth",block:"start"});
 }
 function setupStaffForm(){
@@ -304,7 +304,7 @@ async function loadTraineesEnhanced(){
       let status=sm.get(String(row.id))||"under_review";
       if(!sm.has(String(row.id))){if(total>0&&balance<=0)status="fully_paid";else if(paid>0)status="part_paid";else if(invoice)status="invoice_generated";}
       return {row,invoice,paid,total,balance,status};
-    });
+    }).sort((a,b)=>String(b.row.created_at||"").localeCompare(String(a.row.created_at||"")));
     const tabs=TRAINING_STATUSES;
     const tabButtons=`<div class="final-tracking-tabs">${tabs.map(([k,l])=>`<button type="button" class="final-status-tab" data-trainee-tab="${k}">${esc(l)} <span>${records.filter(x=>x.status===k).length}</span></button>`).join("")}</div>`;
     const card=x=>`<article class="tracking-order-card trainee-enhanced-card" data-trainee-status="${esc(x.status)}"><div class="tracking-card-head"><div><strong>${esc(x.row.full_name||"Trainee")}</strong><small>${esc(x.row.course||"Training")}</small></div><time>${esc(gmtDate(x.row.created_at))}</time></div><div class="tracking-card-data"><span><b>Phone</b>${esc(x.row.phone||"—")}</span><span><b>Invoice</b>${esc(x.invoice?.invoiceNumber||"—")}</span><span><b>Paid</b>${money(x.paid)}</span><span><b>Balance</b>${money(x.balance)}</span></div><div class="tracking-card-status"><select class="admin-status-select" data-trainee-status-id="${esc(x.row.id)}">${TRAINING_STATUSES.map(([k,l])=>`<option value="${k}" ${k===x.status?"selected":""}>${esc(l)}</option>`).join("")}</select><button type="button" class="secondary" data-trainee-save="${esc(x.row.id)}">Save</button></div><button type="button" class="secondary" data-view-trainee="${esc(x.row.id)}">View Full Details</button></article>`;

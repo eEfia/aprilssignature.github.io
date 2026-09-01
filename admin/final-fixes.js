@@ -380,7 +380,7 @@ replacing the existing Supabase structure.
             const rows=await getRowsSafe("settings");
             const invoices=rows.filter(r=>String(r.setting_key||"").startsWith("invoice_record_")).map(r=>{try{return{type:"Invoice",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
             const receipts=rows.filter(r=>String(r.setting_key||"").startsWith("receipt_record_")).map(r=>{try{return{type:"Receipt",id:r.id,key:r.setting_key,...JSON.parse(r.setting_value||"{}")}}catch(_){return null}}).filter(Boolean);
-            const all=[...invoices,...receipts];
+            const all=[...invoices,...receipts].sort((a,b)=>String(b.date||b.savedAt||b.generatedAt||"").localeCompare(String(a.date||a.savedAt||a.generatedAt||"")));
             for(const r of invoices){const p=await paymentRows(r.invoiceNumber);r._paid=p.reduce((a,x)=>a+Number(x.amount||0),0)}
             userList.innerHTML=all.length?`<table><thead><tr><th>Type</th><th>Number</th><th>Date</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead><tbody>${all.map(r=>{
                 const amount=r.type==="Receipt"?Number(r.amount||0):Number(r.total||0);
