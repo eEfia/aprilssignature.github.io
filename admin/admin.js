@@ -9,7 +9,7 @@ let db = null;
 
 const DEFAULT_GALLERY_COLLECTIONS = [
     "Streetwear Collection",
-    "Rhinestone Embellisht",
+    "Rhinestone Embellishment",
     "Fashion Creations",
     "Featured Collection",
     "Embellishment Projects"
