@@ -8,7 +8,7 @@
 
 const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])));
 const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
-const getRows=()=>typeof window.getRows==="function"?window.getRows("settings"):Promise.resolve([]);
+const getRows=()=>typeof window.getRows==="function"?window.gets("settings"):Promise.resolve([]);
 const money=v=>`GHS ${Number(v||0).toFixed(2)}`;
 const gmtDate=v=>{
   if(!v)return "—";
