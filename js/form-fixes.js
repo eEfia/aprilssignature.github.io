@@ -15,7 +15,7 @@ PUBLIC FORM FIXES
 
     function waitForSupabase(timeout = 15000) {
         const ready = getSupabase();
-        if (ready) return Promise.resolve(dy);
+        if (ready) return Promise.resolve(ready);
         return new Promise(resolve => {
             let done = false;
             const finish = value => {
