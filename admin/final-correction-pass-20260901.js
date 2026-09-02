@@ -4,7 +4,7 @@
 (function(){
   "use strict";
   const db=()=>window.aprilsSupabase||null;
-  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c]));
+  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">"t;","\"":"&quot;","'":"&#039;"}[c]));
   const slug=v=>String(v??"").trim().toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,90);
   const money=v=>`GHS ${Number(v||0).toFixed(2)}`;
   const msg=(t,type="success")=>window.message&&window.message(t,type);
