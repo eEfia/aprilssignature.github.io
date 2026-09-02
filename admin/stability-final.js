@@ -7,7 +7,7 @@
   function markLoading(id){
     const el=document.getElementById(id);
     if(el && !el.dataset.hasRenderedData){
-      el.innerHTML='<div class="empty">Loading sd records…</div>';
+      el.innerHTML='<div class="empty">Loading saved records…</div>';
     }
   }
   function markRendered(){
