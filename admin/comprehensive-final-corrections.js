@@ -1,7 +1,7 @@
 /* Comprehensive correction layer — September 2, 2026.
    This file intentionally augments the existing admin application without replacing its data model. */
 (function(){'use strict';
-const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document..r.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const msg=(t,k='success')=>window.message?window.message(t,k):console[k==='error'?'error':'log'](t);
 
