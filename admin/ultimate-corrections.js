@@ -8,7 +8,7 @@
 "use strict";
 
 const db=()=>window.aprilsSupabase||window.AprilsSupabase||null;
-const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])));
+const esc=window.escapeHTML||((v)=>String(v??"").replace(/[&]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c])));
 const norm=v=>String(v??"").trim().toLowerCase().replace(/\s+/g," ");
 const slug=v=>String(v??"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"").slice(0,90);
 const money=v=>`GHS ${Number(v||0).toFixed(2)}`;
