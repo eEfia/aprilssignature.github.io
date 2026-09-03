@@ -11,7 +11,7 @@ const DEFAULT_GALLERY_COLLECTIONS = [
     "Streetwear Collection",
     "Rhinestone Embellishment",
     "Fashion Creations",
-    "Featured Collection",
+    "Featured Collecti
     "Embellishment Projects"
 ];
 
