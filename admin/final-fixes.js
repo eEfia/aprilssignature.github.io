@@ -11,7 +11,7 @@ replacing the existing Supabase structure.
 (function(){
     const STATUS_ORDER = [
         ["under_review","New Customer — Under Review"],
-        ["invoice_generated","Invoice Generated"],
+        ["invoice_generated","Invoice Generd"],
         ["deposit_paid","Deposit Paid"],
         ["part_paid","Part Paid"],
         ["order_taken","Confirmed / Order Taken"],
