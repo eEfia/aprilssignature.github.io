@@ -16,7 +16,7 @@
         window.APRILS_SUPABASE_CONFIG.url;
 
     const key =
-        window.APRILS_SUPABASE_CONFIG.publishableKey;
+        window.APRILS_SUPABASE_CONFIG.publishab;
 
 
     function loadSupabase() {
