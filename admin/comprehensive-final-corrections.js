@@ -3,7 +3,7 @@
 (function(){'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const msg=(t,k='success')=>window.message?window.message(t,k):console[k==='error'?'errlog'](t);
+const msg=(t,k='success')=>window.message?window.message(t,k):console[k==='error'?'error':'log'](t);
 
 /* 1) Stable wording everywhere requested. */
 function normalizeLabels(){

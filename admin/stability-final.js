@@ -1,6 +1,6 @@
 /* Aprils Signature — final admin stability layer.
  * This layer does not change the public Order/Quote form. It only makes the admin
- * reliably use the corrected loaders and prevents repeated backgrourefreshes.
+ * reliably use the corrected loaders and prevents repeated background refreshes.
  */
 (function(){
   "use strict";

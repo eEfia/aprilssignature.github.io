@@ -11,7 +11,7 @@ replacing the existing Supabase structure.
 (function(){
     const STATUS_ORDER = [
         ["under_review","New Customer — Under Review"],
-        ["invoice_generated","Invoice Generd"],
+        ["invoice_generated","Invoice Generated"],
         ["deposit_paid","Deposit Paid"],
         ["part_paid","Part Paid"],
         ["order_taken","Confirmed / Order Taken"],
@@ -189,6 +189,8 @@ replacing the existing Supabase structure.
             const allPayments=settings.filter(r=>String(r.setting_key||"").startsWith("invoice_payment_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
             const refunds=settings.filter(r=>String(r.setting_key||"").startsWith("refund_record_")).map(r=>{try{return JSON.parse(r.setting_value||"{}")}catch(_){return null}}).filter(Boolean);
             const deliveryMap=new Map(settings.filter(r=>String(r.setting_key||"").startsWith("delivery_tracking_")).map(r=>{try{return [String(r.setting_key).replace("delivery_tracking_",""),JSON.parse(r.setting_value||"{}")]}catch(_){return [String(r.setting_key).replace("delivery_tracking_",""),{}]}}));
+            const orderStatusMap=new Map(settings.filter(r=>String(r.setting_key||"").startsWith("quote_status_")).map(r=>[String(r.setting_key).replace("quote_status_",""),String(r.setting_value||"under_review")]));
+            const orderPaymentStatusMap=new Map(settings.filter(r=>String(r.setting_key||"").startsWith("payment_status_quote_")).map(r=>[String(r.setting_key).replace("payment_status_quote_",""),String(r.setting_value||"unpaid")]));
             const records=[];
             for(const row of rows){
                 const j=row.journey?rowDetails(row):{};
