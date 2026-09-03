@@ -15,7 +15,7 @@
 
 function escapeHTML(value) {
     return String(value ?? "")
-        .replace(/&/g, p;")
+        .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
@@ -1953,18 +1953,10 @@ if (
 
 })();
 
-/* APRILS FIRST-LETTER CAPITALIZATION */
+/* APRILS SMART TEXT FORMATTER — sentence grammar + identifiable names only */
 (function(){
-    const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
-    document.addEventListener("input",function(e){
-        const el=e.target;
-        if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;
-        if(skip.has(String(el.type||"").toLowerCase()))return;
-        if(/email|url|password|phone|whatsapp|website|link/i.test(String(el.name||"")+" "+String(el.id||"")))return;
-        el.value=String(el.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
-    },true);
-})();
-
+const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);const terms=["bubu","kaftan","jersey","hoodie","joggers","sweatshirt","sweatpants","t-shirt","t shirts","polo","varsity jacket","cargo pants","cargo skirts","jorts","winneba","ghana","aprils signature"];
+function f(el){if(!(el instanceof HTMLInputElement||el instanceof HTMLTextAreaElement))return;const t=String(el.type||"").toLowerCase(),m=String(el.name||"")+" "+String(el.id||"");if(skip.has(t)||/email|url|password|phone|whatsapp|website|link/i.test(m))return;let v=String(el.value||"");v=v.replace(/(^|[.!?]\s+)([a-z])/g,(_,p,c)=>p+c.toUpperCase());for(const term of terms){const re=new RegExp("(^|\\s|[(/-])("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")(?=$|[\\s.,!?)/-])","gi");v=v.replace(re,(m,p,w)=>p+w.charAt(0).toUpperCase()+w.slice(1));}v=v.replace(/([a-z])([A-Z])/g,"$1 $2");el.value=v;}document.addEventListener("blur",e=>f(e.target),true);document.addEventListener("change",e=>f(e.target),true);})();
 
 /* Strict correction bridge: public pages always re-read current admin-managed
    products/training prices so edits are reflected without rebuilding static HTML. */

@@ -8,7 +8,7 @@
   document.documentElement.lang="en-GB";
   function apply(){
     document.querySelectorAll('input[type="date"]').forEach(i=>{
-      i.lang="en-G
+      i.lang="en-GB";
       i.title="Date format: DD/MM/YYYY";
       const l=i.closest(".form-group")?.querySelector("label");
       if(l&&!/DD\/MM\/YYYY/i.test(l.textContent))l.insertAdjacentText("beforeend"," (DD/MM/YYYY)");
