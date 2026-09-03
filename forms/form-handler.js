@@ -12,7 +12,7 @@ Forms covered:
 3. Contact Messages
 
 IMPORTANT:
-This file does NOT pretend to be a dae.
+This file does NOT pretend to be a database.
 The actual secure storage/submission connection
 will be connected separately.
 =========================================================
