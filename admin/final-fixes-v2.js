@@ -353,7 +353,7 @@ function exportSectionCSV(wrap,filename){
 function enhanceSearchBox(box,wrap){
   if(box.dataset.v2)return;box.dataset.v2="1";
   box.className="admin-table-search v2-search";
-  box.innerHTML=`<div class="v2-search-row"><input type="search" aria-label="Search saved items" placeholder="Search by customer, invoice, item, product, name or number…"><select aria-label="Saved items"><option value="">Saved items — choose one</option></select><input type="date" aria-label="Date from"><input type="date" aria-label="Date to"><button type="button" class="secondary v2-share-pdf">Share PDF</button><button type="button" class="secondary v2-print">Print</button><button type="button" class="secondary v2-export">Export CSV</button></div>`;
+  box.innerHTML=`<div class="v2-search-row"><input type="search" aria-label="Search saved items" placeholder="Search by customer, invoice, item, product, name or number…"><select aria-label="Saved items"><option value="">Saved items — choose one</option></select><input type="date" aria-label="Date from"><input type="date" aria-label="Date to"><button type="button" class="secondary v2-export">Export CSV</button></div>`;
   const input=box.querySelector('input[type="search"]'),select=box.querySelector("select"),from=box.querySelector('input[type="date"]'),to=box.querySelectorAll('input[type="date"]')[1];
   const options=[...wrap.querySelectorAll("tbody tr")].map(r=>String(r.innerText||"").trim()).filter(Boolean).slice(0,200);
   options.forEach((v,i)=>{const o=document.createElement("option");o.value=String(i);o.textContent=v.slice(0,120);select.appendChild(o)});
@@ -367,7 +367,7 @@ function enhanceSearchBox(box,wrap){
     });
   };
   input.oninput=apply;from.onchange=apply;to.onchange=apply;select.onchange=()=>{const v=select.value;if(v!==""){input.value=options[Number(v)]||"";apply()}};
-  box.querySelector(".v2-share-pdf")?.addEventListener("click",()=>window.aprilsShareTablePdf?.(wrap));box.querySelector(".v2-print")?.addEventListener("click",()=>window.aprilsPrintTable?.(wrap));box.querySelector(".v2-export").onclick=()=>exportSectionCSV(wrap,"aprils-signature-export");
+  box.querySelector(".v2-export").onclick=()=>exportSectionCSV(wrap,"aprils-signature-export");
 }
 function refreshSavedSearchOptions(){
  document.querySelectorAll(".section .table-wrap").forEach(wrap=>{

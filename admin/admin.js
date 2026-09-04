@@ -447,7 +447,6 @@ async function loadSection(id) {
         if (id === "contact") await loadContact();
         if (id === "settings") await loadSettings();
         if (id === "users") await loadUserAccess();
-        try { window.aprilsRefreshTableTools?.(); } catch (_) {}
     } catch (error) {
         console.error("ADMIN SECTION ERROR:", id, error);
         message("Could not load this section. Check your Supabase tables and policies.", "error");
@@ -2696,9 +2695,18 @@ async function openInvoiceGenerator(row, details) {
     if (!detailsLines.length) addLine();
     lineEditor.querySelector("#invoiceAddLine").onclick = () => { addLine(); renderInvoice(); };
 
-    // Preview updates are local only. Deliberate Save Invoice is the only write.
-    ["input","change"].forEach(evt => modal.addEventListener(evt, () => renderInvoice()));
+    // First render after all lines exist.
+    ["input","change"].forEach(evt => modal.addEventListener(evt, () => {
+        renderInvoice();
+        clearTimeout(window._aprilsAutoSaveInvoiceTimer);
+        window._aprilsAutoSaveInvoiceTimer = setTimeout(autoSaveInvoice, 900);
+    }));
     renderInvoice();
+
+    window._aprilsAutoSaveInvoiceTimer && clearTimeout(window._aprilsAutoSaveInvoiceTimer);
+    const autoSaveInvoice = async () => {
+        try { await statefulSaveGeneratedInvoice(row, details, savedPayments, true); } catch (error) { console.warn("Automatic invoice save skipped:", error); }
+    };
 
     modal.querySelector("#invoiceDownloadPdf").onclick = () => generateInvoicePdf(false);
     modal.querySelector("#invoiceSharePdf").onclick = () => generateInvoicePdf(true);
@@ -2718,6 +2726,7 @@ async function openInvoiceGenerator(row, details) {
     modal.classList.add("open");
 
     window._aprilsCurrentInvoice = { modal, preview, renderInvoice, row, details, paymentAccounts, savedPayments, discountOffer, isTrainingInvoice, entryId: details?.entryId || makeAprilsUniqueId("INV"), originalRecord: details?.existingRecord || null, attachments: Array.isArray(details?.existingRecord?.attachments) ? details.existingRecord.attachments : [] };
+    setTimeout(autoSaveInvoice, 150);
 }
 
 
@@ -2871,12 +2880,8 @@ async function generateInvoicePdf(share) {
                 await navigator.share({title: options.filename, text:"Aprils Signature Invoice", files:[file]});
                 return true;
             }
-            const fallbackUrl = URL.createObjectURL(blob);
-            const fallbackLink = document.createElement("a");
-            fallbackLink.href = fallbackUrl; fallbackLink.download = options.filename; fallbackLink.click();
-            setTimeout(()=>URL.revokeObjectURL(fallbackUrl),1500);
-            message("Invoice PDF generated and downloaded. Direct file sharing is not available in this browser.", "success");
-            return true;
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
@@ -3244,12 +3249,8 @@ async function generateReceiptPdf(share) {
                 await navigator.share({title: options.filename, text:"Aprils Signature Payment Receipt", files:[file]});
                 return true;
             }
-            const fallbackUrl = URL.createObjectURL(blob);
-            const fallbackLink = document.createElement("a");
-            fallbackLink.href = fallbackUrl; fallbackLink.download = options.filename; fallbackLink.click();
-            setTimeout(()=>URL.revokeObjectURL(fallbackUrl),1500);
-            message("Receipt PDF generated and downloaded. Direct file sharing is not available in this browser.", "success");
-            return true;
+            message("Your device/browser does not provide a file-sharing menu. No PDF page was opened. Try this button on a phone/tablet or a browser that supports file sharing.", "error");
+            return false;
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href=url; a.download=options.filename; a.click();
@@ -4040,11 +4041,11 @@ function summarizeQuoteDetails(row) {
             const size = typeof item === "object" ? String(item.size || "").trim() : "";
             const measurements = typeof item === "object" ? String(item.measurements || "").trim() : "";
             const detailText = typeof item === "object" ? [size || measurements, item.colour].filter(Boolean).join(" • ") : "";
-            if (product) parts.push(`${product}: Quantity: ${aprilsQuantityLabel(item.quantity || 1)}${detailText ? " • " + detailText : ""}`);
+            if (product) parts.push(`${product}: ${detailText}`.replace(/: $/,""));
         });
     }
-    if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", `Quantity: ${aprilsQuantityLabel(details.ladiesWearQuantity || 1)}`, details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
-    if (selected.includes("Kids Wear")) parts.push(["Kids Wear", `Quantity: ${aprilsQuantityLabel(details.kidsWearQuantity || 1)}`, details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
+    if (selected.includes("Ladies Wear")) parts.push(["Ladies Wear", details.ladiesWearSize, details.ladiesWearColour, details.ladiesWear].filter(Boolean).join(" • "));
+    if (selected.includes("Kids Wear")) parts.push(["Kids Wear", details.kidsWearSize, details.kidsWearColour, details.kidsWear].filter(Boolean).join(" • "));
     if (selected.includes("Address") && details.address) {
         const a=details.address; parts.push(["Address", a.size || a.measurements, a.colour, a.quantity, a.details].filter(Boolean).join(" • "));
     }
@@ -6510,7 +6511,7 @@ async function loadAuditLog(){
         const action=String(document.getElementById("auditActionFilter")?.value||"").trim().toLowerCase();
         const term=String(document.getElementById("auditSearch")?.value||"").trim().toLowerCase();
         const filtered=events.filter(e=>{const hay=JSON.stringify(e).toLowerCase();return(!selected||String(e.actorId||"")===selected)&&(!action||String(e.action||"").toLowerCase().includes(action))&&(!term||hay.includes(term));});
-        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Record</th><th>Details</th><th>Action</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre><button type="button" class="secondary" data-audit-view="${escapeHTML(e.id||e._id||e.entityId||"")}">View Full Details</button></td><td>${escapeHTML(e.action||"")}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
+        list.innerHTML=filtered.length?`<table><thead><tr><th>Date / Time</th><th>Staff ID</th><th>Staff Email</th><th>Action</th><th>Record</th><th>Details</th></tr></thead><tbody>${filtered.map(e=>`<tr><td>${escapeHTML(e.at||"")}</td><td><strong>${escapeHTML(e.actorId||"—")}</strong></td><td>${escapeHTML(e.actorEmail||"")}</td><td>${escapeHTML(e.action||"")}</td><td>${escapeHTML(String(e.entityType||"")+" / "+String(e.entityId||""))}</td><td><pre style="white-space:pre-wrap;margin:0;max-width:460px;">${escapeHTML(JSON.stringify(e.details||{},null,2))}</pre></td></tr>`).join("")}</tbody></table>`:`<div class="empty">No matching staff activity found.</div>`;
     }catch(e){list.innerHTML=`<div class="empty">Staff activity could not be loaded: ${escapeHTML(e.message||"")}</div>`;}
 }
 function setupAuditLog(){
@@ -6519,7 +6520,6 @@ function setupAuditLog(){
     document.getElementById("auditStaffFilter")?.addEventListener("change",loadAuditLog);
     document.getElementById("auditActionFilter")?.addEventListener("input",loadAuditLog);
     document.getElementById("auditSearch")?.addEventListener("input",loadAuditLog);
-    list.addEventListener("click",async e=>{const b=e.target.closest("[data-audit-view]");if(!b)return;const rows=(await getRows("settings")).filter(r=>String(r.setting_key||"").startsWith("audit_event_"));const row=rows.find(r=>String(r.id)===String(b.dataset.auditView));if(!row)return;let obj={};try{obj=JSON.parse(row.setting_value||"{}")}catch(_){}alert(JSON.stringify(obj,null,2));});
     loadAuditLog();
 }
 
@@ -6604,12 +6604,6 @@ window.saveInvoiceRecord = saveInvoiceRecord;
 window.getInvoicePaymentAccounts = getInvoicePaymentAccounts;
 window.getInvoicePayments = getInvoicePayments;
 window.saveInvoicePayment = saveInvoicePayment;
-window.loadOrderTracking = loadOrderTracking;
-window.loadTrainees = loadTrainees;
-window.loadAccounting = loadAccounting;
-window.loadSavedInvoiceReceiptRecords = loadSavedInvoiceReceiptRecords;
-window.loadCollectionInvoiceOptions = loadCollectionInvoiceOptions;
-window.loadInvoicePricing = loadInvoicePricing;
 
 /* =========================================================
    STARTUP
@@ -6618,22 +6612,15 @@ window.loadInvoicePricing = loadInvoicePricing;
 function setupAdminAutomaticCapitalisation(){
     if(document.documentElement.dataset.adminCapitalisationBound)return;
     document.documentElement.dataset.adminCapitalisationBound="1";
-    const skip=new Set(["email","url","password","tel","number","date","time","search","hidden"]);
-    const terms=["bubu","kaftan","jersey","hoodie","joggers","sweatshirt","sweatpants","t-shirt","t shirts","polo","varsity jacket","cargo pants","cargo skirts","jorts","winneba","ghana","aprils signature"];
-    const format=field=>{
-        if(!(field instanceof HTMLInputElement||field instanceof HTMLTextAreaElement))return;
-        const type=String(field.type||"").toLowerCase(),meta=String(field.name||"")+" "+String(field.id||"");
-        if(skip.has(type)||/email|url|password|phone|whatsapp|website|link/i.test(meta))return;
-        let v=String(field.value||"");
-        v=v.replace(/(^|[.!?]\s+)([a-z])/g,(_,p,c)=>p+c.toUpperCase());
-        for(const term of terms){const re=new RegExp("(^|\\s|[(/-])("+term.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+")(?=$|[\\s.,!?)/-])","gi");v=v.replace(re,(m,p,w)=>p+w.charAt(0).toUpperCase()+w.slice(1));}
-        v=v.replace(/([a-z])([A-Z])/g,"$1 $2");
-        field.value=v;
-    };
-    document.addEventListener("blur",e=>format(e.target),true);
-    document.addEventListener("change",e=>format(e.target),true);
+    const skip=new Set(["email","url","password","tel","number","date","time","hidden"]);
+    document.addEventListener("input",event=>{
+        const field=event.target;
+        if(!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement))return;
+        if(skip.has(String(field.type||"").toLowerCase()))return;
+        if(/email|url|password|phone|whatsapp|website|link/i.test(String(field.name||"")+" "+String(field.id||"")))return;
+        field.value=String(field.value||"").replace(/(^|[\s\-\/\(])([a-z])/g,(_,p,c)=>p+c.toUpperCase());
+    },true);
 }
-
 
 async function startAdmin() {
     db = await waitForSupabase();
