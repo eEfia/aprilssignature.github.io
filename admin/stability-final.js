@@ -11,7 +11,7 @@
     }
   }
   function markRendered(){
-    document.querySelectorAll('.table-wrap, [id$="List"], [id$="list"]').forEach(el=>{
+    document.querySelectorAll('.table-wrap, [id$="List"], [id$="list"]'rEach(el=>{
       if(el.textContent.trim() && !/Loading saved records…/.test(el.textContent)) el.dataset.hasRenderedData='1';
     });
   }
