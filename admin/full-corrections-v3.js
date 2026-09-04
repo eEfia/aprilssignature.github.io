@@ -4,7 +4,7 @@
 'use strict';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
 const esc=s=>String(s??'').replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
-const toast=(t,k='success')=>window.message?window.message(t,k):console[k==='error'?'error':'log'](t);
+const toast=(t,k='success')=>window.message?window.message(t,k):console?'error':'log'](t);
 const db=()=>window.aprilsSupabase||window.AprilsSupabase||window.supabaseClient||null;
 
 /* Prevent the historical order-tracking ReferenceError even when an older renderer runs. */
