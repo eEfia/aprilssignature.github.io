@@ -10,7 +10,7 @@
     function setupGoogleReviewLinks() {
         document.querySelectorAll("a").forEach(link => {
             const text = (link.textContent || "").toLowerCase();
-            if (text.includeview")) {
+            if (text.includes("google review")) {
                 link.href = REVIEW_URL;
                 link.target = "_blank";
                 link.rel = "noopener noreferrer";
