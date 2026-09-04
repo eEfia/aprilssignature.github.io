@@ -1,1 +1,3285 @@
+/* =========================================================
+   APRILS SIGNATURE
+   MASTER WEBSITE STYLESHEET
+   ========================================================= */
 
+
+/* =========================================================
+   1. BASIC RESET
+   ========================================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #ffffff;
+    color: #222222;
+    line-height: 1.6;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+a {
+    color: inherit;
+}
+
+button,
+input,
+textarea,
+select {
+    font: inherit;
+}
+
+
+/* =========================================================
+   2. BRAND VARIABLES
+   ========================================================= */
+
+:root {
+    --teal: #0f7775;
+    --teal-dark: #075957;
+    --teal-light: #e9f5f4;
+
+    --gold: #c8a24a;
+    --gold-light: #e9d79a;
+    --gold-dark: #9d792b;
+
+    --black: #171717;
+    --white: #ffffff;
+
+    --light-bg: #f7f7f7;
+    --border: #9a9a9a;
+
+    --container: 1200px;
+
+    --shadow:
+        0 6px 20px rgba(0, 0, 0, 0.08);
+
+    --radius: 10px;
+}
+
+
+/* =========================================================
+   3. GENERAL CONTAINER
+   ========================================================= */
+
+.container {
+    width: min(100% - 40px, var(--container));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   4. HEADER
+   ========================================================= */
+
+header {
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 1000;
+}
+
+header .container {
+    padding-top: 18px;
+    padding-bottom: 18px;
+}
+
+.logo {
+    display: inline-block;
+    text-decoration: none;
+    color: var(--teal);
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+header p {
+    margin: 0 0 12px;
+    color: var(--black);
+    font-size: 14px;
+}
+
+
+/* =========================================================
+   5. NAVIGATION
+   ========================================================= */
+
+nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+nav a {
+    text-decoration: none;
+    color: var(--black);
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 14px;
+    transition:
+        background 0.2s ease,
+        color 0.2s ease;
+}
+
+nav a:hover,
+nav a:focus {
+    background: var(--teal);
+    color: var(--white);
+}
+
+
+/* =========================================================
+   6. MAIN
+   ========================================================= */
+
+main {
+    min-height: 60vh;
+}
+
+
+/* =========================================================
+   7. PAGE INTRO
+   ========================================================= */
+
+.page-intro {
+    background:
+        linear-gradient(
+            135deg,
+            var(--teal),
+            var(--teal-dark)
+        );
+
+    color: var(--white);
+    text-align: center;
+    padding: 75px 20px;
+}
+
+.page-intro h1 {
+    margin: 0 0 15px;
+    font-size: clamp(34px, 6vw, 58px);
+    line-height: 1.1;
+}
+
+.page-intro p {
+    max-width: 760px;
+    margin: 0 auto;
+    font-size: 18px;
+}
+
+
+/* =========================================================
+   8. HERO
+   ========================================================= */
+
+.hero {
+    min-height: 570px;
+
+    display: flex;
+    align-items: center;
+
+    background: var(--teal);
+
+    color: var(--white);
+}
+
+.hero-content {
+    max-width: 800px;
+    padding: 65px 0;
+}
+
+.hero h1 {
+    margin: 0 0 20px;
+    font-size: clamp(40px, 7vw, 72px);
+    line-height: 1.05;
+}
+
+.hero h2 {
+    margin: 0 0 20px;
+    font-size: clamp(24px, 4vw, 42px);
+}
+
+.hero p {
+    font-size: 19px;
+    max-width: 700px;
+}
+
+.hero h1,
+.hero h2,
+.hero p {
+    color: var(--white);
+}
+
+
+/* =========================================================
+   HERO LOGO
+   ========================================================= */
+
+/*
+   The master correction removes the duplicate logo
+   from the teal hero section.
+*/
+
+.hero-logo {
+    display: none;
+}
+
+.hero-logo img {
+    display: none;
+}
+
+
+/* =========================================================
+   9. SECTIONS
+   ========================================================= */
+
+section {
+    padding: 70px 0;
+}
+
+section h2 {
+    color: var(--teal);
+    font-size: clamp(28px, 4vw, 40px);
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+section h3 {
+    color: var(--black);
+}
+
+
+/* =========================================================
+   10. BUTTONS
+   ========================================================= */
+
+.button,
+button.button {
+    display: inline-block;
+
+    border: none;
+
+    background: var(--teal);
+    color: var(--white);
+
+    text-decoration: none;
+
+    padding: 13px 22px;
+
+    border-radius: 6px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 4s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.button:hover,
+button.button:hover {
+    background: var(--teal-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.button.gold {
+    background: var(--gold);
+    color: var(--black);
+}
+
+.button.gold:hover {
+    background: var(--gold-dark);
+    color: var(--white);
+}
+
+.cta-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 25px;
+}
+
+
+/* =========================================================
+   11. CARDS
+   ========================================================= */
+
+.card,
+.service-card,
+.training-card,
+.gallery-item,
+.contact-item,
+.admin-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.card {
+    padding: 25px;
+}
+
+
+/* =========================================================
+   12. SERVICE SECTIONS
+   ========================================================= */
+
+.service-section {
+    background: var(--white);
+}
+
+.service-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.service-section .container {
+    max-width: 900px;
+}
+
+.service-section ul,
+.about-section ul {
+    padding-left: 22px;
+}
+
+.service-section li,
+.about-section li {
+    margin-bottom: 8px;
+}
+
+
+/* =========================================================
+   13. ABOUT PAGE
+   ========================================================= */
+
+.about-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.about-section .container {
+    max-width: 950px;
+}
+
+.about-section p {
+    margin: 0 0 18px;
+}
+
+.why-choose-section {
+    background: var(--light-bg);
+}
+
+.why-choose-section article {
+    background: var(--white);
+    padding: 25px;
+    margin-bottom: 18px;
+    border-left: 4px solid var(--gold);
+    border-radius: 7px;
+}
+
+.location-section {
+    background: var(--white);
+}
+
+
+/* =========================================================
+   14. GALLERY
+   ========================================================= */
+
+.gallery-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.gallery-item {
+    overflow: hidden;
+}
+
+.gallery-image {
+    background: var(--light-bg);
+
+    aspect-ratio: 3 / 4;
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gallery-image img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+
+/*
+   IMPORTANT:
+   Gallery videos remain as they were approved.
+*/
+
+.gallery-image video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.gallery-item:hover img {
+    transform: scale(1.06);
+}
+
+.gallery-item h3 {
+    padding: 18px;
+    margin: 0;
+    font-size: 18px;
+}
+
+.featured-collection {
+    background: var(--light-bg);
+}
+
+.full-gallery {
+    background: var(--white);
+}
+
+.gallery-note {
+    background: var(--teal-light);
+    text-align: center;
+}
+
+
+/* =========================================================
+   15. HOME FEATURED COLLECTION
+   ========================================================= */
+
+.featured-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.featured-card {
+    overflow: hidden;
+
+    background: var(--white);
+
+    border: 1px solid var(--border);
+
+    border-radius: var(--radius);
+
+    box-shadow: var(--shadow);
+}
+
+.featured-video {
+    aspect-ratio: 16 / 10;
+
+    background: var(--black);
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+
+/*
+   CORRECTION:
+   Home Featured Collection videos must show the
+   complete video instead of cropping it.
+*/
+
+/*
+   CORRECTION:
+   Home Featured Collection videos must appear
+   at the same larger displayed size as Gallery videos.
+*/
+
+.featured-video {
+    aspect-ratio: 3 / 4;
+
+    background: var(--black);
+
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.featured-video video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    background: var(--black);
+}
+
+.featured-card h3 {
+    margin: 0;
+
+    padding: 18px;
+
+    color: var(--black);
+}
+
+.section-heading p {
+    max-width: 760px;
+}
+
+
+/* =========================================================
+   16. HOME ABOUT / WHAT WE DO CARDS
+   ========================================================= */
+
+.about-section .container,
+.services-preview .container,
+.why-section .container {
+    width: min(100% - 40px, var(--container));
+}
+
+.about-section .container {
+    max-width: 950px;
+}
+
+.service-grid,
+.services-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.service-card {
+    padding: 28px;
+    min-width: 0;
+}
+
+.service-card h3 {
+    margin-top: 0;
+    color: var(--teal);
+}
+
+.service-card p {
+    margin-bottom: 0;
+}
+
+
+/* =========================================================
+   17. TRAINING
+   ========================================================= */
+
+.training-section {
+    background: var(--white);
+}
+
+.training-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 24px;
+}
+
+.training-card {
+    padding: 25px;
+}
+
+.training-card h3 {
+    color: var(--teal);
+}
+
+.training-card .duration {
+    color: var(--gold-dark);
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   18. FORMS
+   ========================================================= */
+
+form {
+    max-width: 900px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    font-weight: 700;
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+
+    padding: 12px 14px;
+
+    border: 1px solid #cfcfcf;
+
+    border-radius: 6px;
+
+    background: var(--white);
+
+    color: var(--black);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    outline: 2px solid var(--gold-light);
+    border-color: var(--teal);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 140px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    margin-right: 7px;
+}
+
+
+/* =========================================================
+   19. CONTACT
+   ========================================================= */
+
+.contact-section {
+    background: var(--white);
+}
+
+.contact-details {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+
+    gap: 20px;
+}
+
+.contact-item {
+    padding: 22px;
+}
+
+.contact-item h3 {
+    color: var(--teal);
+    margin-top: 0;
+}
+
+.contact-item a {
+    color: var(--teal);
+    font-weight: 700;
+}
+
+.contact-action {
+    background: var(--teal-light);
+    text-align: center;
+}
+
+.contact-action .container {
+    max-width: 800px;
+}
+
+.contact-form-section {
+    background: var(--light-bg);
+}
+
+.social-section {
+    text-align: center;
+}
+
+.social-links {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    justify-content: center;
+
+    gap: 12px;
+}
+
+.social-links a {
+    display: inline-block;
+
+    padding: 10px 18px;
+
+    border: 1px solid var(--border);
+
+    border-radius: 6px;
+
+    text-decoration: none;
+
+    font-weight: 700;
+}
+
+.social-links a:hover {
+    background: var(--teal);
+    color: var(--white);
+}
+
+
+/* =========================================================
+   20. POLICIES
+   ========================================================= */
+
+.policy-section {
+    background: var(--white);
+}
+
+.policy-section:nth-child(even) {
+    background: var(--light-bg);
+}
+
+.policy-section .container {
+    max-width: 950px;
+}
+
+.policy-section h3 {
+    color: var(--teal);
+}
+
+
+/*
+   GOLD TRAINING POLICY HEADINGS
+*/
+
+.training-policy-heading {
+    color: var(--gold) !important;
+    font-weight: 800;
+    margin-top: 35px;
+    margin-bottom: 12px;
+}
+
+.training-policy-list {
+    margin-top: 0;
+    padding-left: 24px;
+}
+
+.training-policy-list li::marker {
+    color: var(--gold);
+}
+
+
+/* =========================================================
+   21. QUOTE / ORDER PAGE
+   ========================================================= */
+
+.quote-section {
+    background: var(--light-bg);
+}
+
+.quote-form {
+    background: var(--white);
+
+    padding: 30px;
+
+    border-radius: var(--radius);
+
+    box-shadow: var(--shadow);
+}
+
+.upload-note {
+    background: var(--teal-light);
+
+    border-left: 4px solid var(--teal);
+
+    padding: 15px;
+
+    margin-bottom: 20px;
+}
+
+
+/*
+   Quote page heading area should use the same
+   branded teal treatment as the other pages.
+*/
+
+.quote-intro {
+    background:
+        linear-gradient(
+            135deg,
+            var(--teal),
+            var(--teal-dark)
+        );
+
+    color: var(--white);
+
+    text-align: center;
+
+    padding: 65px 20px;
+}
+
+.quote-intro h1 {
+    color: var(--white);
+}
+
+.quote-intro p {
+    color: var(--white);
+
+    max-width: 760px;
+
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   22. HOW IT WORKS
+   ========================================================= */
+
+.how-it-works {
+    background: var(--light-bg);
+}
+
+.process-step {
+    background: var(--white);
+
+    padding: 22px;
+
+    margin-bottom: 15px;
+
+    border-left: 4px solid var(--gold);
+
+    border-radius: 6px;
+}
+
+.process-step h3 {
+    margin-top: 0;
+    color: var(--teal);
+}
+
+
+/* =========================================================
+   23. CTA
+   ========================================================= */
+
+.cta-section {
+    background: var(--teal);
+
+    color: var(--white);
+
+    text-align: center;
+}
+
+.cta-section h2 {
+    color: var(--white);
+}
+
+.cta-section p {
+    max-width: 800px;
+
+    margin-left: auto;
+    margin-right: auto;
+}
+
+
+/* =========================================================
+   24. FOOTER
+   ========================================================= */
+
+.site-footer {
+    margin-top: 0;
+}
+
+.footer-top {
+    background: var(--teal);
+
+    color: var(--white);
+
+    padding: 48px 0;
+}
+
+.footer-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 50px;
+}
+
+.footer-column {
+    min-width: 0;
+}
+
+.footer-column h3,
+.footer-column h4 {
+    margin-top: 0;
+
+    color: var(--gold);
+
+    font-weight: 800;
+}
+
+.footer-column h4 {
+    margin-top: 28px;
+}
+
+.footer-column p {
+    margin: 0 0 16px;
+}
+
+.footer-column a {
+    color: var(--white);
+
+    text-decoration: none;
+}
+
+.footer-column a:hover,
+.footer-column a:focus {
+    color: var(--gold-light);
+}
+
+
+/*
+   FOOTER ADDRESS
+   Three separate lines.
+*/
+
+.footer-address {
+    line-height: 1.7;
+}
+
+.footer-address span {
+    display: block;
+}
+
+
+/*
+   FOOTER SOCIAL LINKS
+*/
+
+.footer-social {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 14px;
+}
+
+.footer-social a,
+.footer-social span {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    text-decoration: none;
+}
+
+.footer-social a {
+    color: var(--white);
+}
+
+.footer-social a:hover,
+.footer-social a:focus {
+    color: var(--gold-light);
+}
+
+.footer-social img {
+    width: 30px;
+
+    height: 30px;
+
+    object-fit: cover;
+
+    border-radius: 5px;
+}
+
+
+/*
+   Find Us on Google
+*/
+
+.footer-google {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 7px;
+
+    color: var(--white);
+
+    text-decoration: none;
+}
+
+.footer-google:hover,
+.footer-google:focus {
+    color: var(--gold-light);
+}
+
+
+/*
+   Map is retained as a reusable style in case it is
+   used elsewhere. The final footer correction removes
+   the footer map itself.
+*/
+
+.footer-map {
+    display: none;
+}
+
+.footer-map img {
+    width: 30px;
+    height: 30px;
+
+    object-fit: cover;
+
+    border-radius: 5px;
+}
+
+
+/*
+   Footer copyright
+*/
+
+.footer-bottom {
+    background: var(--black);
+
+    color: var(--white);
+
+    padding: 18px 0;
+
+    text-align: center;
+}
+
+.footer-bottom p {
+    margin: 0;
+}
+
+
+/* =========================================================
+   25. ADMIN DASHBOARD
+   ========================================================= */
+
+.admin-page {
+    min-height: 100vh;
+
+    background: var(--light-bg);
+}
+
+.admin-header {
+    background: var(--teal);
+
+    color: var(--white);
+
+    padding: 25px 0;
+}
+
+.admin-header h1 {
+    margin: 0;
+    color: var(--white);
+}
+
+.admin-container {
+    max-width: var(--container);
+
+    margin: 0 auto;
+
+    padding: 35px 20px;
+}
+
+.admin-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 20px;
+}
+
+.admin-card {
+    padding: 25px;
+}
+
+.admin-number {
+    color: var(--teal);
+
+    font-size: 34px;
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   26. NOTICES
+   ========================================================= */
+
+.notice {
+    background: #fff8e6;
+
+    border-left: 4px solid var(--gold);
+
+    padding: 18px;
+
+    margin-bottom: 25px;
+}
+
+.success-message {
+    background: #eaf7ee;
+
+    border-left: 4px solid #2d8a4b;
+
+    padding: 15px;
+}
+
+.error-message {
+    background: #fff0f0;
+
+    border-left: 4px solid #b3261e;
+
+    padding: 15px;
+}
+
+
+/* =========================================================
+   27. GALLERY FULL-SIZE VIEWER
+   ========================================================= */
+
+#galleryViewer {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 9999;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 30px;
+
+    background: rgba(0, 0, 0, 0.88);
+}
+
+#galleryViewer.active {
+    display: flex;
+}
+
+#galleryViewerContent {
+    width: min(94vw, 1200px);
+
+    height: min(90vh, 850px);
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+#galleryViewerContent img,
+#galleryViewerContent video {
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    object-fit: contain;
+
+    display: block;
+}
+
+#galleryViewerClose {
+    position: absolute;
+
+    top: 18px;
+
+    right: 24px;
+
+    width: 45px;
+
+    height: 45px;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.95);
+
+    color: #171717;
+
+    font-size: 32px;
+
+    line-height: 1;
+
+    cursor: pointer;
+
+    z-index: 10000;
+}
+
+#galleryViewerClose:hover {
+    background: var(--gold);
+}
+
+
+/* =========================================================
+   28. APRILS SIGNATURE FULL-SIZE GALLERY VIEWER
+   ========================================================= */
+
+#aprilGalleryViewer {
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 99999;
+
+    display: none;
+
+    align-items: center;
+
+    justify-content: center;
+
+    padding: 40px;
+
+    background: rgba(0, 0, 0, 0.90);
+}
+
+#aprilGalleryViewer.april-viewer-open {
+    display: flex;
+}
+
+#aprilGalleryViewerContent {
+    width: 92vw;
+
+    height: 88vh;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+#aprilGalleryViewerContent img,
+#aprilGalleryViewerContent video {
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    object-fit: contain;
+}
+
+#aprilGalleryClose {
+    position: absolute;
+
+    top: 18px;
+
+    right: 22px;
+
+    width: 48px;
+
+    height: 48px;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: #ffffff;
+
+    color: #171717;
+
+    font-size: 34px;
+
+    line-height: 1;
+
+    cursor: pointer;
+
+    z-index: 100000;
+}
+
+#aprilGalleryClose:hover {
+    background: var(--gold);
+}
+
+
+/* =========================================================
+   29. ABOUT SHOP IMAGE / PHOTO 5
+   ========================================================= */
+
+/*
+   Only the About-page workshop/shop image is affected.
+   Other Gallery images are not changed.
+*/
+
+.location-image {
+    width: min(100%, 760px);
+    height: 300px;
+    margin: 25px auto 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: var(--light-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.location-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    cursor: pointer;
+}
+
+/*
+   Alternative workshop image class used by the
+   existing About-page markup.
+*/
+
+.workshop-gallery-image {
+    background: var(--light-bg);
+
+    width: 100%;
+
+    min-height: 420px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: hidden;
+}
+
+.workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    max-height: 600px;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.workshop-section-wide .container {
+    max-width: 1100px;
+}
+
+.workshop-section-wide .workshop-gallery-image {
+    width: 100%;
+
+    aspect-ratio: 16 / 9;
+
+    background: var(--light-bg);
+
+    overflow: hidden;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+.workshop-section-wide .workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+.workshop-section-wide .gallery-grid {
+    display: block;
+
+    width: 100%;
+
+    max-width: 980px;
+
+    margin: 0 auto;
+}
+
+.workshop-section-wide .gallery-item {
+    width: 100%;
+}
+
+.workshop-section-wide .workshop-gallery-image {
+    width: 100%;
+
+    aspect-ratio: 16 / 9;
+
+    overflow: hidden;
+
+    background: var(--light-bg);
+}
+
+.workshop-section-wide .workshop-gallery-image img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: contain;
+
+    display: block;
+
+    cursor: pointer;
+}
+
+
+/* =========================================================
+   30. WEBSITE-WIDE HEADER SYSTEM
+   ========================================================= */
+
+.site-header {
+    background: var(--white);
+
+    border-bottom: 1px solid var(--border);
+
+    position: relative;
+
+    z-index: 1000;
+}
+
+.header-inner {
+    min-height: 82px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 24px;
+
+    padding-top: 12px;
+
+    padding-bottom: 12px;
+}
+
+.brand {
+    display: inline-flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    text-decoration: none;
+
+    min-width: 0;
+}
+
+.brand-logo {
+    width: 46px;
+
+    height: 46px;
+
+    object-fit: contain;
+
+    flex: 0 0 auto;
+}
+
+.brand-text {
+    display: flex;
+
+    flex-direction: column;
+
+    line-height: 1.15;
+}
+
+.brand-name {
+    color: var(--teal);
+
+    font-size: 25px;
+
+    font-weight: 700;
+
+    letter-spacing: .3px;
+}
+
+.brand-tagline {
+    color: var(--black);
+
+    font-size: 13px;
+
+    margin-top: 4px;
+}
+
+.main-navigation {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: flex-end;
+
+    flex-wrap: wrap;
+
+    gap: 6px;
+}
+
+.main-navigation a {
+    white-space: nowrap;
+}
+
+.menu-toggle {
+    display: none;
+
+    width: 44px;
+
+    height: 44px;
+
+    padding: 8px;
+
+    border: 1px solid var(--teal);
+
+    border-radius: 6px;
+
+    background: var(--white);
+
+    cursor: pointer;
+}
+
+.menu-toggle span {
+    display: block;
+
+    width: 100%;
+
+    height: 3px;
+
+    margin: 4px 0;
+
+    background: var(--teal);
+
+    border-radius: 3px;
+}
+
+
+/* =========================================================
+   31. STICKY WHATSAPP
+   ========================================================= */
+
+.whatsapp-button {
+    position: fixed;
+
+    right: 20px;
+
+    bottom: 20px;
+
+    width: 56px;
+
+    height: 56px;
+
+    z-index: 9999;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    overflow: hidden;
+
+    box-shadow:
+        0 5px 15px rgba(0, 0, 0, .22);
+
+    background: #25D366;
+}
+
+.whatsapp-button img {
+    width: 100%;
+
+    height: 100%;
+
+    object-fit: cover;
+}
+
+
+/* =========================================================
+   32. ACCESSIBILITY
+   ========================================================= */
+
+a:focus,
+button:focus,
+input:focus,
+textarea:focus,
+select:focus {
+    outline-offset: 2px;
+}
+
+
+/* =========================================================
+   33. PRINT
+   ========================================================= */
+
+@media print {
+
+    nav,
+    .button,
+    .cta-buttons,
+    .contact-action,
+    footer {
+        display: none !important;
+    }
+
+    body {
+        background: #ffffff;
+
+        color: #000000;
+    }
+}
+
+
+/* =========================================================
+   34. RESPONSIVE TABLETS
+   ========================================================= */
+
+@media (max-width: 900px) {
+
+    .gallery-grid,
+    .training-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .contact-details {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+    .header-inner {
+        flex-wrap: wrap;
+    }
+
+    .menu-toggle {
+        display: block;
+
+        margin-left: auto;
+    }
+
+    .main-navigation {
+        display: none;
+
+        width: 100%;
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+        gap: 2px;
+
+        padding-top: 10px;
+    }
+
+    .main-navigation.is-open,
+    .main-navigation.open {
+        display: flex;
+    }
+
+    .main-navigation a {
+        width: 100%;
+    }
+
+    .service-grid,
+    .services-grid,
+    .featured-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+
+/* =========================================================
+   35. RESPONSIVE PHONES
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .container {
+        width: min(100% - 28px, var(--container));
+    }
+
+    section {
+        padding: 50px 0;
+    }
+
+    .page-intro {
+        padding: 55px 15px;
+    }
+
+    nav {
+        flex-direction: column;
+
+        gap: 2px;
+    }
+
+    nav a {
+        display: block;
+
+        width: 100%;
+    }
+
+    .hero {
+        min-height: 520px;
+    }
+
+    .hero-content {
+        padding: 55px 0;
+    }
+
+    .gallery-grid,
+    .training-grid,
+    .contact-details,
+    .admin-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .service-grid,
+    .services-grid,
+    .featured-grid,
+    .footer-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quote-form {
+        padding: 20px;
+    }
+
+    .cta-buttons {
+        flex-direction: column;
+    }
+
+    .cta-buttons .button {
+        width: 100%;
+
+        text-align: center;
+    }
+
+    .footer-grid {
+        gap: 32px;
+    }
+
+    .location-image {
+        height: 300px;
+    }
+
+    .workshop-gallery-image {
+        min-height: 300px;
+    }
+
+    .whatsapp-button {
+        right: 14px;
+
+        bottom: 14px;
+
+        width: 52px;
+
+        height: 52px;
+    }
+
+    #galleryViewer {
+        padding: 15px;
+    }
+
+    #galleryViewerContent {
+        width: 96vw;
+
+        height: 85vh;
+    }
+
+    #galleryViewerClose {
+        top: 10px;
+
+        right: 12px;
+
+        width: 40px;
+
+        height: 40px;
+
+        font-size: 28px;
+    }
+
+    #aprilGalleryViewer {
+        padding: 15px;
+    }
+
+    #aprilGalleryViewerContent {
+        width: 96vw;
+
+        height: 85vh;
+    }
+
+    #aprilGalleryClose {
+        top: 10px;
+
+        right: 12px;
+
+        width: 42px;
+
+        height: 42px;
+
+        font-size: 30px;
+    }
+
+    .brand-logo {
+        width: 40px;
+
+        height: 40px;
+    }
+
+    .brand-name {
+        font-size: 21px;
+    }
+
+    .brand-tagline {
+        font-size: 12px;
+    }
+}
+
+
+/* =========================================================
+   36. FINAL CORRECTION SAFETY OVERRIDES
+   ========================================================= */
+
+/*
+   These rules specifically protect the corrections requested
+   for this final editing stage.
+*/
+
+
+/* Full Home Featured Collection videos */
+
+.featured-card .featured-video {
+    overflow: hidden;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+.featured-card .featured-video video {
+    object-fit: contain !important;
+
+    width: 100%;
+
+    height: 100%;
+
+    background: #171717;
+}
+
+
+/* About Photo 5 / workshop image */
+
+.location-image img,
+.workshop-gallery-image img {
+    object-fit: contain !important;
+}
+
+
+/* Social links must be clickable */
+
+.footer-social a {
+    pointer-events: auto;
+
+    cursor: pointer;
+}
+
+
+/* Google link must be clickable */
+
+.footer-google {
+    pointer-events: auto;
+
+    cursor: pointer;
+}
+
+
+/* Phone and email links */
+
+.footer-column a[href^="tel:"],
+.footer-column a[href^="mailto:"],
+.footer-column a[href^="https://wa.me/"] {
+    cursor: pointer;
+}
+
+
+/* Policy training headings */
+
+.policy-section .training-policy-heading {
+    color: var(--gold) !important;
+}
+
+
+/* Footer remains two columns on larger screens */
+
+@media (min-width: 901px) {
+
+    .footer-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+.admin-website-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.admin-website-link:hover {
+    color: #c9a227;
+}
+
+
+/* =========================================================
+   FINAL REQUESTED VISUAL CORRECTIONS
+   - Hero content box reduced by about 30%
+   - Gallery/home media animated without changing layout size
+   - About Photo 5 slightly wider and clickable
+========================================================= */
+
+.hero {
+    min-height: 400px;
+}
+
+.hero-content {
+    max-width: 800px;
+    padding: 45px 0;
+}
+
+.gallery-image,
+.featured-video {
+    overflow: hidden;
+}
+
+.gallery-page .gallery-image img {
+    transform-origin: center;
+    animation: aprilsGalleryMotion 4.8s ease-in-out infinite alternate;
+    will-change: transform;
+}
+
+/* Motion is intentionally limited to still images on the Gallery page.
+   It does not change gallery dimensions, arrangement, videos, or homepage media. */
+@keyframes aprilsGalleryMotion {
+    0% { transform: translate3d(-0.8%, 0, 0) scale(1.01); }
+    50% { transform: translate3d(0.8%, -0.15%, 0) scale(1.025); }
+    100% { transform: translate3d(-0.6%, 0.15%, 0) scale(1.015); }
+}
+
+.gallery-page .gallery-image img:hover {
+    animation-play-state: paused;
+    transform: scale(1.04);
+}
+
+@keyframes aprilsMediaMotion {
+    0% { transform: scale(1) translate3d(0, 0, 0); }
+    50% { transform: scale(1.028) translate3d(0.35%, -0.2%, 0); }
+    100% { transform: scale(1.045) translate3d(0.6%, -0.4%, 0); }
+}
+
+.location-image {
+    width: min(100%, 1000px);
+}
+
+.location-image a.photo5-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.location-image img {
+    width: 540px;
+    height: auto;
+    max-width: 100%;
+    object-fit: fill;
+    display: block;
+    margin: 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gallery-page .gallery-image img {
+        animation: none;
+    }
+}
+
+
+/* =========================================================
+   FINAL CORRECTIONS — HOME / GALLERY / PHOTO 5
+========================================================= */
+
+.home-page .hero {
+    min-height: 510px;
+}
+
+.home-page .hero-content {
+    padding: 50px 0;
+}
+
+.home-page .welcome-section,
+.home-page .featured-section {
+    padding-top: 48px;
+    padding-bottom: 48px;
+}
+
+.home-page .welcome-section {
+    padding-bottom: 38px;
+}
+
+.home-page .featured-section {
+    padding-top: 38px;
+}
+
+#galleryViewerContent img.gallery-photo5-wide {
+    width: 90vw;
+    max-width: 90vw;
+    max-height: 90vh;
+    height: auto;
+    object-fit: contain;
+}
+
+
+/* FINAL REQUESTED VISUAL CLARITY */
+.section-heading,
+.about-section .container,
+.services-preview .service-card,
+.why-card,
+.testimonial-placeholder,
+.service-section .container,
+.gallery-item,
+.featured-card,
+.contact-item,
+.form-card,
+.table-wrap,
+.card,
+.faq-section .faq-item,
+.policy-section .container {
+    border: 1px solid rgba(15,119,117,.28);
+}
+
+.section-heading,
+.about-section .container,
+.service-section .container,
+.contact-item,
+.faq-section .faq-item,
+.policy-section .container {
+    padding: 18px;
+    border-radius: 10px;
+}
+
+.services-preview .service-card,
+.why-card,
+.testimonial-placeholder,
+.gallery-item,
+.featured-card {
+    box-shadow: 0 4px 14px rgba(0,0,0,.06);
+}
+
+.form-card, .table-wrap { border: 1px solid #c9a24a; }
+
+.home-page .hero { min-height: 340px; }
+.home-page .hero-content { padding: 32px 0; }
+.home-page .welcome-section { padding-top: 28px; padding-bottom: 28px; }
+.home-page .featured-section { padding-top: 28px; }
+
+.submission-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; margin:18px 0; }
+.submission-field { border:1px solid #ddd; border-radius:6px; padding:10px; background:#fafafa; }
+.submission-modal hr { margin:20px 0; border:0; border-top:1px solid #ddd; }
+
+
+/* =========================================================
+   FINAL PRESENTATION CORRECTIONS
+   ========================================================= */
+
+/* Keep content comfortably inside its available space. */
+.why-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+}
+
+.why-card {
+    padding: 28px;
+    min-width: 0;
+}
+
+.why-card h3,
+.why-card p {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* Restore the subtle, slow gallery image movement on hover.
+   Image/video sizing is not changed. */
+.gallery-item .gallery-image img {
+    transition: transform 1.15s ease;
+    will-change: transform;
+}
+
+.gallery-item:hover .gallery-image img {
+    transform: scale(1.035) translate3d(0.35%, -0.2%, 0);
+}
+
+/* The mobile navigation JS uses .open. */
+@media (max-width: 900px) {
+    .main-navigation.open {
+        display: flex;
+    }
+
+    .why-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* About-page Photo 5: preserve the complete portrait image
+   rather than cropping it inside a short fixed-height box. */
+.about-page .location-image {
+    /* Photo 5: keep the current height and increase the width by 50%. */
+    width: min(100%, 642px);
+    height: 420px;
+    min-height: 0;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.about-page .location-image a.photo5-link {
+    height: 100%;
+}
+
+.about-page .location-image img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain !important;
+    object-position: center;
+}
+
+/* Service-specific size fields appear directly below Service Selection. */
+.service-size-container {
+    margin-top: 22px;
+    padding-top: 4px;
+}
+
+.service-size-field {
+    margin-bottom: 15px;
+}
+
+/* Admin submission details are presented as a clean two-column table-like grid. */
+.submission-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+}
+
+.submission-field {
+    min-width: 0;
+    border: 1px solid #ddd;
+    border-radius: 7px;
+    padding: 12px 14px;
+    background: #fafafa;
+    overflow-wrap: anywhere;
+}
+
+.submission-field strong {
+    display: block;
+    color: #075957;
+    margin-bottom: 5px;
+}
+
+.submission-subheading {
+    margin: 20px 0 10px;
+    color: #075957;
+}
+
+@media (max-width: 700px) {
+    .submission-fields {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Full submission details are displayed as a proper table. */
+.submission-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    margin: 20px 0;
+}
+
+.submission-details-table {
+    width: 100%;
+    min-width: 560px;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+.submission-details-table th,
+.submission-details-table td {
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    text-align: left;
+    vertical-align: top;
+}
+
+.submission-details-table thead th {
+    background: #008c95;
+    color: #fff;
+}
+
+.submission-details-table tbody th {
+    width: 34%;
+    background: #f7f7f7;
+    color: #075957;
+}
+
+/* Keep the Why Choose text comfortably inside the page container. */
+.home-page .why-section .container {
+    padding-left: 32px;
+    padding-right: 32px;
+}
+
+@media (max-width: 700px) {
+    .about-page .location-image {
+        /* Mobile version follows the same approximately 1/4 width and 1/2 height reduction. */
+        width: min(100%, 323px);
+        height: 310px;
+    }
+
+    .home-page .why-section .container {
+        padding-left: 22px;
+        padding-right: 22px;
+    }
+}
+
+
+/* =========================================================
+   FINAL VISIBILITY / BORDER CORRECTIONS
+   ========================================================= */
+
+/* Prominent, clearly visible structural lines across every public page. */
+.card,
+.service-card,
+.training-card,
+.gallery-item,
+.contact-item,
+.featured-card,
+.why-card,
+.testimonial-placeholder,
+.footer-column,
+.form-card,
+.table-wrap,
+.policy-section,
+.form-section,
+details,
+.service-option-group,
+.order-summary,
+.quote-summary {
+    border: 2px solid #666666;
+}
+
+/* Make all form fields visibly separated. */
+input,
+textarea,
+select {
+    border: 2px solid #666666;
+}
+
+/* Make table rows and columns strongly distinguishable. */
+table {
+    border-collapse: collapse;
+    border: 2px solid #666666;
+}
+
+table th,
+table td {
+    border: 2px solid #666666;
+}
+
+/* Clear vertical and horizontal separators in common grids/lists. */
+.service-grid,
+.training-grid,
+.gallery-grid,
+.contact-details,
+.footer-grid {
+    border-color: #666666;
+}
+
+
+/* Make structural lines clearly visible across the public website. */
+.card,
+.service-card,
+.training-card,
+.gallery-item,
+.contact-item,
+.featured-card,
+input,
+textarea,
+select,
+details,
+.policy-section,
+.form-section {
+    border-color: #8f8f8f;
+}
+
+input,
+textarea,
+select {
+    border-width: 2px;
+    border-color: #666666;
+}
+
+/* About page Photo 5: keep the existing width and reduce only its height by half. */
+.about-page .location-image img[src*="photo%20%285%29.jpeg"],
+.about-page .location-image img[src*="photo (5).jpeg"] {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+}
+
+/* Clear table lines wherever the public site uses tables. */
+table {
+    border-collapse: collapse;
+}
+
+table th,
+table td {
+    border: 2px solid #666666;
+}
+
+
+/* =========================================================
+   FINAL USER CORRECTIONS — 20 AUGUST 2026
+   ========================================================= */
+
+/* About Photo 5:
+   Keep the current height exactly as established, but increase
+   the current width by 50%. Desktop: 428px -> 642px. */
+.about-page .location-image {
+    width: min(100%, 642px);
+    height: 420px;
+    min-height: 0;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.about-page .location-image a.photo5-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.about-page .location-image img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    object-fit: contain !important;
+    object-position: center;
+}
+
+/* Keep the same height on smaller screens while increasing the
+   current mobile width by 50% as requested. */
+@media (max-width: 700px) {
+    .about-page .location-image {
+        width: min(100%, 484.5px);
+        height: 310px;
+    }
+}
+
+/* FAQ: keep the outer outlines thicker, but tone down the
+   separator line between the question and its answer. */
+.policies-page .faq-section details {
+    border: 2px solid #8f8f8f !important;
+    border-radius: 8px !important;
+    padding: 14px 16px !important;
+    margin-bottom: 10px;
+}
+
+.policies-page .faq-section details summary {
+    border: 0 !important;
+    padding: 4px 0 12px !important;
+}
+
+.policies-page .faq-section details[open] summary {
+    border-bottom: 1px solid rgba(15, 119, 117, 0.20) !important;
+}
+
+.policies-page .faq-section details p {
+    padding: 10px 0 2px !important;
+    margin: 0 !important;
+}
+
+/* Give text inside public content boxes comfortable breathing room.
+   This only changes alignment/padding, not the content itself. */
+.public-page .policy-section .container,
+.policies-page .policy-section .container,
+.policies-page .faq-section .container,
+.about-page .about-section .container,
+.services-page .service-section .container,
+.quote-form .form-section,
+.form-card,
+.policy-box {
+    box-sizing: border-box;
+}
+
+.policies-page .policy-section .container,
+.policies-page .faq-section .container {
+    padding-left: 28px !important;
+    padding-right: 28px !important;
+}
+
+.policies-page .policy-section p,
+.policies-page .policy-section li,
+.policies-page .faq-section p,
+.policies-page .faq-section summary {
+    padding-left: 2px;
+    padding-right: 2px;
+    line-height: 1.7;
+}
+
+.quote-form .form-section > p,
+.quote-form .form-section > h2,
+.quote-form .form-section > h3,
+.quote-form .form-section > .form-group,
+.quote-form .form-section > .product-options,
+.quote-form .form-section > .quantity-row {
+    max-width: 100%;
+}
+
+.quote-form .form-section {
+    padding: 24px;
+}
+
+.quote-form .service-size-container {
+    padding: 18px 0 4px;
+}
+
+.quote-form .service-size-heading {
+    margin: 0 0 14px;
+    color: var(--teal);
+}
+
+.quote-form .service-size-field {
+    margin-bottom: 16px;
+}
+
+/* Logo management */
+.current-logo-preview {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #d5d5d5;
+    border-radius: 8px;
+    background: #fff;
+    max-width: 320px;
+}
+
+.current-logo-preview img {
+    display: block;
+    width: auto;
+    max-width: 280px;
+    max-height: 180px;
+    object-fit: contain;
+    background: #fff;
+}
+
+.current-logo-preview.empty-logo span {
+    color: #666;
+}
+
+.logo-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+
+.logo-library-item {
+    border: 1px solid #d5d5d5;
+    border-radius: 8px;
+    padding: 14px;
+    background: #fff;
+}
+
+.logo-library-image {
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fafafa;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.logo-library-image img {
+    max-width: 100%;
+    max-height: 145px;
+    object-fit: contain;
+}
+
+.logo-library-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.logo-library-meta small {
+    color: #666;
+}
+
+.logo-library-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.admin-details-preview {
+    display: block;
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 700px) {
+    .policies-page .policy-section .container,
+    .policies-page .faq-section .container {
+        padding-left: 20px !important;
+        padding-right: 20px !important;
+    }
+
+    .quote-form .form-section {
+        padding: 20px 18px;
+    }
+}
+
+
+/* =========================================================
+   FINAL WEBSITE MANAGEMENT / SPACING CORRECTIONS
+========================================================= */
+
+/* Keep all footer content away from the box edge. */
+.site-footer .footer-column,
+.site-footer .testimonial-placeholder,
+.testimonial-placeholder {
+    padding: 18px !important;
+}
+
+/* Give footer grid columns a little breathing room from their outlines. */
+.site-footer .footer-grid {
+    gap: 28px;
+}
+
+/* Customer review area: text must not sit directly against the left outline. */
+.home-page .testimonial-placeholder {
+    margin-left: 6px;
+    margin-right: 6px;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+}
+
+/* Photo 5: width increased by 50%, height retained, and image remains clickable. */
+.about-page .location-image {
+    width: min(100%, 642px) !important;
+    height: 420px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+.about-page .location-image a.photo5-link {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+.about-page .location-image img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+}
+@media (max-width: 700px) {
+    .about-page .location-image {
+        width: min(100%, 484.5px) !important;
+        height: 310px !important;
+    }
+}
+
+/* Dynamically added website content from the admin dashboard. */
+.admin-managed-content {
+    background: #ffffff;
+    padding: 28px 0;
+}
+.admin-managed-content .container {
+    border: 2px solid #666666;
+    padding: 20px;
+    border-radius: 8px;
+}
+.admin-managed-content h2 {
+    margin-top: 0;
+}
+.admin-managed-content p {
+    margin: 0 0 14px;
+}
+.admin-managed-notice {
+    border: 2px solid #666666;
+    border-left: 6px solid var(--gold);
+    padding: 16px;
+    margin: 8px 0;
+    background: var(--teal-light);
+}
+.footer-managed-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    padding: 16px 20px 0;
+}
+.footer-managed-links a {
+    color: var(--white);
+    text-decoration: none;
+    font-weight: 700;
+}
+.footer-managed-links a:hover,
+.footer-managed-links a:focus {
+    color: var(--gold-light);
+}
+
+/* Practical Fashion Training is a page link, not a garment-order field. */
+.training-service-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 16px;
+    border: 2px solid #666666;
+    border-radius: 6px;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    font-weight: 700;
+    text-decoration: none;
+}
+.training-service-link:hover,
+.training-service-link:focus {
+    background: var(--teal);
+    color: var(--white);
+}
+
+/* Admin order/training detail modal header. */
+.submission-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+.submission-modal-header h2 {
+    margin: 0;
+}
+@media (max-width: 700px) {
+    .submission-modal-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+/* FINAL PHOTO 5 CORRECTION — 21 AUGUST 2026
+   Keep the existing Photo 5 section/container height exactly as it is.
+   Display the photograph itself in a portrait frame without extending
+   the section. The image remains clickable. */
+.about-page .location-image {
+    height: 420px !important;
+    width: min(100%, 642px) !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.about-page .location-image a.photo5-link {
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+.about-page .location-image img {
+    width: auto !important;
+    height: 100% !important;
+    max-width: 78% !important;
+    max-height: 100% !important;
+    aspect-ratio: 3 / 4 !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    display: block !important;
+}
+@media (max-width: 700px) {
+    .about-page .location-image {
+        height: 310px !important;
+        width: min(100%, 484.5px) !important;
+    }
+    .about-page .location-image img {
+        max-width: 78% !important;
+    }
+}
+
+
+/* =========================================================
+   ROBUST EMAIL FALLBACK + SITE-WIDE HELP CHAT
+========================================================= */
+
+.aprils-email-fallback {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,.58);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .22s ease, visibility .22s ease;
+}
+.aprils-email-fallback.is-open {
+    opacity: 1;
+    visibility: visible;
+}
+.aprils-email-fallback-card {
+    width: min(100%, 430px);
+    background: #fff;
+    border-radius: 14px;
+    padding: 30px;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,.28);
+    text-align: center;
+    transform: translateY(14px) scale(.98);
+    transition: transform .22s ease;
+}
+.aprils-email-fallback.is-open .aprils-email-fallback-card {
+    transform: translateY(0) scale(1);
+}
+.aprils-email-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 0;
+    background: transparent;
+    font-size: 30px;
+    line-height: 1;
+    cursor: pointer;
+    color: #333;
+}
+.aprils-email-icon {
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 14px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+    font-size: 27px;
+}
+.aprils-email-fallback-card h3 {
+    margin: 0 0 10px;
+}
+.aprils-email-fallback-card p {
+    color: #555;
+    line-height: 1.6;
+}
+.aprils-email-gmail,
+.aprils-email-copy {
+    width: 100%;
+    display: block;
+    box-sizing: border-box;
+    padding: 13px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    margin-top: 10px;
+}
+.aprils-email-gmail {
+    background: var(--teal);
+    color: #fff;
+}
+.aprils-email-copy {
+    border: 2px solid var(--teal);
+    background: #fff;
+    color: var(--teal-dark);
+}
+.aprils-email-small {
+    font-size: 13px;
+    margin-bottom: 0;
+    word-break: break-word;
+}
+
+/* Floating chat button */
+#aprilsHelpWidget {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 99990;
+    font-family: inherit;
+}
+.aprils-chat-launcher {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 54px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--teal);
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(0,0,0,.22);
+    animation: aprilsChatFloat 3.2s ease-in-out infinite;
+}
+.aprils-chat-launcher:hover,
+.aprils-chat-launcher:focus-visible {
+    transform: translateY(-2px);
+}
+.aprils-chat-bubble-icon {
+    font-size: 22px;
+}
+.aprils-chat-pulse {
+    position: absolute;
+    inset: -5px;
+    border-radius: inherit;
+    border: 2px solid rgba(197,160,70,.65);
+    animation: aprilsChatPulse 2.1s ease-out infinite;
+    pointer-events: none;
+}
+.aprils-chat-panel {
+    position: absolute;
+    right: 0;
+    bottom: 68px;
+    width: min(360px, calc(100vw - 30px));
+    overflow: hidden;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 18px 55px rgba(0,0,0,.25);
+    opacity: 0;
+    transform: translateY(12px) scale(.97);
+    transition: opacity .22s ease, transform .22s ease;
+}
+.aprils-chat-panel.is-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+.aprils-chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 17px 18px;
+    background: var(--teal);
+    color: #fff;
+}
+.aprils-chat-header strong {
+    display: block;
+    font-size: 17px;
+}
+.aprils-chat-header span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: .9;
+}
+.aprils-chat-header span i {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #67e58d;
+}
+.aprils-chat-close {
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+}
+.aprils-chat-body {
+    padding: 18px;
+}
+.aprils-chat-welcome {
+    padding: 14px;
+    border-radius: 12px;
+    background: var(--teal-light);
+    color: var(--teal-dark);
+}
+.aprils-chat-welcome p {
+    margin: 6px 0 0;
+    line-height: 1.5;
+    font-size: 14px;
+}
+.aprils-chat-actions {
+    display: grid;
+    gap: 9px;
+    margin: 14px 0;
+}
+.aprils-chat-actions a {
+    display: block;
+    padding: 11px 13px;
+    border-radius: 8px;
+    text-align: center;
+    text-decoration: none;
+    font-weight: 800;
+}
+.aprils-chat-whatsapp {
+    background: #168c4b;
+    color: #fff;
+}
+.aprils-chat-email {
+    background: #fff;
+    color: var(--teal-dark);
+    border: 2px solid var(--teal);
+}
+.aprils-chat-label {
+    display: block;
+    margin: 10px 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+}
+#aprilsChatMessage {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 78px;
+    padding: 11px 12px;
+    border: 1px solid #cfcfcf;
+    border-radius: 8px;
+    font: inherit;
+}
+.aprils-chat-send {
+    width: 100%;
+    margin-top: 9px;
+    padding: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--gold);
+    color: #111;
+    font: inherit;
+    font-weight: 900;
+    cursor: pointer;
+}
+.aprils-chat-note {
+    display: block;
+    margin-top: 9px;
+    color: #666;
+    font-size: 11px;
+    line-height: 1.45;
+}
+@keyframes aprilsChatPulse {
+    0% { transform: scale(.96); opacity: .8; }
+    70%, 100% { transform: scale(1.08); opacity: 0; }
+}
+@keyframes aprilsChatFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+@media (max-width: 600px) {
+    #aprilsHelpWidget {
+        right: 14px;
+        bottom: 14px;
+    }
+    .aprils-chat-launcher {
+        min-height: 50px;
+        padding: 0 15px;
+    }
+    .aprils-chat-panel {
+        bottom: 62px;
+        width: min(360px, calc(100vw - 28px));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .aprils-chat-launcher,
+    .aprils-chat-pulse {
+        animation: none !important;
+    }
+    .aprils-chat-panel,
+    .aprils-email-fallback,
+    .aprils-email-fallback-card {
+        transition: none !important;
+    }
+}
+
+
+/* =========================================================
+   FINAL PUBLIC CORRECTIONS — POLICY / STREETWEAR
+========================================================= */
+.policy-training-note {
+    margin-top: 28px;
+    padding: 20px 22px;
+    border-left: 5px solid var(--teal);
+    background: rgba(0, 140, 149, 0.06);
+}
+.policy-training-note h3 {
+    color: var(--teal) !important;
+    font-weight: 800;
+    margin: 0 0 16px;
+}
+.policy-training-note p,
+.policy-training-note ul {
+    margin-bottom: 0;
+}
+.streetwear-global-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    margin: 18px 0 26px;
+    padding: 18px;
+    border: 1.5px solid #8a8a8a;
+    border-radius: 8px;
+    background: #fff;
+}
+.streetwear-global-details .form-group {
+    margin-bottom: 0;
+}
+.streetwear-global-details label {
+    font-weight: 700;
+}
+@media (max-width: 700px) {
+    .streetwear-global-details {
+        grid-template-columns: 1fr;
+    }
+}
+.shop-availability{font-weight:700;margin:8px 0 14px;letter-spacing:.2px}
+.invoice-footer{text-align:center;margin-top:28px;padding-top:12px;border-top:1px solid #aaa;font-size:12px;font-style:italic;color:#555}
+.invoice-thank-you{text-align:center;margin-top:14px}
+.invoice-payment-note{border-left:4px solid #d6a542;background:#f8f8f8}
+
+/* Requested catalogue hierarchy: Joggers is a simple subheading, not a black group box. */
+.catalogue-subgroup-title {
+    margin: 14px 0 8px;
+    color: #c9a24a;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+/* Subtle visual feedback on every clickable control without changing its label. */
+button:active, a.btn:active, a.button:active, .check-option:active {
+    transform: translateY(1px);
+    opacity: .78;
+}
+
+
+/* =========================================================
+   ORDER QUOTE CATALOGUE + ADMIN TRACKING REFINEMENTS
+========================================================= */
+.quote-form .training-service-option{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    background:var(--teal,#0f7775);
+    color:#fff;
+    border-radius:8px;
+    padding:12px 14px;
+}
+.quote-form .training-service-option a{color:#fff;text-decoration:underline;font-weight:700}
+.quote-form .training-service-option input{accent-color:#fff}
+.quote-form .joggers-subgroup-title{
+    background:#000;
+    color:#fff;
+    display:inline-block;
+    padding:7px 12px;
+    border-radius:5px;
+    margin:12px 0 8px;
+    font-weight:800;
+}
+.quote-form .jogger-product-row .form-group:first-child{
+    max-width:none;
+}
+.quote-form .jogger-product-row .form-group:first-child > label,
+.quote-form .catalogue-other-row .others-choice{
+    display:block;
+    width:100%;
+    background:transparent;
+    color:#000;
+    border-radius:0;
+    padding:0;
+    margin-bottom:6px;
+    font-weight:400;
+}
+.quote-form .jogger-product-row .form-group:first-child input{
+    display:block;
+    width:100%;
+}
+
+.saved-record-columns{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+.saved-record-columns>div{
+    min-width:0;
+}
+.saved-record-columns h4{
+    color:var(--teal,#0f7775);
+    margin:0 0 10px;
+}
+.tracking-board{
+    display:grid;
+    grid-template-columns:repeat(7,minmax(220px,1fr));
+    gap:14px;
+    align-items:start;
+    overflow-x:auto;
+    padding-bottom:8px;
+}
+.tracking-column{
+    min-width:220px;
+    background:#f7f7f7;
+    border:1px solid #ddd;
+    border-radius:10px;
+    overflow:hidden;
+}
+.tracking-column>header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px;
+    background:#fff;
+    border-bottom:1px solid #ddd;
+}
+.tracking-column>header h3{margin:0;font-size:15px}
+.tracking-column>header strong{
+    display:grid;place-items:center;
+    min-width:28px;height:28px;border-radius:50%;
+    background:var(--teal,#0f7775);color:#fff;
+}
+.tracking-column-body{
+    padding:10px;
+    min-height:140px;
+    display:grid;
+    gap:10px;
+}
+.tracking-order-card{
+    background:#fff;
+    border:1px solid #d8d8d8;
+    border-radius:8px;
+    padding:11px;
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.tracking-card-head{
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:8px;
+}
+.tracking-card-head strong{display:block}
+.tracking-card-head small{display:block;color:#666;margin-top:3px}
+.tracking-card-head time{font-size:11px;color:#777;white-space:nowrap}
+.tracking-card-data{
+    display:grid;
+    gap:7px;
+    font-size:12px;
+}
+.tracking-card-data span{display:block}
+.tracking-card-data b{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#666;margin-bottom:2px}
+.tracking-card-status{margin:9px 0}
+.tracking-card-status .status-control{display:flex;flex-wrap:wrap;gap:6px}
+.tracking-card-status select{min-width:0;max-width:100%;flex:1}
+.tracking-card-due{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:6px;
+    margin-bottom:8px;
+}
+.tracking-card-due label{font-size:10px;font-weight:700;color:#666}
+.tracking-card-due input{display:block;width:100%;box-sizing:border-box;margin-top:3px;font-size:11px}
+.tracking-order-card>button{width:100%}
+.tracking-empty{color:#888;font-size:12px;text-align:center;padding:20px 5px}
+@media(max-width:1050px){
+    .tracking-board{grid-template-columns:repeat(5,240px)}
+}
+@media(max-width:800px){
+    .saved-record-columns{grid-template-columns:1fr}
+}
+
+<style>
+.collection-preview-card,.collection-form-paper{background:#fff;border:2px solid #666;border-radius:8px;padding:18px;margin-top:16px}
+.collection-form-paper{width:210mm;max-width:210mm;min-height:297mm;box-sizing:border-box;margin:20px auto;border-radius:0}
+.collection-brand{display:flex;align-items:center;gap:15px;border-bottom:3px solid #0f7775;padding-bottom:15px}
+.collection-brand img{width:85px;height:85px;object-fit:contain}.collection-brand h1{color:#0f7775;margin:0}.collection-title{margin-left:auto;text-align:right;color:#0f7775}
+.collection-customer{margin:20px 0;padding:12px;border:1px solid #aaa}.collection-form-paper table{width:100%;border-collapse:collapse;margin-top:20px}.collection-form-paper th,.collection-form-paper td{border:1px solid #777;padding:9px;text-align:left}.collection-form-paper th{background:#0f7775;color:#fff}.collection-summary{margin:20px 0 0 auto;max-width:330px;text-align:right}.collection-details{margin-top:22px;padding:14px;border:1px solid #aaa}.collection-note{text-align:center;margin-top:28px;font-weight:700}.collection-id{text-align:center;font-size:11px;color:#666}
+@media(max-width:800px){.collection-form-paper{width:100%;max-width:100%;min-height:auto}.collection-brand{flex-wrap:wrap}.collection-title{margin-left:0;text-align:left;width:100%}}
+</style>
