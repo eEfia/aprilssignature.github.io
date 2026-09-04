@@ -1,5 +1,5 @@
 /* =========================================================
-   APRILS SIGNA
+   APRILS SIGNATURE
    MASTER WEBSITE STYLESHEET
    ========================================================= */
 
@@ -13,7 +13,7 @@
 }
 
 html {
-    scroll-behavior: smo
+    scroll-behavior: smooth;
 }
 
 body {
