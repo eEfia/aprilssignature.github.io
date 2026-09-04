@@ -9,7 +9,7 @@ const msg=(t,k='success')=>window.message?window.message(t,k):console[k==='error
 function normalizeLabels(){
   $$('button,a').forEach(el=>{const t=(el.textContent||'').trim();
     if(/^share$/i.test(t)) el.textContent='Share PDF';
-    if(/^view(?: details)?$/i.test(t)) el.textContent='View Full Details';
+    if(/^view(?: details)?$/i.test(t)) el.textContent=tails';
   });
 }
 
