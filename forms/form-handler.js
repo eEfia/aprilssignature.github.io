@@ -8,7 +8,7 @@ This file prepares the website forms for submission.
 
 Forms covered:
 1. Order / Quote Requests
-2. Traion
+2. Training Registration
 3. Contact Messages
 
 IMPORTANT:
@@ -36,7 +36,7 @@ will be connected separately.
         if (!existingMessage) {
 
             existingMessage =
-                document);
+                document.createElement("div");
 
             existingMessage.className =
                 "form-status";
