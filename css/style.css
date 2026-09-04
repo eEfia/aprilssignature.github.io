@@ -13,13 +13,13 @@
 }
 
 html {
-    scroll-behavi
+    scroll-behavior: smooth;
 }
 
 body {
     margin: 0;
     padding: 0;
-    font-family: Arial, Helveticaif;
+    font-family: Arial, Helvetica, sans-serif;
     background: #ffffff;
     color: #222222;
     line-height: 1.6;
